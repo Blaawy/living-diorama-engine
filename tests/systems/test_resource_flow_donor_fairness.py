@@ -10,11 +10,6 @@ Fairness now has to hold on both sides at once, and it must not cost throughput,
 so these tests check the split, the caps, and the total moved.
 """
 
-from living_diorama.entities import ResourceType
-from living_diorama.events import EventBus, EventLog, EventType
-from living_diorama.systems import ResourceFlowSystem
-from living_diorama.systems._flow_allocation import allocate
-from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 from systems_builders import (
     FOOD_ONLY_ALLOCATION,
     LAW_ID,
@@ -24,6 +19,12 @@ from systems_builders import (
     stocks,
     total_of,
 )
+
+from living_diorama.entities import ResourceType
+from living_diorama.events import EventBus, EventLog, EventType
+from living_diorama.systems import ResourceFlowSystem
+from living_diorama.systems._flow_allocation import allocate
+from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 
 
 def build_flow(reserve_ticks: float = 1.0) -> ResourceFlowSystem:
@@ -59,8 +60,7 @@ def shared_receiver_world(*, d1_food: float, d2_food: float, receiver_population
         [
             build_district("d1", population=0, consumption_rate=1.0, food=d1_food),
             build_district("d2", population=0, consumption_rate=1.0, food=d2_food),
-            build_district("r", population=receiver_population, consumption_rate=1.0,
-                           food=0.0),
+            build_district("r", population=receiver_population, consumption_rate=1.0, food=0.0),
         ],
         boundaries=[("d1r", "d1", "r"), ("d2r", "d2", "r")],
         law=build_law(),
@@ -161,8 +161,7 @@ def test_receiver_capacity_cap_holds_across_many_donors() -> None:
             build_district("d4", population=0, consumption_rate=1.0, food=100.0),
             build_district("r", population=20, consumption_rate=1.0, food=0.0),
         ],
-        boundaries=[("b1", "d1", "r"), ("b2", "d2", "r"), ("b3", "d3", "r"),
-                    ("b4", "d4", "r")],
+        boundaries=[("b1", "d1", "r"), ("b2", "d2", "r"), ("b3", "d3", "r"), ("b4", "d4", "r")],
         law=build_law(),
         tick=1,
     )
@@ -180,14 +179,13 @@ def test_renaming_donors_does_not_change_who_bears_the_cost() -> None:
     in one and 'zzz' in the other. Mapped back by surplus, the contributions
     must match.
     """
+
     def build(small_donor_id: str, large_donor_id: str) -> dict[str, float]:
         """Run the scenario with the two donors named as given."""
         world = build_world(
             [
-                build_district(small_donor_id, population=0, consumption_rate=1.0,
-                               food=30.0),
-                build_district(large_donor_id, population=0, consumption_rate=1.0,
-                               food=70.0),
+                build_district(small_donor_id, population=0, consumption_rate=1.0, food=30.0),
+                build_district(large_donor_id, population=0, consumption_rate=1.0, food=70.0),
                 build_district("receiver", population=20, consumption_rate=1.0, food=0.0),
             ],
             boundaries=[
@@ -214,6 +212,7 @@ def test_renaming_donors_does_not_change_who_bears_the_cost() -> None:
 
 def test_registration_order_does_not_change_the_fair_split() -> None:
     """Reversing donor, receiver, and boundary registration changes nothing."""
+
     def build(reverse: bool):
         """Build the scenario, optionally reversing all registration orders."""
         districts = [
@@ -223,8 +222,10 @@ def test_registration_order_does_not_change_the_fair_split() -> None:
             build_district("r2", population=50, consumption_rate=1.0, food=0.0),
         ]
         boundaries = [
-            ("b1", "d1", "r1"), ("b2", "d1", "r2"),
-            ("b3", "d2", "r1"), ("b4", "d2", "r2"),
+            ("b1", "d1", "r1"),
+            ("b2", "d1", "r2"),
+            ("b3", "d2", "r1"),
+            ("b4", "d2", "r2"),
         ]
         if reverse:
             districts = list(reversed(districts))
@@ -281,9 +282,12 @@ def test_dense_graph_respects_every_cap_and_strands_nothing() -> None:
             build_district("r2", population=40, consumption_rate=1.0, food=0.0),
         ],
         boundaries=[
-            ("b1", "d1", "r1"), ("b2", "d1", "r2"),
-            ("b3", "d2", "r1"), ("b4", "d2", "r2"),
-            ("b5", "d3", "r1"), ("b6", "d3", "r2"),
+            ("b1", "d1", "r1"),
+            ("b2", "d1", "r2"),
+            ("b3", "d2", "r1"),
+            ("b4", "d2", "r2"),
+            ("b5", "d3", "r1"),
+            ("b6", "d3", "r2"),
         ],
         law=build_law(),
         tick=1,
@@ -311,6 +315,7 @@ def test_dense_graph_respects_every_cap_and_strands_nothing() -> None:
 
 def test_dense_graph_is_reproducible() -> None:
     """The dense case must give the same answer every time it is run."""
+
     def build():
         """Build the dense scenario fresh for each run."""
         return build_world(
@@ -320,8 +325,12 @@ def test_dense_graph_is_reproducible() -> None:
                 build_district("r1", population=20, consumption_rate=1.0, food=0.0),
                 build_district("r2", population=40, consumption_rate=1.0, food=0.0),
             ],
-            boundaries=[("b1", "d1", "r1"), ("b2", "d1", "r2"),
-                        ("b3", "d2", "r1"), ("b4", "d2", "r2")],
+            boundaries=[
+                ("b1", "d1", "r1"),
+                ("b2", "d1", "r2"),
+                ("b3", "d2", "r1"),
+                ("b4", "d2", "r2"),
+            ],
             law=build_law(),
             tick=1,
         )
@@ -330,21 +339,30 @@ def test_dense_graph_is_reproducible() -> None:
     for _ in range(3):
         world = build()
         log = run_flow(world)
-        runs.append((stocks(world, ResourceType.FOOD),
-                     [event.payload_as_dict() for event in log]))
+        runs.append((stocks(world, ResourceType.FOOD), [event.payload_as_dict() for event in log]))
     assert runs[0] == runs[1] == runs[2]
 
 
 def test_allocation_never_exceeds_donor_or_receiver_capacity() -> None:
     """The allocation module's caps, exercised directly across many shapes."""
     cases = [
-        ({"d1": 100.0, "d2": 100.0}, {"r": 10.0},
-         {"d1": {"r"}, "d2": {"r"}, "r": {"d1", "d2"}}),
-        ({"d1": 1.0, "d2": 2.0, "d3": 3.0}, {"r1": 4.0, "r2": 4.0},
-         {"d1": {"r1"}, "d2": {"r1", "r2"}, "d3": {"r2"},
-          "r1": {"d1", "d2"}, "r2": {"d2", "d3"}}),
-        ({"d1": 50.0}, {"r1": 10.0, "r2": 20.0, "r3": 30.0},
-         {"d1": {"r1", "r2", "r3"}, "r1": {"d1"}, "r2": {"d1"}, "r3": {"d1"}}),
+        ({"d1": 100.0, "d2": 100.0}, {"r": 10.0}, {"d1": {"r"}, "d2": {"r"}, "r": {"d1", "d2"}}),
+        (
+            {"d1": 1.0, "d2": 2.0, "d3": 3.0},
+            {"r1": 4.0, "r2": 4.0},
+            {
+                "d1": {"r1"},
+                "d2": {"r1", "r2"},
+                "d3": {"r2"},
+                "r1": {"d1", "d2"},
+                "r2": {"d2", "d3"},
+            },
+        ),
+        (
+            {"d1": 50.0},
+            {"r1": 10.0, "r2": 20.0, "r3": 30.0},
+            {"d1": {"r1", "r2", "r3"}, "r1": {"d1"}, "r2": {"d1"}, "r3": {"d1"}},
+        ),
     ]
 
     for surplus, need, adjacency in cases:
@@ -368,8 +386,12 @@ def test_allocation_leaves_no_usable_edge_unused() -> None:
     surplus = {"d1": 12.0, "d2": 8.0, "d3": 30.0}
     need = {"r1": 15.0, "r2": 25.0, "r3": 5.0}
     adjacency = {
-        "d1": {"r1", "r2"}, "d2": {"r2"}, "d3": {"r1", "r3"},
-        "r1": {"d1", "d3"}, "r2": {"d1", "d2"}, "r3": {"d3"},
+        "d1": {"r1", "r2"},
+        "d2": {"r2"},
+        "d3": {"r1", "r3"},
+        "r1": {"d1", "d3"},
+        "r2": {"d1", "d2"},
+        "r3": {"d3"},
     }
     staged = allocate(surplus, need, adjacency)
 

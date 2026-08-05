@@ -11,6 +11,7 @@ from dataclasses import FrozenInstanceError
 from types import MappingProxyType
 
 import pytest
+
 from living_diorama.entities import ResourcePool, ResourceType
 
 

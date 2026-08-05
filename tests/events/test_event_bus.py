@@ -7,6 +7,7 @@ pin down the exact semantics rather than the happy path alone.
 """
 
 import pytest
+
 from living_diorama.events import Event, EventBus, EventLog, EventType
 
 

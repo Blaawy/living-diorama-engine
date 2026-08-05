@@ -3,10 +3,6 @@
 import json
 
 import pytest
-from living_diorama.entities import ResourceType
-from living_diorama.events import EventBus, EventLog, EventType
-from living_diorama.systems import ResourceFlowSystem
-from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 from systems_builders import (
     EVEN_ALLOCATION,
     FOOD_ONLY_ALLOCATION,
@@ -19,6 +15,11 @@ from systems_builders import (
     stocks,
     total_of,
 )
+
+from living_diorama.entities import ResourceType
+from living_diorama.events import EventBus, EventLog, EventType
+from living_diorama.systems import ResourceFlowSystem
+from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 
 
 def build_flow(reserve_ticks: float = 1.0, allocation=FOOD_ONLY_ALLOCATION):
@@ -92,8 +93,7 @@ def test_effectively_zero_transfers_emit_no_events() -> None:
     """A transfer smaller than the tolerance is arithmetic noise, not an event."""
     world = build_world(
         [
-            build_district("a", population=0, consumption_rate=1.0,
-                           food=FLOAT_TOLERANCE / 10),
+            build_district("a", population=0, consumption_rate=1.0, food=FLOAT_TOLERANCE / 10),
             build_district("b", population=10, consumption_rate=1.0, food=0.0),
         ],
         boundaries=[("ab", "a", "b")],
@@ -107,10 +107,12 @@ def test_event_order_follows_resource_then_donor_then_receiver() -> None:
     """Order is fixed by explicit resource order, then donor id, then receiver id."""
     world = build_world(
         [
-            build_district("d_one", population=0, consumption_rate=1.0,
-                           food=100.0, materials=100.0),
-            build_district("d_two", population=0, consumption_rate=1.0,
-                           food=100.0, materials=100.0),
+            build_district(
+                "d_one", population=0, consumption_rate=1.0, food=100.0, materials=100.0
+            ),
+            build_district(
+                "d_two", population=0, consumption_rate=1.0, food=100.0, materials=100.0
+            ),
             build_district("r_one", population=10, consumption_rate=1.0),
             build_district("r_two", population=10, consumption_rate=1.0),
         ],
@@ -123,14 +125,17 @@ def test_event_order_follows_resource_then_donor_then_receiver() -> None:
     )
     log = run_flow(world, build_flow(allocation=EVEN_ALLOCATION))
     ordering = [
-        (event.payload["resource_type"], event.payload["from_district_id"],
-         event.payload["to_district_id"])
+        (
+            event.payload["resource_type"],
+            event.payload["from_district_id"],
+            event.payload["to_district_id"],
+        )
         for event in log
     ]
 
     assert ordering == sorted(
-        ordering, key=lambda item: (["FOOD", "MATERIALS", "ENERGY"].index(str(item[0])),
-                                    item[1], item[2])
+        ordering,
+        key=lambda item: (["FOOD", "MATERIALS", "ENERGY"].index(str(item[0])), item[1], item[2]),
     )
     assert ordering[0][0] == "FOOD"
     assert ordering[-1][0] == "MATERIALS"
@@ -138,6 +143,7 @@ def test_event_order_follows_resource_then_donor_then_receiver() -> None:
 
 def test_event_order_is_independent_of_insertion_order() -> None:
     """Reordering registration must not reorder the published history."""
+
     def make(order):
         """Build the world with districts registered in the given order."""
         districts = {
@@ -164,12 +170,15 @@ def test_resources_are_conserved_for_every_resource_type() -> None:
     """Flow moves quantity; it never creates or destroys any."""
     world = build_world(
         [
-            build_district("a", population=0, consumption_rate=1.0,
-                           food=60.0, materials=40.0, energy=20.0),
-            build_district("b", population=20, consumption_rate=1.0,
-                           food=0.0, materials=0.0, energy=0.0),
-            build_district("c", population=30, consumption_rate=1.0,
-                           food=5.0, materials=5.0, energy=5.0),
+            build_district(
+                "a", population=0, consumption_rate=1.0, food=60.0, materials=40.0, energy=20.0
+            ),
+            build_district(
+                "b", population=20, consumption_rate=1.0, food=0.0, materials=0.0, energy=0.0
+            ),
+            build_district(
+                "c", population=30, consumption_rate=1.0, food=5.0, materials=5.0, energy=5.0
+            ),
         ],
         boundaries=[("ab", "a", "b"), ("ac", "a", "c")],
         law=build_law(),
@@ -193,8 +202,12 @@ def test_conservation_holds_with_duplicate_boundaries_and_many_participants() ->
             build_district("r2", population=60, consumption_rate=1.0),
         ],
         boundaries=[
-            ("a", "d1", "r1"), ("b", "d1", "r1"), ("c", "d1", "r2"),
-            ("d", "d2", "r1"), ("e", "d2", "r2"), ("f", "d2", "r2"),
+            ("a", "d1", "r1"),
+            ("b", "d1", "r1"),
+            ("c", "d1", "r2"),
+            ("d", "d2", "r1"),
+            ("e", "d2", "r2"),
+            ("f", "d2", "r2"),
         ],
         law=build_law(),
         tick=1,
@@ -208,10 +221,8 @@ def test_untouched_resources_are_left_exactly_alone() -> None:
     """A resource with no staged transfer keeps its exact quantity."""
     world = build_world(
         [
-            build_district("a", population=0, consumption_rate=1.0, food=30.0,
-                           materials=7.5),
-            build_district("b", population=10, consumption_rate=1.0, food=0.0,
-                           materials=7.5),
+            build_district("a", population=0, consumption_rate=1.0, food=30.0, materials=7.5),
+            build_district("b", population=10, consumption_rate=1.0, food=0.0, materials=7.5),
         ],
         boundaries=[("ab", "a", "b")],
         law=build_law(),
@@ -272,12 +283,11 @@ def test_flow_does_not_consume_rng() -> None:
 
 def test_flow_leaves_every_non_resource_field_untouched() -> None:
     """Flow moves resources only; nothing else in the world is its business."""
-    donor = build_district("a", population=5, consumption_rate=1.0,
-                           production_rate=3.0, food=100.0)
-    receiver = build_district("b", population=10, consumption_rate=2.0,
-                              production_rate=4.0, food=0.0)
-    world = build_world([donor, receiver], boundaries=[("ab", "a", "b")],
-                        law=build_law(), tick=1)
+    donor = build_district("a", population=5, consumption_rate=1.0, production_rate=3.0, food=100.0)
+    receiver = build_district(
+        "b", population=10, consumption_rate=2.0, production_rate=4.0, food=0.0
+    )
+    world = build_world([donor, receiver], boundaries=[("ab", "a", "b")], law=build_law(), tick=1)
     world.add_wall(build_wall("wall", "ab", active=False))
     world.add_infrastructure(build_infrastructure("infra", "ab"))
 
@@ -316,9 +326,7 @@ class _NonConservingFlowSystem(ResourceFlowSystem):
     @staticmethod
     def _apply_deltas(snapshot, staged):
         """Return post-transfer stock that does not conserve FOOD."""
-        result = {
-            district_id: dict(amounts) for district_id, amounts in snapshot.items()
-        }
+        result = {district_id: dict(amounts) for district_id, amounts in snapshot.items()}
         result["b"][ResourceType.FOOD] += 500.0
         return result
 
@@ -343,8 +351,9 @@ def test_multiple_resource_types_transfer_in_one_update() -> None:
     """A single update can move more than one kind of resource."""
     world = build_world(
         [
-            build_district("a", population=0, consumption_rate=1.0,
-                           food=100.0, materials=100.0, energy=100.0),
+            build_district(
+                "a", population=0, consumption_rate=1.0, food=100.0, materials=100.0, energy=100.0
+            ),
             build_district("b", population=10, consumption_rate=1.0),
         ],
         boundaries=[("ab", "a", "b")],

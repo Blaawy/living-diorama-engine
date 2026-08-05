@@ -2,10 +2,6 @@
 
 import json
 
-from living_diorama.entities import ResourceType
-from living_diorama.events import EventBus, EventLog, EventType
-from living_diorama.systems import ConsumptionSystem
-from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 from systems_builders import (
     EVEN_ALLOCATION,
     build_district,
@@ -14,6 +10,11 @@ from systems_builders import (
     build_wall,
     build_world,
 )
+
+from living_diorama.entities import ResourceType
+from living_diorama.events import EventBus, EventLog, EventType
+from living_diorama.systems import ConsumptionSystem
+from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 
 
 def run_consumption(world, allocation=EVEN_ALLOCATION) -> EventLog:
@@ -38,7 +39,11 @@ def test_demand_is_split_by_allocation_and_consumed_from_stock() -> None:
     world = build_world(
         [
             build_district(
-                "a", population=10, consumption_rate=2.0, food=100.0, materials=100.0,
+                "a",
+                population=10,
+                consumption_rate=2.0,
+                food=100.0,
+                materials=100.0,
                 energy=100.0,
             )
         ],
@@ -127,8 +132,10 @@ def test_districts_are_processed_in_sorted_id_order() -> None:
 def test_emits_exactly_one_correct_event_per_district() -> None:
     """One event per district per tick, with the right type and tick."""
     world = build_world(
-        [build_district("a", population=1, consumption_rate=1.0),
-         build_district("b", population=1, consumption_rate=1.0)],
+        [
+            build_district("a", population=1, consumption_rate=1.0),
+            build_district("b", population=1, consumption_rate=1.0),
+        ],
         tick=9,
     )
     log = run_consumption(world)
@@ -146,7 +153,12 @@ def test_event_payload_uses_resource_string_values_and_is_json_safe() -> None:
     payload = run_consumption(world).events()[0].payload_as_dict()
 
     assert set(payload) == {
-        "district_id", "requested_total", "consumed_total", "unmet_total", "consumed", "unmet",
+        "district_id",
+        "requested_total",
+        "consumed_total",
+        "unmet_total",
+        "consumed",
+        "unmet",
     }
     assert set(payload["consumed"]) == {"FOOD", "MATERIALS", "ENERGY"}  # type: ignore[arg-type]
     assert json.loads(json.dumps(payload, allow_nan=False)) == payload
@@ -154,8 +166,7 @@ def test_event_payload_uses_resource_string_values_and_is_json_safe() -> None:
 
 def test_zero_population_still_emits_an_event_and_changes_nothing() -> None:
     """An empty district consumes nothing but is still part of the record."""
-    world = build_world([build_district("a", population=0, consumption_rate=5.0, food=4.0)],
-                        tick=1)
+    world = build_world([build_district("a", population=0, consumption_rate=5.0, food=4.0)], tick=1)
     log = run_consumption(world)
     assert len(log) == 1
     assert log.events()[0].payload["requested_total"] == 0.0
@@ -164,8 +175,9 @@ def test_zero_population_still_emits_an_event_and_changes_nothing() -> None:
 
 def test_zero_consumption_rate_still_emits_an_event() -> None:
     """A zero rate is a valid configuration, not an absence of the district."""
-    world = build_world([build_district("a", population=50, consumption_rate=0.0, food=4.0)],
-                        tick=1)
+    world = build_world(
+        [build_district("a", population=50, consumption_rate=0.0, food=4.0)], tick=1
+    )
     log = run_consumption(world)
     assert len(log) == 1
     assert world.districts["a"].resources.amount_of(ResourceType.FOOD) == 4.0

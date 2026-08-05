@@ -7,9 +7,6 @@ without obstructing anything.
 """
 
 import pytest
-from living_diorama.entities import Boundary, ResourceType
-from living_diorama.events import EventBus, EventLog
-from living_diorama.systems import ResourceFlowSystem
 from systems_builders import (
     EVEN_ALLOCATION,
     LAW_ID,
@@ -19,6 +16,10 @@ from systems_builders import (
     build_wall,
     build_world,
 )
+
+from living_diorama.entities import Boundary, ResourceType
+from living_diorama.events import EventBus, EventLog
+from living_diorama.systems import ResourceFlowSystem
 
 
 def build_flow(reserve_ticks: float = 1.0) -> ResourceFlowSystem:
@@ -80,17 +81,29 @@ def test_wall_and_boundary_state_are_never_modified() -> None:
     world.add_wall(build_wall("wall", "bound", active=False))
     wall = world.walls["wall"]
     boundary = world.boundaries["bound"]
-    wall_before = (wall.active, wall.permanent, wall.integrity, wall.boundary_id,
-                   wall.dependency_score, wall.transport_dependency, wall.resource_dependency)
+    wall_before = (
+        wall.active,
+        wall.permanent,
+        wall.integrity,
+        wall.boundary_id,
+        wall.dependency_score,
+        wall.transport_dependency,
+        wall.resource_dependency,
+    )
     boundary_before = (boundary.wall_id, boundary.district_a_id, boundary.district_b_id)
 
     run_flow(world)
 
-    assert (wall.active, wall.permanent, wall.integrity, wall.boundary_id,
-            wall.dependency_score, wall.transport_dependency,
-            wall.resource_dependency) == wall_before
-    assert (boundary.wall_id, boundary.district_a_id,
-            boundary.district_b_id) == boundary_before
+    assert (
+        wall.active,
+        wall.permanent,
+        wall.integrity,
+        wall.boundary_id,
+        wall.dependency_score,
+        wall.transport_dependency,
+        wall.resource_dependency,
+    ) == wall_before
+    assert (boundary.wall_id, boundary.district_a_id, boundary.district_b_id) == boundary_before
 
 
 def test_infrastructure_is_untouched_and_unused_in_this_phase() -> None:
@@ -127,9 +140,7 @@ def test_duplicate_boundaries_do_not_duplicate_need_or_capacity() -> None:
     run_flow(single)
     expected = single.districts["b"].resources.amount_of(ResourceType.FOOD)
 
-    doubled = donor_receiver_world(
-        boundaries=[("bound_a", "a", "b"), ("bound_b", "a", "b")]
-    )
+    doubled = donor_receiver_world(boundaries=[("bound_a", "a", "b"), ("bound_b", "a", "b")])
     run_flow(doubled)
 
     assert doubled.districts["b"].resources.amount_of(ResourceType.FOOD) == expected
@@ -169,7 +180,7 @@ def test_a_district_cannot_transfer_to_itself() -> None:
 
 
 def test_reserve_target_uses_population_rate_allocation_and_horizon() -> None:
-    """reserve = population x consumption_rate x weight x reserve_ticks."""
+    """Reserve = population x consumption_rate x weight x reserve_ticks."""
     world = build_world(
         [
             build_district("a", population=0, consumption_rate=1.0, food=100.0),

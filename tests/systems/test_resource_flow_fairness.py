@@ -6,10 +6,6 @@ viewer could ever be shown. These tests fix the outcome against topology and
 inputs alone.
 """
 
-from living_diorama.entities import ResourceType
-from living_diorama.events import EventBus, EventLog
-from living_diorama.systems import ResourceFlowSystem
-from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 from systems_builders import (
     EVEN_ALLOCATION,
     FOOD_ONLY_ALLOCATION,
@@ -20,6 +16,11 @@ from systems_builders import (
     stocks,
     total_of,
 )
+
+from living_diorama.entities import ResourceType
+from living_diorama.events import EventBus, EventLog
+from living_diorama.systems import ResourceFlowSystem
+from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 
 
 def build_flow(reserve_ticks: float = 1.0, allocation=FOOD_ONLY_ALLOCATION):
@@ -195,10 +196,8 @@ def test_a_district_may_donate_one_resource_while_needing_another() -> None:
     """Roles are decided per resource, not per district."""
     world = build_world(
         [
-            build_district("a", population=10, consumption_rate=1.0, food=100.0,
-                           materials=0.0),
-            build_district("b", population=10, consumption_rate=1.0, food=0.0,
-                           materials=100.0),
+            build_district("a", population=10, consumption_rate=1.0, food=100.0, materials=0.0),
+            build_district("b", population=10, consumption_rate=1.0, food=0.0, materials=100.0),
         ],
         boundaries=[("ab", "a", "b")],
         law=build_law(),
@@ -275,16 +274,14 @@ def test_identical_topology_and_inputs_yield_identical_transfers() -> None:
     for _ in range(3):
         world = make_world()
         log = run_flow(world)
-        runs.append(
-            (stocks(world, ResourceType.FOOD),
-             [event.payload_as_dict() for event in log])
-        )
+        runs.append((stocks(world, ResourceType.FOOD), [event.payload_as_dict() for event in log]))
 
     assert runs[0] == runs[1] == runs[2]
 
 
 def test_duplicate_donor_receiver_connections_do_not_increase_allocation() -> None:
     """Extra parallel boundaries describe the same connection, not more capacity."""
+
     def make_world(boundaries):
         """Build the scenario with a chosen set of boundaries."""
         return build_world(
@@ -299,9 +296,7 @@ def test_duplicate_donor_receiver_connections_do_not_increase_allocation() -> No
         )
 
     single = make_world([("ab", "a", "b"), ("ac", "a", "c")])
-    doubled = make_world(
-        [("ab", "a", "b"), ("ab2", "a", "b"), ("ac", "a", "c"), ("ac2", "a", "c")]
-    )
+    doubled = make_world([("ab", "a", "b"), ("ab2", "a", "b"), ("ac", "a", "c"), ("ac2", "a", "c")])
     run_flow(single)
     run_flow(doubled)
 

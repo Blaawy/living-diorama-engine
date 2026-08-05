@@ -1,5 +1,4 @@
-"""Composition root: command-line entrypoints that wire the engine's
-modules together.
+"""Composition root for command-line entrypoints.
 
-Contains no simulation logic of its own.
+Wires the engine's modules together and contains no simulation logic of its own.
 """

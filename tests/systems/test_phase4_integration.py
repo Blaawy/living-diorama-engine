@@ -6,11 +6,6 @@ tests check the sequence as a whole, including that the event log tells the
 story in the order it happened.
 """
 
-from living_diorama.entities import ResourceType
-from living_diorama.events import EventBus, EventLog, EventType
-from living_diorama.simulation import SimulationLoop
-from living_diorama.systems import ConsumptionSystem, ProductionSystem, ResourceFlowSystem
-from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 from systems_builders import (
     FOOD_ONLY_ALLOCATION,
     LAW_ID,
@@ -21,6 +16,12 @@ from systems_builders import (
     stocks,
     total_of,
 )
+
+from living_diorama.entities import ResourceType
+from living_diorama.events import EventBus, EventLog, EventType
+from living_diorama.simulation import SimulationLoop
+from living_diorama.systems import ConsumptionSystem, ProductionSystem, ResourceFlowSystem
+from living_diorama.systems._resource_config import FLOAT_TOLERANCE
 
 
 def build_pipeline(reserve_ticks: float = 1.0) -> list:
@@ -40,10 +41,12 @@ def build_scenario(*, law=None, tick=0):
     """Build a rich district that feeds a poor one across an open boundary."""
     return build_world(
         [
-            build_district("rich", population=1, production_rate=100.0,
-                           consumption_rate=1.0, food=0.0),
-            build_district("poor", population=10, production_rate=0.0,
-                           consumption_rate=1.0, food=0.0),
+            build_district(
+                "rich", population=1, production_rate=100.0, consumption_rate=1.0, food=0.0
+            ),
+            build_district(
+                "poor", population=10, production_rate=0.0, consumption_rate=1.0, food=0.0
+            ),
         ],
         boundaries=[("bound", "rich", "poor")],
         law=law if law is not None else build_law(),
@@ -93,12 +96,9 @@ def test_production_and_consumption_events_are_sorted_by_district_id() -> None:
     """Within each stage, districts are reported in sorted identifier order."""
     world = build_world(
         [
-            build_district("zulu", population=1, production_rate=10.0,
-                           consumption_rate=1.0),
-            build_district("alpha", population=1, production_rate=10.0,
-                           consumption_rate=1.0),
-            build_district("mike", population=1, production_rate=10.0,
-                           consumption_rate=1.0),
+            build_district("zulu", population=1, production_rate=10.0, consumption_rate=1.0),
+            build_district("alpha", population=1, production_rate=10.0, consumption_rate=1.0),
+            build_district("mike", population=1, production_rate=10.0, consumption_rate=1.0),
         ],
         law=build_law(),
     )
@@ -135,11 +135,9 @@ def test_identical_inputs_produce_identical_state_and_events() -> None:
 
     assert stocks(first_world, ResourceType.FOOD) == stocks(second_world, ResourceType.FOOD)
     assert [
-        (event.tick, event.type, event.source_id, event.payload_as_dict())
-        for event in first_log
+        (event.tick, event.type, event.source_id, event.payload_as_dict()) for event in first_log
     ] == [
-        (event.tick, event.type, event.source_id, event.payload_as_dict())
-        for event in second_log
+        (event.tick, event.type, event.source_id, event.payload_as_dict()) for event in second_log
     ]
 
 
@@ -166,10 +164,12 @@ def test_flow_uses_post_consumption_stock() -> None:
     """A district that eats its whole harvest has nothing left to share."""
     world = build_world(
         [
-            build_district("rich", population=100, production_rate=100.0,
-                           consumption_rate=1.0, food=0.0),
-            build_district("poor", population=10, production_rate=0.0,
-                           consumption_rate=1.0, food=0.0),
+            build_district(
+                "rich", population=100, production_rate=100.0, consumption_rate=1.0, food=0.0
+            ),
+            build_district(
+                "poor", population=10, production_rate=0.0, consumption_rate=1.0, food=0.0
+            ),
         ],
         boundaries=[("bound", "rich", "poor")],
         law=build_law(),
@@ -184,12 +184,9 @@ def test_received_stock_is_not_forwarded_within_the_same_tick() -> None:
     """A ↔ B ↔ C over one tick: C is reached only in a later tick, if at all."""
     world = build_world(
         [
-            build_district("a", population=0, production_rate=100.0,
-                           consumption_rate=1.0),
-            build_district("b", population=10, production_rate=0.0,
-                           consumption_rate=1.0),
-            build_district("c", population=10, production_rate=0.0,
-                           consumption_rate=1.0),
+            build_district("a", population=0, production_rate=100.0, consumption_rate=1.0),
+            build_district("b", population=10, production_rate=0.0, consumption_rate=1.0),
+            build_district("c", population=10, production_rate=0.0, consumption_rate=1.0),
         ],
         boundaries=[("ab", "a", "b"), ("bc", "b", "c")],
         law=build_law(),

@@ -193,9 +193,7 @@ class DeterministicRNG:
                 unrecognized state format.
         """
         if _STATE_FORMAT_KEY not in state or _RANDOM_STATE_KEY not in state:
-            raise ValueError(
-                f"state must contain {_STATE_FORMAT_KEY!r} and {_RANDOM_STATE_KEY!r}"
-            )
+            raise ValueError(f"state must contain {_STATE_FORMAT_KEY!r} and {_RANDOM_STATE_KEY!r}")
         state_format = state[_STATE_FORMAT_KEY]
         if state_format != _STATE_FORMAT:
             raise ValueError(f"unsupported RNG state format: {state_format!r}")

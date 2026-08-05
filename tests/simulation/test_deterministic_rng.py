@@ -9,6 +9,7 @@ continuation after a state round trip.
 import json
 
 import pytest
+
 from living_diorama.simulation import DeterministicRNG
 
 
@@ -70,7 +71,7 @@ def test_set_state_rejects_unknown_state_format() -> None:
 
 
 def test_randint_respects_inclusive_boundaries() -> None:
-    """randint must stay within its bounds and be able to reach both of them."""
+    """Randint must stay within its bounds and be able to reach both of them."""
     rng = DeterministicRNG(seed=5)
     values = [rng.randint(1, 6) for _ in range(500)]
     assert all(1 <= value <= 6 for value in values)
@@ -84,13 +85,13 @@ def test_randint_with_equal_bounds_returns_that_value() -> None:
 
 
 def test_uniform_produces_values_inside_the_range() -> None:
-    """uniform must stay between its bounds."""
+    """Uniform must stay between its bounds."""
     rng = DeterministicRNG(seed=11)
     assert all(2.0 <= rng.uniform(2.0, 3.0) <= 3.0 for _ in range(200))
 
 
 def test_choice_returns_an_element_of_the_sequence() -> None:
-    """choice must return something actually present in the input."""
+    """Choice must return something actually present in the input."""
     rng = DeterministicRNG(seed=13)
     options = ["north", "east", "south"]
     assert all(rng.choice(options) in options for _ in range(50))

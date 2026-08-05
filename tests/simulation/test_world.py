@@ -16,6 +16,7 @@ from simulation_builders import (
     build_wall,
     build_world,
 )
+
 from living_diorama.entities import Boundary, District, Infrastructure, Law, Wall
 from living_diorama.simulation import DeterministicRNG, World
 
@@ -42,7 +43,7 @@ def test_rejects_negative_tick() -> None:
 
 
 def test_rejects_bool_tick() -> None:
-    """bool subclasses int, so True would silently mean tick 1."""
+    """Bool subclasses int, so True would silently mean tick 1."""
     with pytest.raises(TypeError):
         World(rng=DeterministicRNG(1), tick=True)  # type: ignore[arg-type]
 

@@ -6,10 +6,11 @@ than truthiness: the integer 1 is not permission to share.
 """
 
 import pytest
+from systems_builders import EVEN_ALLOCATION, LAW_ID, build_district, build_law, build_world
+
 from living_diorama.entities import ResourceType
 from living_diorama.events import EventBus, EventLog
 from living_diorama.systems import ResourceFlowSystem
-from systems_builders import EVEN_ALLOCATION, LAW_ID, build_district, build_law, build_world
 
 
 def build_flow(reserve_ticks: float = 1.0) -> ResourceFlowSystem:
@@ -79,9 +80,7 @@ def test_active_law_with_false_value_blocks_every_transfer() -> None:
 def test_non_boolean_law_values_are_rejected() -> None:
     """Truthiness is not permission: 1, 'true', and 0.0 are all malformed here."""
     for bad_value in (1, 0, "true", 1.0, None):
-        world = build_donor_receiver_world(
-            law=build_law(active=True, current_value=bad_value)
-        )
+        world = build_donor_receiver_world(law=build_law(active=True, current_value=bad_value))
         with pytest.raises(TypeError):
             run_flow(world)
 
@@ -109,13 +108,25 @@ def test_law_state_is_never_modified() -> None:
     """The flow system obeys the law; it has no authority to change it."""
     law = build_law(active=True, current_value=True)
     world = build_donor_receiver_world(law=law)
-    before = (law.active, law.current_value, law.previous_value,
-              law.changed_episode, law.restored_tick, law.name)
+    before = (
+        law.active,
+        law.current_value,
+        law.previous_value,
+        law.changed_episode,
+        law.restored_tick,
+        law.name,
+    )
 
     run_flow(world)
 
-    assert (law.active, law.current_value, law.previous_value,
-            law.changed_episode, law.restored_tick, law.name) == before
+    assert (
+        law.active,
+        law.current_value,
+        law.previous_value,
+        law.changed_episode,
+        law.restored_tick,
+        law.name,
+    ) == before
 
 
 def test_disabled_sharing_consumes_no_rng() -> None:

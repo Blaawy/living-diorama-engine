@@ -3,9 +3,6 @@
 import json
 
 import pytest
-from living_diorama.entities import ResourceType
-from living_diorama.events import EventBus, EventLog, EventType
-from living_diorama.systems import ProductionSystem
 from systems_builders import (
     EVEN_ALLOCATION,
     build_district,
@@ -14,6 +11,10 @@ from systems_builders import (
     build_wall,
     build_world,
 )
+
+from living_diorama.entities import ResourceType
+from living_diorama.events import EventBus, EventLog, EventType
+from living_diorama.systems import ProductionSystem
 
 
 def run_production(world, allocation=EVEN_ALLOCATION) -> EventLog:
@@ -128,24 +129,32 @@ def test_production_leaves_unrelated_state_untouched() -> None:
     world.add_wall(build_wall("wall", "bound", active=True))
     world.add_infrastructure(build_infrastructure("infra", "bound"))
 
-    law_before = (world.laws["law_movement_sharing"].active,
-                  world.laws["law_movement_sharing"].current_value)
+    law_before = (
+        world.laws["law_movement_sharing"].active,
+        world.laws["law_movement_sharing"].current_value,
+    )
     wall_before = (world.walls["wall"].active, world.walls["wall"].integrity)
     boundary_before = world.boundaries["bound"].wall_id
-    infra_before = (world.infrastructure["infra"].capacity,
-                    world.infrastructure["infra"].dependency_score)
+    infra_before = (
+        world.infrastructure["infra"].capacity,
+        world.infrastructure["infra"].dependency_score,
+    )
 
     run_production(world)
 
     assert district.population == 42
     assert district.production_rate == 10.0
     assert district.consumption_rate == 3.0
-    assert (world.laws["law_movement_sharing"].active,
-            world.laws["law_movement_sharing"].current_value) == law_before
+    assert (
+        world.laws["law_movement_sharing"].active,
+        world.laws["law_movement_sharing"].current_value,
+    ) == law_before
     assert (world.walls["wall"].active, world.walls["wall"].integrity) == wall_before
     assert world.boundaries["bound"].wall_id == boundary_before
-    assert (world.infrastructure["infra"].capacity,
-            world.infrastructure["infra"].dependency_score) == infra_before
+    assert (
+        world.infrastructure["infra"].capacity,
+        world.infrastructure["infra"].dependency_score,
+    ) == infra_before
 
 
 def test_repeated_ticks_apply_production_once_each() -> None:
@@ -164,9 +173,11 @@ def test_all_three_resource_types_are_produced() -> None:
     world = build_world([build_district("a", production_rate=100.0)], tick=1)
     run_production(world)
     pool = world.districts["a"].resources
-    assert (pool.amount_of(ResourceType.FOOD),
-            pool.amount_of(ResourceType.MATERIALS),
-            pool.amount_of(ResourceType.ENERGY)) == (50.0, 30.0, 20.0)
+    assert (
+        pool.amount_of(ResourceType.FOOD),
+        pool.amount_of(ResourceType.MATERIALS),
+        pool.amount_of(ResourceType.ENERGY),
+    ) == (50.0, 30.0, 20.0)
 
 
 def test_system_holds_no_per_tick_state() -> None:
@@ -183,9 +194,10 @@ def test_empty_world_produces_nothing_and_emits_nothing() -> None:
 def test_zero_weight_resource_receives_nothing() -> None:
     """A zero weight is a legitimate configuration, not an error."""
     world = build_world([build_district("a", production_rate=10.0)], tick=1)
-    run_production(world, allocation={ResourceType.FOOD: 1.0,
-                                      ResourceType.MATERIALS: 0.0,
-                                      ResourceType.ENERGY: 0.0})
+    run_production(
+        world,
+        allocation={ResourceType.FOOD: 1.0, ResourceType.MATERIALS: 0.0, ResourceType.ENERGY: 0.0},
+    )
     pool = world.districts["a"].resources
     assert pool.amount_of(ResourceType.FOOD) == 10.0
     assert pool.amount_of(ResourceType.MATERIALS) == 0.0

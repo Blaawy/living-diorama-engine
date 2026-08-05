@@ -8,6 +8,7 @@ loudly and stops.
 
 import pytest
 from simulation_builders import FailingSystem, RecordingSystem, build_world
+
 from living_diorama.events import EventBus
 from living_diorama.simulation import SimulationLoop, World
 
@@ -30,7 +31,7 @@ def test_rejects_negative_tick_count() -> None:
 
 
 def test_rejects_bool_tick_count() -> None:
-    """bool subclasses int, so True would silently run exactly one tick."""
+    """Bool subclasses int, so True would silently run exactly one tick."""
     with pytest.raises(TypeError):
         SimulationLoop([], EventBus()).run(build_world(), True)  # type: ignore[arg-type]
 

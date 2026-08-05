@@ -92,9 +92,7 @@ def _freeze_value(value: object, path: str) -> FrozenJsonValue:
         return value  # type: ignore[return-value]
     if type(value) is float:
         if not math.isfinite(value):
-            raise ValueError(
-                f"payload value at {path} must be a finite number, got {value!r}"
-            )
+            raise ValueError(f"payload value at {path} must be a finite number, got {value!r}")
         return value
     if type(value) is list:
         return tuple(_freeze_value(item, f"{path}[{index}]") for index, item in enumerate(value))
@@ -105,9 +103,7 @@ def _freeze_value(value: object, path: str) -> FrozenJsonValue:
                 raise TypeError(f"payload keys must be strings, got {type(key).__name__} at {path}")
             frozen[key] = _freeze_value(nested, f"{path}.{key}")
         return MappingProxyType(frozen)
-    raise TypeError(
-        f"payload value at {path} is not JSON-compatible: {type(value).__name__}"
-    )
+    raise TypeError(f"payload value at {path} is not JSON-compatible: {type(value).__name__}")
 
 
 def _thaw_value(value: FrozenJsonValue) -> JsonValue:

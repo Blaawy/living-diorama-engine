@@ -47,10 +47,7 @@ def rename_inputs(
     return (
         {mapping.get(k, k): v for k, v in surplus.items()},
         {mapping.get(k, k): v for k, v in need.items()},
-        {
-            mapping.get(k, k): {mapping.get(x, x) for x in v}
-            for k, v in adjacency.items()
-        },
+        {mapping.get(k, k): {mapping.get(x, x) for x in v} for k, v in adjacency.items()},
     )
 
 
@@ -202,9 +199,7 @@ def test_constrained_graphs_are_invariant_under_renaming_both_sides() -> None:
     for surplus, need, adjacency in CONSTRAINED_GRAPHS:
         original = allocate(surplus, need, adjacency)
         mapping = {name: f"x{index}" for index, name in enumerate(sorted(surplus))}
-        mapping.update(
-            {name: f"y{index}" for index, name in enumerate(sorted(need), start=100)}
-        )
+        mapping.update({name: f"y{index}" for index, name in enumerate(sorted(need), start=100)})
         inverse = {v: k for k, v in mapping.items()}
 
         renamed_inputs = rename_inputs(mapping, surplus, need, adjacency)

@@ -2,6 +2,7 @@
 
 import pytest
 from conftest import build_district
+
 from living_diorama.entities import IsolationState, ResourceType
 
 

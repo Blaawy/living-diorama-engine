@@ -7,9 +7,11 @@ through the event's own payload attribute, and not at any nesting depth.
 
 import json
 import math
+from dataclasses import FrozenInstanceError
 from enum import Enum, IntEnum
 
 import pytest
+
 from living_diorama.events import Event, EventType
 
 
@@ -169,7 +171,7 @@ def test_payload_as_dict_returns_an_independent_mutable_copy() -> None:
 def test_event_fields_cannot_be_rebound() -> None:
     """Events are frozen: history is replaced by new events, never edited."""
     event = Event(tick=0, type=EventType.LAW_CHANGED, payload={})
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         event.tick = 5  # type: ignore[misc]
 
 
@@ -272,7 +274,7 @@ def test_payload_is_serializable_under_strict_json_rules() -> None:
 
 
 def test_rejects_bool_as_tick() -> None:
-    """bool subclasses int, so True would silently mean tick 1 without an exact check."""
+    """Bool subclasses int, so True would silently mean tick 1 without an exact check."""
     with pytest.raises(TypeError):
         Event(tick=True, type=EventType.LAW_CHANGED, payload={})  # type: ignore[arg-type]
 

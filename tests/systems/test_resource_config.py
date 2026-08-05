@@ -7,6 +7,8 @@ Configuration errors must surface at construction, not on the first tick of a
 import math
 
 import pytest
+from systems_builders import EVEN_ALLOCATION, LAW_ID
+
 from living_diorama.entities import ResourceType
 from living_diorama.systems import ConsumptionSystem, ProductionSystem, ResourceFlowSystem
 from living_diorama.systems._resource_config import (
@@ -17,7 +19,6 @@ from living_diorama.systems._resource_config import (
     require_finite,
     validate_allocation,
 )
-from systems_builders import EVEN_ALLOCATION, LAW_ID
 
 SYSTEM_FACTORIES = (ProductionSystem, ConsumptionSystem)
 
@@ -68,7 +69,7 @@ def test_non_finite_weights_are_rejected() -> None:
 
 
 def test_boolean_weights_are_rejected() -> None:
-    """bool subclasses int, so True would silently mean a weight of 1.0."""
+    """Bool subclasses int, so True would silently mean a weight of 1.0."""
     bad = {ResourceType.FOOD: True, ResourceType.MATERIALS: 0.0, ResourceType.ENERGY: 0.0}
     for factory in SYSTEM_FACTORIES:
         with pytest.raises(TypeError):
@@ -120,9 +121,7 @@ def test_caller_mutation_cannot_change_stored_configuration() -> None:
     """The allocation is copied, so the caller's dict is no longer connected."""
     supplied = dict(EVEN_ALLOCATION)
     systems = [factory(allocation=supplied) for factory in SYSTEM_FACTORIES]
-    flow = ResourceFlowSystem(
-        law_id=LAW_ID, consumption_allocation=supplied, reserve_ticks=1.0
-    )
+    flow = ResourceFlowSystem(law_id=LAW_ID, consumption_allocation=supplied, reserve_ticks=1.0)
 
     supplied[ResourceType.FOOD] = 99.0
     for system in systems:
@@ -186,9 +185,7 @@ def test_zero_reserve_ticks_is_accepted() -> None:
 def test_blank_law_id_is_rejected() -> None:
     """The gating law must actually be nameable."""
     with pytest.raises(ValueError):
-        ResourceFlowSystem(
-            law_id="   ", consumption_allocation=EVEN_ALLOCATION, reserve_ticks=1.0
-        )
+        ResourceFlowSystem(law_id="   ", consumption_allocation=EVEN_ALLOCATION, reserve_ticks=1.0)
 
 
 def test_non_string_law_id_is_rejected() -> None:

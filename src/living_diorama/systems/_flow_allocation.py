@@ -83,9 +83,7 @@ def allocate(
         donor: amount for donor, amount in sorted(surplus.items()) if amount > FLOAT_TOLERANCE
     }
     remaining_need = {
-        receiver: amount
-        for receiver, amount in sorted(need.items())
-        if amount > FLOAT_TOLERANCE
+        receiver: amount for receiver, amount in sorted(need.items()) if amount > FLOAT_TOLERANCE
     }
     if not remaining_surplus or not remaining_need:
         return {}
@@ -498,9 +496,7 @@ def _residual_arcs(
         carried = staged.get(edge, 0.0)
         if carried > PROJECTION_TOLERANCE:
             arcs.append(
-                _ResidualArc(
-                    (_RECEIVER, receiver), (_DONOR, donor), carried, -deviation, edge, -1
-                )
+                _ResidualArc((_RECEIVER, receiver), (_DONOR, donor), carried, -deviation, edge, -1)
             )
 
     return arcs
@@ -629,4 +625,3 @@ def _clean_residue(staged: _Staged) -> None:
     for edge in sorted(staged):
         if -FLOAT_TOLERANCE < staged[edge] < FLOAT_TOLERANCE:
             staged[edge] = 0.0
-

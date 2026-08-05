@@ -1,6 +1,5 @@
-"""Conversion between in-memory World/EventLog/WorldMemory state and
-versioned JSON save files.
+"""Convert world, event-log, and memory state to versioned JSON saves.
 
-Owns schema versioning, schema migrations, and state-hash lineage
-verification between episodes. Contains no simulation logic.
+Owns schema versioning, schema migrations, and state-hash lineage verification
+between episodes. Contains no simulation logic.
 """

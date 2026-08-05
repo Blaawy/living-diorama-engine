@@ -4,7 +4,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from living_diorama.entities import ResourceType
-from living_diorama.events import Event, EventBus, EventType, JsonValue
+from living_diorama.events import Event, EventBus, EventType
+from living_diorama.events.event import FrozenJsonValue
 from living_diorama.systems._resource_config import (
     RESOURCE_ORDER,
     build_pool,
@@ -104,14 +105,12 @@ class ConsumptionSystem(BaseSystem):
             consumed_total = sum_amounts(consumed)
             unmet_total = sum_amounts(unmet)
 
-            payload: dict[str, JsonValue] = {
+            payload: dict[str, FrozenJsonValue] = {
                 "district_id": district_id,
                 "requested_total": requested_total,
                 "consumed_total": consumed_total,
                 "unmet_total": unmet_total,
-                "consumed": {
-                    resource.value: consumed[resource] for resource in RESOURCE_ORDER
-                },
+                "consumed": {resource.value: consumed[resource] for resource in RESOURCE_ORDER},
                 "unmet": {resource.value: unmet[resource] for resource in RESOURCE_ORDER},
             }
             bus.publish(
@@ -122,4 +121,3 @@ class ConsumptionSystem(BaseSystem):
                     source_id=district_id,
                 )
             )
-

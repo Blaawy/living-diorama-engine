@@ -1,6 +1,7 @@
 """Tests for the BaseSystem contract."""
 
 import pytest
+
 from living_diorama.events import EventBus
 from living_diorama.simulation import DeterministicRNG, World
 from living_diorama.systems import BaseSystem
@@ -29,7 +30,7 @@ def test_base_system_cannot_be_instantiated_directly() -> None:
 
 
 def test_subclass_without_update_cannot_be_instantiated() -> None:
-    """update is abstract, so a subclass must implement it to be constructible."""
+    """Update is abstract, so a subclass must implement it to be constructible."""
     with pytest.raises(TypeError):
         _IncompleteSystem()  # type: ignore[abstract]
 

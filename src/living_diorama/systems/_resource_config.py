@@ -117,8 +117,7 @@ def validate_allocation(
         weight = allocation[resource]
         if type(weight) is bool or not isinstance(weight, int | float):
             raise TypeError(
-                f"{label}[{resource.value}] must be a real number, "
-                f"got {type(weight).__name__}"
+                f"{label}[{resource.value}] must be a real number, got {type(weight).__name__}"
             )
         weight = float(weight)
         if not math.isfinite(weight):
@@ -129,9 +128,7 @@ def validate_allocation(
 
     total = math.fsum(weights[resource] for resource in RESOURCE_ORDER)
     if abs(total - 1.0) > FLOAT_TOLERANCE:
-        raise ValueError(
-            f"{label} weights must sum to 1.0 within {FLOAT_TOLERANCE}, got {total}"
-        )
+        raise ValueError(f"{label} weights must sum to 1.0 within {FLOAT_TOLERANCE}, got {total}")
 
     return MappingProxyType(weights)
 

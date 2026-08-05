@@ -9,7 +9,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from living_diorama.entities import EntityId, ResourceType
-from living_diorama.events import Event, EventBus, EventType, JsonValue
+from living_diorama.events import Event, EventBus, EventType
+from living_diorama.events.event import FrozenJsonValue
 from living_diorama.systems._flow_allocation import allocate
 from living_diorama.systems._resource_config import (
     FLOAT_TOLERANCE,
@@ -360,7 +361,7 @@ class ResourceFlowSystem(BaseSystem):
             if amount <= FLOAT_TOLERANCE:
                 continue
             pair = (donor_id, receiver_id) if donor_id < receiver_id else (receiver_id, donor_id)
-            payload: dict[str, JsonValue] = {
+            payload: dict[str, FrozenJsonValue] = {
                 "from_district_id": donor_id,
                 "to_district_id": receiver_id,
                 "boundary_id": pair_boundaries[pair],
@@ -375,4 +376,3 @@ class ResourceFlowSystem(BaseSystem):
                     source_id=donor_id,
                 )
             )
-

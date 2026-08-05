@@ -4,7 +4,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from living_diorama.entities import ResourceType
-from living_diorama.events import Event, EventBus, EventType, JsonValue
+from living_diorama.events import Event, EventBus, EventType
+from living_diorama.events.event import FrozenJsonValue
 from living_diorama.systems._resource_config import (
     RESOURCE_ORDER,
     build_pool,
@@ -93,12 +94,10 @@ class ProductionSystem(BaseSystem):
 
             district.resources = build_pool(new_amounts)
 
-            payload: dict[str, JsonValue] = {
+            payload: dict[str, FrozenJsonValue] = {
                 "district_id": district_id,
                 "total_produced": total_produced,
-                "resources": {
-                    resource.value: produced[resource] for resource in RESOURCE_ORDER
-                },
+                "resources": {resource.value: produced[resource] for resource in RESOURCE_ORDER},
             }
             bus.publish(
                 Event(
