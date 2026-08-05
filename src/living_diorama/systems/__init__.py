@@ -10,12 +10,16 @@ knows that order.
 
 from living_diorama.systems.base_system import BaseSystem
 from living_diorama.systems.consumption_system import ConsumptionSystem
+from living_diorama.systems.migration_system import MigrationSystem
 from living_diorama.systems.production_system import ProductionSystem
 from living_diorama.systems.resource_flow_system import ResourceFlowSystem
+from living_diorama.systems.scarcity_system import ScarcitySystem
 
 __all__ = [
     "BaseSystem",
     "ConsumptionSystem",
+    "MigrationSystem",
     "ProductionSystem",
     "ResourceFlowSystem",
+    "ScarcitySystem",
 ]

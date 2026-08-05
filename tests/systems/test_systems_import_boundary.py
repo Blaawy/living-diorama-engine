@@ -133,8 +133,10 @@ def test_package_exports() -> None:
     assert set(living_diorama.systems.__all__) == {
         "BaseSystem",
         "ConsumptionSystem",
+        "MigrationSystem",
         "ProductionSystem",
         "ResourceFlowSystem",
+        "ScarcitySystem",
     }
     assert set(living_diorama.simulation.__all__) == {
         "DeterministicRNG",

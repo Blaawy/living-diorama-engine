@@ -44,8 +44,15 @@ def build_district(
     food: float = 0.0,
     materials: float = 0.0,
     energy: float = 0.0,
+    housing_capacity: int = 9999,
+    isolation_state: IsolationState = IsolationState.OPEN,
 ) -> District:
-    """Build a district with explicit stock and rates."""
+    """Build a district with explicit stock and rates.
+
+    ``housing_capacity`` and ``isolation_state`` default to the values every
+    pre-Phase-5 test relied on, so existing behaviour is unchanged; migration
+    tests override them to exercise capacity limits and isolation.
+    """
     return District(
         id=district_id,
         created_tick=0,
@@ -63,8 +70,8 @@ def build_district(
         fear=0.0,
         trust=0.5,
         institutional_pressure=0.0,
-        housing_capacity=9999,
-        isolation_state=IsolationState.OPEN,
+        housing_capacity=housing_capacity,
+        isolation_state=isolation_state,
     )
 
 
