@@ -133,6 +133,7 @@ def test_package_exports() -> None:
     assert set(living_diorama.systems.__all__) == {
         "BaseSystem",
         "ConsumptionSystem",
+        "InstitutionalPressureSystem",
         "MigrationSystem",
         "ProductionSystem",
         "ResourceFlowSystem",
@@ -241,3 +242,67 @@ def test_social_stability_system_is_exported_like_every_other_system() -> None:
     assert issubclass(SocialStabilitySystem, BaseSystem)
     assert "SocialStabilitySystem" in living_diorama.systems.__all__
     assert not any(name.startswith("_") for name in living_diorama.systems.__all__)
+
+
+def test_institutional_pressure_system_imports_only_permitted_layers() -> None:
+    """The Phase 7 system depends on entities, events, and shared helpers only.
+
+    It must not import another concrete system -- least of all the social system
+    whose output it consumes, since reading a value off the world is the only
+    sanctioned way for one system's work to reach another.
+    """
+    path = SYSTEMS_DIR / "institutional_pressure_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    assert not any(module.startswith("living_diorama.simulation") for module in runtime)
+    assert any(module.startswith("living_diorama.simulation") for module in deferred)
+
+    for module in runtime + deferred:
+        assert not module.startswith(FORBIDDEN_DOWNSTREAM), module
+
+    concrete_systems = (
+        "production_system",
+        "consumption_system",
+        "resource_flow_system",
+        "migration_system",
+        "scarcity_system",
+        "social_stability_system",
+    )
+    for module in runtime + deferred:
+        assert not any(name in module for name in concrete_systems), module
+
+
+def test_institutional_pressure_system_adds_no_third_party_dependency() -> None:
+    """The engine has no runtime dependencies, and Phase 7 must not add one."""
+    allowed_stdlib = {"collections", "dataclasses", "enum", "math", "types", "typing"}
+    path = SYSTEMS_DIR / "institutional_pressure_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    offenders = [
+        module
+        for module in runtime + deferred
+        if module.split(".")[0] != "living_diorama" and module.split(".")[0] not in allowed_stdlib
+    ]
+    assert offenders == []
+
+
+def test_institutional_pressure_system_is_exported_like_every_other_system() -> None:
+    """Public export follows the existing convention, and no helper leaks out."""
+    from living_diorama.systems import BaseSystem, InstitutionalPressureSystem  # noqa: PLC0415
+
+    assert issubclass(InstitutionalPressureSystem, BaseSystem)
+    assert "InstitutionalPressureSystem" in living_diorama.systems.__all__
+    assert not any(name.startswith("_") for name in living_diorama.systems.__all__)
+    assert "_clamp_unit" not in living_diorama.systems.__all__
+
+
+def test_phase_seven_does_not_borrow_the_phase_six_private_helper() -> None:
+    """Each concrete system owns its own numeric guard.
+
+    The two strict unit bounds are deliberately separate copies. Sharing one
+    through an import would be a dependency between concrete systems wearing a
+    different hat, and would make a future change to one silently change the
+    other.
+    """
+    source = (SYSTEMS_DIR / "institutional_pressure_system.py").read_text(encoding="utf-8")
+    assert "social_stability_system" not in source
