@@ -132,6 +132,7 @@ def test_package_exports() -> None:
     """
     assert set(living_diorama.systems.__all__) == {
         "BaseSystem",
+        "BoundaryDecisionSystem",
         "ConsumptionSystem",
         "InstitutionalPressureSystem",
         "MigrationSystem",
@@ -306,3 +307,102 @@ def test_phase_seven_does_not_borrow_the_phase_six_private_helper() -> None:
     """
     source = (SYSTEMS_DIR / "institutional_pressure_system.py").read_text(encoding="utf-8")
     assert "social_stability_system" not in source
+
+
+def test_boundary_decision_system_imports_only_permitted_layers() -> None:
+    """The Phase 8 system depends on entities, events, and shared helpers only.
+
+    It reads institutional pressure off the district, not from the system that
+    wrote it, so it must not import that system. Its only knowledge of
+    ``World`` is a deferred typing import, as everywhere else.
+    """
+    path = SYSTEMS_DIR / "boundary_decision_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    assert not any(module.startswith("living_diorama.simulation") for module in runtime)
+    assert any(module.startswith("living_diorama.simulation") for module in deferred)
+
+    for module in runtime + deferred:
+        assert not module.startswith(FORBIDDEN_DOWNSTREAM), module
+
+    concrete_systems = (
+        "production_system",
+        "consumption_system",
+        "resource_flow_system",
+        "migration_system",
+        "scarcity_system",
+        "social_stability_system",
+        "institutional_pressure_system",
+    )
+    for module in runtime + deferred:
+        assert not any(name in module for name in concrete_systems), module
+
+
+def test_boundary_decision_system_does_not_import_topology() -> None:
+    """Parallel boundaries are decided individually, so no topology view is used.
+
+    ``_topology`` collapses parallel routes for movement purposes. Phase 8
+    decides per physical boundary, and borrowing that view would silently make
+    two parallel boundaries share one decision.
+    """
+    path = SYSTEMS_DIR / "boundary_decision_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    for module in runtime + deferred:
+        assert "_topology" not in module, module
+        assert "_flow_allocation" not in module, module
+        assert "_resource_config" not in module, module
+
+
+def test_boundary_decision_system_adds_no_third_party_dependency() -> None:
+    """The engine has no runtime dependencies, and Phase 8 must not add one."""
+    allowed_stdlib = {"collections", "dataclasses", "typing"}
+    path = SYSTEMS_DIR / "boundary_decision_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    offenders = [
+        module
+        for module in runtime + deferred
+        if module.split(".")[0] != "living_diorama" and module.split(".")[0] not in allowed_stdlib
+    ]
+    assert offenders == []
+
+
+def test_boundary_decision_system_uses_no_randomness() -> None:
+    """Wall identifiers are derived, never drawn; nothing here may import random."""
+    path = SYSTEMS_DIR / "boundary_decision_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    for module in runtime + deferred:
+        assert module.split(".")[0] not in {"random", "uuid", "secrets", "time", "hashlib"}
+
+
+def test_boundary_decision_system_touches_no_private_world_registry() -> None:
+    """Walls are added through ``World.add_wall``, never by writing a registry.
+
+    The aggregate owns insertion and the boundary back-reference together;
+    reaching past it would set one without the other.
+    """
+    path = SYSTEMS_DIR / "boundary_decision_system.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+
+    private_attributes = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and node.attr.startswith("_")
+    }
+    for forbidden in ("_walls", "_entities", "_boundaries", "_districts"):
+        assert forbidden not in private_attributes
+
+
+def test_boundary_decision_system_is_exported_like_every_other_system() -> None:
+    """Public export follows the existing convention exactly."""
+    assert "BoundaryDecisionSystem" in living_diorama.systems.__all__
+    assert hasattr(living_diorama.systems, "BoundaryDecisionSystem")
+
+
+def test_boundary_decision_private_helpers_are_not_exported() -> None:
+    """Internal helpers stay internal."""
+    for name in ("_StagedWall", "_validate_population"):
+        assert name not in living_diorama.systems.__all__
+        assert not hasattr(living_diorama.systems, name)

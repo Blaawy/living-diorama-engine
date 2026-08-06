@@ -9,6 +9,7 @@ knows that order.
 """
 
 from living_diorama.systems.base_system import BaseSystem
+from living_diorama.systems.boundary_decision_system import BoundaryDecisionSystem
 from living_diorama.systems.consumption_system import ConsumptionSystem
 from living_diorama.systems.institutional_pressure_system import (
     InstitutionalPressureSystem,
@@ -21,6 +22,7 @@ from living_diorama.systems.social_stability_system import SocialStabilitySystem
 
 __all__ = [
     "BaseSystem",
+    "BoundaryDecisionSystem",
     "ConsumptionSystem",
     "InstitutionalPressureSystem",
     "MigrationSystem",
