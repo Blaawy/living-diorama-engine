@@ -46,12 +46,21 @@ def build_district(
     energy: float = 0.0,
     housing_capacity: int = 9999,
     isolation_state: IsolationState = IsolationState.OPEN,
+    scarcity: float = 0.0,
+    fear: float = 0.0,
+    trust: float = 0.5,
+    institutional_pressure: float = 0.0,
 ) -> District:
     """Build a district with explicit stock and rates.
 
     ``housing_capacity`` and ``isolation_state`` default to the values every
     pre-Phase-5 test relied on, so existing behaviour is unchanged; migration
     tests override them to exercise capacity limits and isolation.
+
+    ``scarcity``, ``fear``, ``trust``, and ``institutional_pressure`` likewise
+    default to what every earlier test assumed. Social stability tests override
+    the first three to start a district from a chosen social position, which is
+    the only way to observe a gradual move away from it.
     """
     return District(
         id=district_id,
@@ -66,10 +75,10 @@ def build_district(
         ),
         production_rate=production_rate,
         consumption_rate=consumption_rate,
-        scarcity=0.0,
-        fear=0.0,
-        trust=0.5,
-        institutional_pressure=0.0,
+        scarcity=scarcity,
+        fear=fear,
+        trust=trust,
+        institutional_pressure=institutional_pressure,
         housing_capacity=housing_capacity,
         isolation_state=isolation_state,
     )

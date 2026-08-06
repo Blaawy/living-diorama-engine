@@ -137,6 +137,7 @@ def test_package_exports() -> None:
         "ProductionSystem",
         "ResourceFlowSystem",
         "ScarcitySystem",
+        "SocialStabilitySystem",
     }
     assert set(living_diorama.simulation.__all__) == {
         "DeterministicRNG",
@@ -190,3 +191,53 @@ def test_every_systems_module_defers_its_world_import() -> None:
     for path in sorted(SYSTEMS_DIR.glob("*.py")):
         runtime, _ = _split_imports(path.read_text(encoding="utf-8"))
         assert not any(module.startswith("living_diorama.simulation") for module in runtime)
+
+
+def test_social_stability_system_imports_only_permitted_layers() -> None:
+    """The Phase 6 system depends on entities, events, and shared helpers only.
+
+    It must not import another concrete system, nor anything downstream, nor
+    any later-phase module. Its only knowledge of ``World`` is a deferred
+    typing import, the same arrangement every other system uses.
+    """
+    path = SYSTEMS_DIR / "social_stability_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    assert not any(module.startswith("living_diorama.simulation") for module in runtime)
+    assert any(module.startswith("living_diorama.simulation") for module in deferred)
+
+    for module in runtime + deferred:
+        assert not module.startswith(FORBIDDEN_DOWNSTREAM), module
+
+    concrete_systems = (
+        "production_system",
+        "consumption_system",
+        "resource_flow_system",
+        "migration_system",
+        "scarcity_system",
+    )
+    for module in runtime + deferred:
+        assert not any(name in module for name in concrete_systems), module
+
+
+def test_social_stability_system_adds_no_third_party_dependency() -> None:
+    """The engine has no runtime dependencies, and Phase 6 must not add one."""
+    allowed_stdlib = {"collections", "dataclasses", "enum", "math", "types", "typing"}
+    path = SYSTEMS_DIR / "social_stability_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    offenders = [
+        module
+        for module in runtime + deferred
+        if module.split(".")[0] != "living_diorama" and module.split(".")[0] not in allowed_stdlib
+    ]
+    assert offenders == []
+
+
+def test_social_stability_system_is_exported_like_every_other_system() -> None:
+    """Public export follows the existing convention exactly."""
+    from living_diorama.systems import BaseSystem, SocialStabilitySystem  # noqa: PLC0415
+
+    assert issubclass(SocialStabilitySystem, BaseSystem)
+    assert "SocialStabilitySystem" in living_diorama.systems.__all__
+    assert not any(name.startswith("_") for name in living_diorama.systems.__all__)

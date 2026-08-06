@@ -14,6 +14,7 @@ from living_diorama.systems.migration_system import MigrationSystem
 from living_diorama.systems.production_system import ProductionSystem
 from living_diorama.systems.resource_flow_system import ResourceFlowSystem
 from living_diorama.systems.scarcity_system import ScarcitySystem
+from living_diorama.systems.social_stability_system import SocialStabilitySystem
 
 __all__ = [
     "BaseSystem",
@@ -22,4 +23,5 @@ __all__ = [
     "ProductionSystem",
     "ResourceFlowSystem",
     "ScarcitySystem",
+    "SocialStabilitySystem",
 ]
