@@ -134,6 +134,7 @@ def test_package_exports() -> None:
         "BaseSystem",
         "BoundaryDecisionSystem",
         "ConsumptionSystem",
+        "InfrastructureAdaptationSystem",
         "InstitutionalPressureSystem",
         "MigrationSystem",
         "ProductionSystem",
@@ -404,5 +405,141 @@ def test_boundary_decision_system_is_exported_like_every_other_system() -> None:
 def test_boundary_decision_private_helpers_are_not_exported() -> None:
     """Internal helpers stay internal."""
     for name in ("_StagedWall", "_validate_population"):
+        assert name not in living_diorama.systems.__all__
+        assert not hasattr(living_diorama.systems, name)
+
+
+PHASE_NINE_STDLIB = {"collections", "dataclasses", "math", "typing"}
+"""Exactly the standard-library roots infrastructure_adaptation_system.py imports.
+
+Kept tight on purpose: a roomy allowlist quietly permits dependencies nobody
+decided to take. Phase 8's list is separate and covers a different module.
+"""
+
+
+def test_infrastructure_adaptation_system_imports_only_permitted_layers() -> None:
+    """The Phase 9 system depends on entities, events, and shared helpers only.
+
+    It reads walls off the world, not from the system that built them, so it
+    must not import that system. Its only knowledge of ``World`` is a deferred
+    typing import, as everywhere else.
+    """
+    path = SYSTEMS_DIR / "infrastructure_adaptation_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    assert not any(module.startswith("living_diorama.simulation") for module in runtime)
+    assert any(module.startswith("living_diorama.simulation") for module in deferred)
+
+    for module in runtime + deferred:
+        assert not module.startswith(FORBIDDEN_DOWNSTREAM), module
+
+    concrete_systems = (
+        "production_system",
+        "consumption_system",
+        "resource_flow_system",
+        "migration_system",
+        "scarcity_system",
+        "social_stability_system",
+        "institutional_pressure_system",
+        "boundary_decision_system",
+    )
+    for module in runtime + deferred:
+        assert not any(name in module for name in concrete_systems), module
+
+
+def test_infrastructure_adaptation_system_does_not_import_topology() -> None:
+    """Adaptation is decided per boundary, so no collapsed topology view is used."""
+    path = SYSTEMS_DIR / "infrastructure_adaptation_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    for module in runtime + deferred:
+        assert "_topology" not in module, module
+        assert "_flow_allocation" not in module, module
+
+
+def test_infrastructure_adaptation_system_adds_no_third_party_dependency() -> None:
+    """The engine has no runtime dependencies, and Phase 9 must not add one.
+
+    The list is exactly what the module imports today, so a new standard-library
+    dependency has to be added here deliberately rather than slipping through a
+    roomy allowlist. ``collections`` belongs on it because ``collections.abc`` is
+    standard library; omitting it would report a stdlib import as third-party.
+    """
+    allowed_stdlib = PHASE_NINE_STDLIB
+    path = SYSTEMS_DIR / "infrastructure_adaptation_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    offenders = [
+        module
+        for module in runtime + deferred
+        if module.split(".")[0] != "living_diorama" and module.split(".")[0] not in allowed_stdlib
+    ]
+    assert offenders == []
+
+
+def test_the_stdlib_allowlist_recognises_collections_abc() -> None:
+    """Guards the allowlist itself against the mistake it exists to prevent.
+
+    ``collections.abc`` resolves to the ``collections`` root, so an allowlist
+    checking the first path segment must contain ``collections`` or it would
+    flag a standard-library import as a third-party dependency.
+    """
+    assert ["collections", "abc"][0] in PHASE_NINE_STDLIB
+    assert "collections" in PHASE_NINE_STDLIB
+
+
+def test_the_phase_nine_allowlist_matches_what_the_module_actually_imports() -> None:
+    """An allowlist wider than the code turns a deliberate list into a guess."""
+    path = SYSTEMS_DIR / "infrastructure_adaptation_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    used = {
+        module.split(".")[0]
+        for module in runtime + deferred
+        if module.split(".")[0] != "living_diorama"
+    }
+    assert used == PHASE_NINE_STDLIB
+
+
+def test_infrastructure_adaptation_system_uses_no_randomness() -> None:
+    """Dependency is derived from stored state alone."""
+    path = SYSTEMS_DIR / "infrastructure_adaptation_system.py"
+    runtime, deferred = _split_imports(path.read_text(encoding="utf-8"))
+
+    for module in runtime + deferred:
+        assert module.split(".")[0] not in {"random", "uuid", "secrets", "time", "hashlib"}
+
+
+def test_infrastructure_adaptation_system_touches_no_private_world_registry() -> None:
+    """Everything goes through the public registries and public lookups."""
+    path = SYSTEMS_DIR / "infrastructure_adaptation_system.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+
+    private_attributes = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and node.attr.startswith("_")
+    }
+    for forbidden in (
+        "_walls",
+        "_entities",
+        "_boundaries",
+        "_districts",
+        "_laws",
+        "_infrastructure",
+        "_tick",
+    ):
+        assert forbidden not in private_attributes
+
+
+def test_infrastructure_adaptation_system_is_exported_like_every_other_system() -> None:
+    """Public export follows the existing convention exactly."""
+    assert "InfrastructureAdaptationSystem" in living_diorama.systems.__all__
+    assert hasattr(living_diorama.systems, "InfrastructureAdaptationSystem")
+
+
+def test_infrastructure_adaptation_private_helpers_are_not_exported() -> None:
+    """Internal helpers stay internal."""
+    for name in ("_InfrastructureState", "_WallState", "_validate_identifier", "_clamp_unit"):
         assert name not in living_diorama.systems.__all__
         assert not hasattr(living_diorama.systems, name)
