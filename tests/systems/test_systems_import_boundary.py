@@ -139,7 +139,10 @@ def test_package_exports() -> None:
         "MigrationSystem",
         "ProductionSystem",
         "ResourceFlowSystem",
+        "RuleSystem",
         "ScarcitySystem",
+        "ScheduledLawChange",
+        "ScheduledLawRestore",
         "SocialStabilitySystem",
     }
     assert set(living_diorama.simulation.__all__) == {

@@ -5,8 +5,10 @@ still standing. Both facts survive being saved, reloaded, and queried -- and the
 second one says only that the wall remained, never that the law had anything to
 do with it.
 
-Episode 1's law state is set up directly in this fixture. No rule system exists
-yet; the ``LAW_RESTORED`` event stands in for what a later phase will publish.
+Both episodes are genuine engine output: Phase 8's boundary system builds the
+wall, and Phase 12's ``RuleSystem`` restores the law through a real
+``SimulationLoop`` tick, publishing ``LAW_RESTORED`` through a real
+``EventBus`` into a real ``EventLog``.
 """
 
 import pytest
@@ -28,16 +30,16 @@ from living_diorama.persistence.schema.world_schema_v1 import (
 from living_diorama.persistence.serializers.world_memory_serializer import (
     deserialize_world_memory,
 )
+from living_diorama.simulation import SimulationLoop
 from living_diorama.simulation.world import World
-from living_diorama.systems import BoundaryDecisionSystem
+from living_diorama.systems import BoundaryDecisionSystem, RuleSystem, ScheduledLawRestore
 from memory.conftest import (
     BOUNDARY_ID,
+    LAW_ID,
     build_district,
     build_law,
     build_wall,
     consumed_rng,
-    law_restored_event,
-    log_of,
 )
 from persistence.conftest import temporary_save_root
 
@@ -84,8 +86,14 @@ def run_episode_zero() -> tuple[World, EventLog]:
 
 
 def episode_one(previous_world: World) -> tuple[World, EventLog]:
-    """Advance to episode one with the law restored and the wall still standing."""
-    world = pressured_world(episode=1, tick=RESTORATION_TICK, pressure=0.95)
+    """Advance to episode one and let the real RuleSystem restore the law.
+
+    The restoration is genuine Phase 12 output: a scheduled ``RuleSystem`` runs
+    first -- and here, alone -- in a real ``SimulationLoop`` tick, mutating the
+    law and publishing the ``LAW_RESTORED`` event this file's memory tests
+    distill.
+    """
+    world = pressured_world(episode=1, tick=RESTORATION_TICK - 1, pressure=0.95)
     built = previous_world.walls[f"wall_{BOUNDARY_ID}"]
     world.add_wall(
         build_wall(
@@ -99,18 +107,15 @@ def episode_one(previous_world: World) -> tuple[World, EventLog]:
             resource_dependency=0.65,
         )
     )
-    # Set up directly in the fixture: Phase 12's rule system does not exist, and
-    # nothing here implements it.
     world.add_law(
-        build_law(
-            active=True,
-            previous_value=False,
-            current_value=True,
-            changed_episode=1,
-            restored_tick=RESTORATION_TICK,
-        )
+        build_law(active=False, previous_value=True, current_value=False, changed_episode=0)
     )
-    return world, log_of(law_restored_event(tick=RESTORATION_TICK))
+
+    bus, log = EventBus(), EventLog()
+    bus.subscribe(log.append)
+    rule = RuleSystem((ScheduledLawRestore(episode=1, tick=RESTORATION_TICK, law_id=LAW_ID),))
+    SimulationLoop((rule,), bus).run(world, 1)
+    return world, log
 
 
 def test_the_boundary_system_really_builds_the_wall() -> None:
