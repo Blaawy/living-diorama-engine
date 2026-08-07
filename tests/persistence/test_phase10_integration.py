@@ -6,7 +6,7 @@ the same generator, the same history, and a verified link back to where it came
 from.
 """
 
-import copy
+import ast
 import json
 import os
 import subprocess
@@ -17,6 +17,7 @@ import pytest
 
 from living_diorama.entities import InfrastructureType, IsolationState, ResourceType
 from living_diorama.events import EventLog
+from living_diorama.memory import MemorySignificance, WorldMemory
 from living_diorama.persistence import SaveManager
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
 from living_diorama.persistence.schema.world_schema_v1 import (
@@ -25,16 +26,37 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     WORLD_MEMORY_FILE,
     WORLD_STATE_FILE,
 )
+from living_diorama.persistence.serializers.world_memory_serializer import serialize_world_memory
 from living_diorama.persistence.serializers.world_serializer import serialize_world
 from living_diorama.simulation.rng import DeterministicRNG
 from persistence.conftest import (
+    empty_memory,
     minimal_world,
+    quiet_log,
     rich_event_log,
     rich_world,
     rng_sequence,
+    save_episode,
     structural_state,
     temporary_save_root,
 )
+
+
+def remembered_episode(root: Path) -> tuple[SaveManager, WorldMemory]:
+    """Save a real episode whose events genuinely produced a wall-build fact.
+
+    Built by distillation rather than by hand: a save now has to carry a history
+    matching its own events, so a fabricated fact about a wall the world does not
+    hold would be refused -- correctly.
+    """
+    manager = SaveManager(root)
+    world = rich_world(episode=0, tick=20)
+    log = rich_event_log()
+    memory = MemorySignificance().distill_episode(
+        world=world, event_log=log, previous_memory=WorldMemory.empty()
+    )
+    save_episode(manager, world, log, world_memory=memory)
+    return manager, memory
 
 
 def test_the_rich_world_actually_covers_every_awkward_shape() -> None:
@@ -70,7 +92,7 @@ def test_the_full_chain_save_verify_load_continue() -> None:
         original_log = rich_event_log()
         before = structural_state(original)
 
-        manifest = manager.save_episode(original, original_log)
+        manifest = save_episode(manager, original, original_log)
         loaded = manager.load_episode(0)
 
         assert structural_state(loaded.world) == before
@@ -91,7 +113,7 @@ def test_reserialization_after_a_load_is_byte_identical() -> None:
     with temporary_save_root() as root:
         manager = SaveManager(root)
         original = rich_world()
-        manifest = manager.save_episode(original, rich_event_log())
+        manifest = save_episode(manager, original, rich_event_log())
 
         loaded = manager.load_episode(0)
         rewritten = dumps_canonical(serialize_world(loaded.world))
@@ -105,8 +127,8 @@ def test_reserialization_after_a_load_is_byte_identical() -> None:
 def test_saving_the_same_world_twice_produces_identical_payloads() -> None:
     """Two independent saves of one state agree byte for byte."""
     with temporary_save_root() as first_root, temporary_save_root() as second_root:
-        first = SaveManager(first_root).save_episode(rich_world(), rich_event_log())
-        second = SaveManager(second_root).save_episode(rich_world(), rich_event_log())
+        first = save_episode(SaveManager(first_root), rich_world(), rich_event_log())
+        second = save_episode(SaveManager(second_root), rich_world(), rich_event_log())
 
         assert first.state_hash == second.state_hash
         for name in (EVENT_LOG_FILE, WORLD_MEMORY_FILE, WORLD_STATE_FILE):
@@ -119,7 +141,7 @@ def test_a_second_load_returns_independent_objects() -> None:
     """Two loads must not share entities, or editing one would alter the other."""
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(rich_world(), rich_event_log())
+        save_episode(manager, rich_world(), rich_event_log())
 
         first = manager.load_episode(0)
         second = manager.load_episode(0)
@@ -138,26 +160,31 @@ def test_saving_mutates_nothing_it_was_given() -> None:
     with temporary_save_root() as root:
         world = rich_world()
         event_log = rich_event_log()
-        memory = {"facts": [{"kind": "note", "text": "kept"}], "schema_version": 1}
+        memory = MemorySignificance().distill_episode(
+            world=world, event_log=event_log, previous_memory=WorldMemory.empty()
+        )
 
         world_before = structural_state(world)
         events_before = event_log.events()
         rng_before = world.rng.get_state()
-        memory_before = copy.deepcopy(memory)
+        memory_before = memory
 
-        SaveManager(root).save_episode(world, event_log, world_memory=memory)
+        save_episode(SaveManager(root), world, event_log, world_memory=memory)
 
         assert structural_state(world) == world_before
         assert event_log.events() == events_before
         assert world.rng.get_state() == rng_before
         assert memory == memory_before
+        assert memory.facts == memory_before.facts
+        assert memory.through_episode == world.episode
+        assert memory.through_tick == world.tick
 
 
 def test_saving_does_not_advance_the_tick_or_episode() -> None:
     """Persistence records the world; it never moves it forward."""
     with temporary_save_root() as root:
         world = rich_world(episode=0, tick=20)
-        SaveManager(root).save_episode(world, rich_event_log())
+        save_episode(SaveManager(root), world, rich_event_log())
         assert world.tick == 20
         assert world.episode == 0
 
@@ -168,7 +195,7 @@ def test_loading_consumes_no_randomness() -> None:
         manager = SaveManager(root)
         world = rich_world()
         expected = world.rng.get_state()
-        manager.save_episode(world, rich_event_log())
+        save_episode(manager, world, rich_event_log())
 
         assert manager.load_episode(0).world.rng.get_state() == expected
 
@@ -176,75 +203,96 @@ def test_loading_consumes_no_randomness() -> None:
 # --- World memory -----------------------------------------------------------
 
 
-def test_the_default_memory_document_is_the_empty_placeholder() -> None:
-    """Phase 10 writes the reserved shape and nothing else."""
+def test_saving_without_a_memory_writes_the_empty_placeholder_document() -> None:
+    """Phase 10 writes the reserved shape and nothing else.
+
+    Shadowed by a later duplicate in Candidates V1-V7, this test never ran, and
+    its final assertion still spoke the Phase 10 dialect in which a load handed
+    back the raw document. Phase 11 loads return the domain object, so the same
+    agreement -- the loaded memory, expressed as a document, is exactly what the
+    save wrote -- is asserted through the serializer.
+    """
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(minimal_world(), EventLog())
+        save_episode(manager, minimal_world(), EventLog())
         document = loads_canonical((root / "episode_000" / WORLD_MEMORY_FILE).read_bytes())
 
         assert document == {"facts": [], "schema_version": 1}
-        assert dict(manager.load_episode(0).world_memory) == document
+        assert serialize_world_memory(manager.load_episode(0).world_memory) == document
 
 
 def test_supplied_facts_are_preserved_in_order_and_untouched() -> None:
-    """Persistence carries the document; it does not understand it.
+    """Persistence carries the history; it does not understand it.
 
-    Nothing is filtered, summarized, deduplicated, reordered, or invented --
-    deciding which facts matter belongs to a later phase.
+    The original Phase 10 invariant, now expressed through the domain object:
+    every fact survives a round trip in the order the memory holds it, and
+    nothing is filtered, summarized, reordered, or invented along the way.
+    Deciding which facts matter happened before the save was called.
     """
-    facts = [
-        {"kind": "wall_built", "tick": 20, "detail": {"nested": [1, 2]}},
-        {"kind": "wall_built", "tick": 20, "detail": {"nested": [1, 2]}},
-        "a bare string fact",
-        [1, 2, 3],
-        None,
-    ]
+    with temporary_save_root() as root:
+        manager, memory = remembered_episode(root)
+        assert len(memory) == 1
+
+        loaded = manager.load_episode(0).world_memory
+
+        assert loaded == memory
+        assert [fact.fact_id for fact in loaded] == [fact.fact_id for fact in memory]
+        assert [fact.summary for fact in loaded] == [fact.summary for fact in memory]
+        assert [fact.details_as_dict() for fact in loaded] == [
+            fact.details_as_dict() for fact in memory
+        ]
+
+
+def test_an_explicitly_empty_memory_writes_the_empty_placeholder_document() -> None:
+    """A memory holding nothing writes exactly the reserved Phase 10 shape."""
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(
-            minimal_world(), EventLog(), world_memory={"facts": facts, "schema_version": 1}
-        )
-        loaded = manager.load_episode(0)
+        world = minimal_world()
+        save_episode(manager, world, EventLog(), world_memory=empty_memory(world))
+        document = loads_canonical((root / "episode_000" / WORLD_MEMORY_FILE).read_bytes())
 
-        assert list(loaded.world_memory["facts"]) == facts
-        assert len(loaded.world_memory["facts"]) == 5, "duplicates are kept, not merged"
+        assert document == {"facts": [], "schema_version": 1}
+
+        loaded = manager.load_episode(0).world_memory
+        assert loaded.facts == ()
+        assert loaded.through_episode == world.episode
+        assert loaded.through_tick == world.tick
 
 
-def test_the_loaded_memory_document_is_detached_and_read_only() -> None:
-    """Editing what a load returned must not reach the save or a later load."""
+def test_the_loaded_memory_is_immutable_at_every_depth() -> None:
+    """A loaded memory offers no mutation path, so a reader cannot rewrite history."""
     with temporary_save_root() as root:
-        manager = SaveManager(root)
-        manager.save_episode(
-            minimal_world(), EventLog(), world_memory={"facts": [{"k": 1}], "schema_version": 1}
-        )
-        loaded = manager.load_episode(0)
+        manager, _ = remembered_episode(root)
+        loaded = manager.load_episode(0).world_memory
+        fact = loaded.facts[0]
 
+        assert isinstance(loaded.facts, tuple)
         with pytest.raises(TypeError):
-            loaded.world_memory["facts"] = []  # type: ignore[index]
+            fact.details["wall_id"] = "other"  # type: ignore[index]
+        with pytest.raises(TypeError):
+            fact.details["source_event_payload"]["injected"] = 1  # type: ignore[index]
+        with pytest.raises(AttributeError):
+            fact.summary = "rewritten"  # type: ignore[misc]
 
-        loaded.world_memory["facts"][0]["k"] = 99  # type: ignore[index]
-        assert manager.load_episode(0).world_memory["facts"][0]["k"] == 1  # type: ignore[index]
+        recorded = fact.details["wall_id"]
+        detached = fact.details_as_dict()
+        detached["wall_id"] = "other"
+        assert manager.load_episode(0).world_memory.facts[0].details["wall_id"] == recorded
 
 
-@pytest.mark.parametrize(
-    "bad",
-    [
-        {"facts": []},
-        {"schema_version": 1},
-        {"facts": [], "schema_version": 2},
-        {"facts": [], "schema_version": 1, "extra": True},
-        {"facts": {}, "schema_version": 1},
-        {"facts": [{1, 2}], "schema_version": 1},
-        {"facts": [float("nan")], "schema_version": 1},
-    ],
-)
-def test_an_invalid_memory_document_is_refused(bad: dict) -> None:
-    """The reserved shape is exact, and nothing is repaired into it."""
+@pytest.mark.parametrize("bad", [None, {}, {"facts": [], "schema_version": 1}, [], "memory", 0])
+def test_a_non_memory_object_is_refused_before_anything_is_written(bad: object) -> None:
+    """The save API takes the domain object, not something merely shaped like it.
+
+    Accepting a bare mapping again would let a caller hand storage a document it
+    never validated, which is exactly the interpretation-free contract the memory
+    layer exists to keep out of persistence.
+    """
     with temporary_save_root() as root:
         with pytest.raises((TypeError, ValueError)):
             SaveManager(root).save_episode(minimal_world(), EventLog(), world_memory=bad)
         assert not (root / "episode_000").exists()
+        assert list(root.iterdir()) == []
 
 
 # --- Lineage across three episodes ------------------------------------------
@@ -255,7 +303,11 @@ def test_three_episodes_form_a_verified_chain() -> None:
     with temporary_save_root() as root:
         manager = SaveManager(root)
         manifests = [
-            manager.save_episode(rich_world(episode=number, tick=20 + number), rich_event_log())
+            save_episode(
+                manager,
+                rich_world(episode=number, tick=20 + number),
+                rich_event_log() if number == 0 else quiet_log(),
+            )
             for number in range(3)
         ]
 
@@ -270,11 +322,11 @@ def test_earlier_episodes_are_byte_identical_after_later_saves() -> None:
     """Hashed before and after, because the lineage claim depends on it."""
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(rich_world(episode=0), rich_event_log())
+        save_episode(manager, rich_world(episode=0), rich_event_log())
         first = {path.name: path.read_bytes() for path in sorted((root / "episode_000").iterdir())}
 
-        manager.save_episode(rich_world(episode=1, tick=21), rich_event_log())
-        manager.save_episode(rich_world(episode=2, tick=22), rich_event_log())
+        save_episode(manager, rich_world(episode=1, tick=21), quiet_log())
+        save_episode(manager, rich_world(episode=2, tick=22), quiet_log())
 
         after = {path.name: path.read_bytes() for path in sorted((root / "episode_000").iterdir())}
         assert after == first
@@ -284,9 +336,9 @@ def test_a_child_pointing_at_the_wrong_parent_is_detected() -> None:
     """A rewritten lineage claim does not survive verification."""
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(rich_world(episode=0), rich_event_log())
-        manager.save_episode(rich_world(episode=1, tick=21), rich_event_log())
-        manager.save_episode(rich_world(episode=2, tick=22), rich_event_log())
+        save_episode(manager, rich_world(episode=0), rich_event_log())
+        save_episode(manager, rich_world(episode=1, tick=21), quiet_log())
+        save_episode(manager, rich_world(episode=2, tick=22), quiet_log())
 
         with pytest.raises(ValueError):
             manager.verify_lineage(0, 2)
@@ -341,8 +393,8 @@ def test_hashes_are_identical_under_several_hash_seeds() -> None:
 def test_manifest_bytes_are_stable_apart_from_the_recorded_python_version() -> None:
     """Everything except the recorded interpreter version is state-determined."""
     with temporary_save_root() as first_root, temporary_save_root() as second_root:
-        SaveManager(first_root).save_episode(rich_world(), rich_event_log())
-        SaveManager(second_root).save_episode(rich_world(), rich_event_log())
+        save_episode(SaveManager(first_root), rich_world(), rich_event_log())
+        save_episode(SaveManager(second_root), rich_world(), rich_event_log())
 
         first = loads_canonical((first_root / "episode_000" / MANIFEST_FILE).read_bytes())
         second = loads_canonical((second_root / "episode_000" / MANIFEST_FILE).read_bytes())
@@ -356,7 +408,7 @@ def test_no_platform_specific_path_appears_inside_a_save() -> None:
     """A save must not record where it happened to be written."""
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(rich_world(), rich_event_log())
+        save_episode(manager, rich_world(), rich_event_log())
         for path in sorted((root / "episode_000").iterdir()):
             text = path.read_text(encoding="utf-8")
             assert str(root) not in text
@@ -380,7 +432,7 @@ def test_an_empty_world_and_empty_log_round_trip() -> None:
     with temporary_save_root() as root:
         manager = SaveManager(root)
         world = minimal_world()
-        manifest = manager.save_episode(world, EventLog())
+        manifest = save_episode(manager, world, EventLog())
         loaded = manager.load_episode(0)
 
         assert manifest.event_count == 0
@@ -398,7 +450,7 @@ def test_large_but_valid_values_round_trip() -> None:
         district.consumption_rate = 5e-324
 
         manager = SaveManager(root)
-        manager.save_episode(world, EventLog())
+        save_episode(manager, world, EventLog())
         restored = manager.load_episode(0).world.districts["district_a"]
 
         assert restored.population == 2**62
@@ -411,7 +463,7 @@ def test_a_high_episode_number_requires_its_parent_like_any_other() -> None:
     with temporary_save_root() as root:
         manager = SaveManager(root)
         with pytest.raises(FileNotFoundError):
-            manager.save_episode(minimal_world(episode=1000), EventLog())
+            save_episode(manager, minimal_world(episode=1000), EventLog())
         assert not (root / "episode_1000").exists()
         assert list(root.iterdir()) == []
 
@@ -424,11 +476,11 @@ def test_the_parent_requirement_holds_for_every_episode_number() -> None:
     """
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(minimal_world(episode=0, tick=1), EventLog())
-        manager.save_episode(minimal_world(episode=1, tick=2), EventLog())
+        save_episode(manager, minimal_world(episode=0, tick=1), EventLog())
+        save_episode(manager, minimal_world(episode=1, tick=2), EventLog())
 
         with pytest.raises(FileNotFoundError):
-            manager.save_episode(minimal_world(episode=3, tick=4), EventLog())
+            save_episode(manager, minimal_world(episode=3, tick=4), EventLog())
 
         assert sorted(entry.name for entry in root.iterdir()) == [
             "episode_000",
@@ -455,8 +507,32 @@ def test_resource_amounts_survive_at_full_precision() -> None:
         }
 
         manager = SaveManager(root)
-        manager.save_episode(world, EventLog())
+        save_episode(manager, world, EventLog())
         restored = manager.load_episode(0).world.districts["district_a"].resources
 
         for resource, amount in expected.items():
             assert restored.amount_of(resource) == amount
+
+
+def test_no_module_level_test_function_is_defined_twice() -> None:
+    """A duplicate ``test_*`` name silently shadows the earlier definition.
+
+    Candidate V7 carried two tests named
+    ``test_the_default_memory_document_is_the_empty_placeholder`` in this file,
+    and only the later one was collected. Ruff's F811 remains the source of
+    truth for linting; this guard keeps the repository honest even when the
+    suite is run without it.
+    """
+    tests_root = Path(__file__).resolve().parents[1]
+    duplicated: list[str] = []
+    for path in sorted(tests_root.rglob("*.py")):
+        seen: set[str] = set()
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            if not node.name.startswith("test_"):
+                continue
+            if node.name in seen:
+                duplicated.append(f"{path.relative_to(tests_root)}::{node.name}")
+            seen.add(node.name)
+    assert duplicated == []

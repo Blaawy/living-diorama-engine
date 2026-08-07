@@ -6,17 +6,19 @@ appearing, an earlier episode changing, or a tampered file loading as though it
 were intact.
 """
 
-import copy
 import json
 import os
 import shutil
 import sys
+from collections import Counter
 from pathlib import Path
 from types import MappingProxyType
 
 import pytest
 
+from living_diorama.entities import Boundary, Law, Wall
 from living_diorama.events import Event, EventLog, EventType
+from living_diorama.memory import MemoryFact, MemorySignificance, WorldMemory
 from living_diorama.persistence import (
     EpisodeManifest,
     FileMetadata,
@@ -33,10 +35,21 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     WORLD_STATE_FILE,
     episode_directory_name,
 )
+from living_diorama.persistence.serializers.world_serializer import serialize_world
+from living_diorama.simulation.world import World
 from persistence.conftest import (
+    build_district,
+    build_law,
+    build_wall,
+    consumed_rng,
+    empty_memory,
+    memory_for,
     minimal_world,
+    quiet_log,
     rich_event_log,
     rich_world,
+    save_episode,
+    structural_state,
     temporary_save_root,
 )
 
@@ -74,6 +87,17 @@ def require_symlink_support(
             target.unlink(missing_ok=True)
 
 
+def symlink_target(link: Path) -> str:
+    r"""Return a symlink's stored target, normalized for comparison.
+
+    On Windows ``os.readlink`` may report the substitute name, which carries
+    the ``\\?\`` extended-length prefix. The assertions below compare against
+    the path the test created the link with, and the prefix is representation,
+    not meaning: the link still points at exactly the same target.
+    """
+    return os.readlink(link).removeprefix("\\\\?\\")
+
+
 def directory_fingerprint(directory: Path) -> dict[str, bytes]:
     """Return every file in a directory keyed by name, for byte comparison."""
     return {path.name: path.read_bytes() for path in sorted(directory.iterdir())}
@@ -81,7 +105,8 @@ def directory_fingerprint(directory: Path) -> dict[str, bytes]:
 
 def save_rich(manager: SaveManager, *, episode: int = 0, tick: int = 20):
     """Save a rich world at the given episode and return its manifest."""
-    return manager.save_episode(rich_world(episode=episode, tick=tick), rich_event_log())
+    log = rich_event_log() if episode == 0 else quiet_log()
+    return save_episode(manager, rich_world(episode=episode, tick=tick), log)
 
 
 # --- Directory contract -----------------------------------------------------
@@ -129,7 +154,7 @@ def test_the_save_root_is_created_if_absent() -> None:
     """A first save should not require the caller to prepare the directory."""
     with temporary_save_root() as root:
         nested = root / "deeply" / "nested" / "saves"
-        SaveManager(nested).save_episode(minimal_world(), EventLog())
+        save_episode(SaveManager(nested), minimal_world(), EventLog())
         assert (nested / "episode_000").is_dir()
 
 
@@ -203,7 +228,7 @@ def test_the_manifest_counts_match_the_world() -> None:
     with temporary_save_root() as root:
         manager = SaveManager(root)
         world = rich_world()
-        manifest = manager.save_episode(world, rich_event_log())
+        manifest = save_episode(manager, world, rich_event_log())
         assert manifest.entity_counts["districts"] == len(world.districts)
         assert manifest.entity_counts["walls"] == len(world.walls)
         assert manifest.event_count == 3
@@ -233,7 +258,9 @@ def test_a_saved_episode_loads_back() -> None:
         assert loaded.world.episode == 0
         assert len(loaded.event_log.events()) == 3
         assert loaded.manifest.state_hash == manifest.state_hash
-        assert dict(loaded.world_memory) == {"facts": [], "schema_version": 1}
+        assert len(loaded.world_memory) == 1
+        assert loaded.world_memory.through_episode == 0
+        assert loaded.world_memory.through_tick == 20
 
 
 def test_loading_writes_nothing() -> None:
@@ -292,7 +319,7 @@ def test_a_failed_save_leaves_no_directory_and_no_staging_behind() -> None:
         broken.districts["district_a"].scarcity = 1.5
 
         with pytest.raises(ValueError):
-            manager.save_episode(broken, rich_event_log())
+            save_episode(manager, broken, rich_event_log())
 
         assert not (root / "episode_000").exists()
         assert list(root.iterdir()) == []
@@ -305,10 +332,10 @@ def test_a_failed_later_save_leaves_earlier_episodes_intact() -> None:
         save_rich(manager, episode=0)
         before = directory_fingerprint(root / "episode_000")
 
-        broken = rich_world(episode=1)
+        broken = rich_world(episode=1, tick=21)
         broken.districts["district_a"].population = True
-        with pytest.raises(TypeError):
-            manager.save_episode(broken, rich_event_log())
+        with pytest.raises((TypeError, ValueError)):
+            save_episode(manager, broken, quiet_log())
 
         assert directory_fingerprint(root / "episode_000") == before
         assert not (root / "episode_001").exists()
@@ -345,7 +372,7 @@ def test_a_filesystem_failure_publishes_nothing() -> None:
         blocked.write_text("{}", encoding="utf-8")
 
         with pytest.raises(OSError):
-            SaveManager(blocked).save_episode(rich_world(), rich_event_log())
+            save_episode(SaveManager(blocked), rich_world(), rich_event_log())
 
         assert blocked.read_text(encoding="utf-8") == "{}"
 
@@ -703,8 +730,8 @@ def test_a_symlinked_episode_directory_is_refused() -> None:
     with temporary_save_root() as root:
         require_symlink_support(root, target_is_directory=True)
         manager = SaveManager(root)
-        manager.save_episode(minimal_world(episode=0, tick=1), EventLog())
-        manager.save_episode(minimal_world(episode=1, tick=2), EventLog())
+        save_episode(manager, minimal_world(episode=0, tick=1), EventLog())
+        save_episode(manager, minimal_world(episode=1, tick=2), EventLog())
         shutil.rmtree(root / "episode_001")
         (root / "episode_001").symlink_to(root / "episode_000", target_is_directory=True)
 
@@ -729,7 +756,7 @@ def test_an_episode_path_that_is_a_file_is_refused() -> None:
 # when the next episode tries to resume from it.
 
 
-def snapshot_inputs(world: object, event_log: EventLog, memory: dict) -> tuple:
+def snapshot_inputs(world: object, event_log: EventLog, memory: object) -> tuple:
     """Capture everything a save is forbidden to touch."""
     from persistence.conftest import structural_state  # noqa: PLC0415
 
@@ -737,7 +764,7 @@ def snapshot_inputs(world: object, event_log: EventLog, memory: dict) -> tuple:
         structural_state(world),  # type: ignore[arg-type]
         event_log.events(),
         world.rng.get_state(),  # type: ignore[attr-defined]
-        copy.deepcopy(memory),
+        memory,
     )
 
 
@@ -746,9 +773,11 @@ def test_an_event_exactly_at_the_world_tick_saves() -> None:
     with temporary_save_root() as root:
         world = minimal_world(tick=7)
         log = EventLog()
-        log.append(Event(tick=7, type=EventType.WALL_BUILT, payload={}))
+        # A non-significant event: this test is about the tick boundary, and a
+        # WALL_BUILT event would now also have to name a wall the world holds.
+        log.append(Event(tick=7, type=EventType.SCARCITY_CHANGED, payload={}))
 
-        manifest = SaveManager(root).save_episode(world, log)
+        manifest = save_episode(SaveManager(root), world, log)
         assert manifest.event_count == 1
         assert SaveManager(root).load_episode(0).event_log.events()[0].tick == 7
 
@@ -759,11 +788,11 @@ def test_an_event_after_the_world_tick_is_refused_before_anything_is_written() -
         world = minimal_world(tick=0)
         log = EventLog()
         log.append(Event(tick=1, type=EventType.WALL_BUILT, payload={}))
-        memory = {"facts": [{"k": 1}], "schema_version": 1}
+        memory = empty_memory(world)
         before = snapshot_inputs(world, log, memory)
 
         with pytest.raises(ValueError):
-            SaveManager(root).save_episode(world, log, world_memory=memory)
+            save_episode(SaveManager(root), world, log, world_memory=memory)
 
         assert not (root / "episode_000").exists()
         assert list(root.iterdir()) == [], "no staging directory may survive"
@@ -780,7 +809,7 @@ def test_a_future_event_among_valid_ones_still_stops_the_save() -> None:
         log.append(Event(tick=5, type=EventType.WALL_BUILT, payload={}))
 
         with pytest.raises(ValueError):
-            SaveManager(root).save_episode(world, log)
+            save_episode(SaveManager(root), world, log)
         assert list(root.iterdir()) == []
 
 
@@ -788,13 +817,13 @@ def test_a_future_event_does_not_disturb_an_earlier_episode() -> None:
     """A rejected later save cannot damage the history behind it."""
     with temporary_save_root() as root:
         manager = SaveManager(root)
-        manager.save_episode(minimal_world(episode=0, tick=1), EventLog())
+        save_episode(manager, minimal_world(episode=0, tick=1), EventLog())
         before = directory_fingerprint(root / "episode_000")
 
         log = EventLog()
         log.append(Event(tick=50, type=EventType.WALL_BUILT, payload={}))
         with pytest.raises(ValueError):
-            manager.save_episode(minimal_world(episode=1, tick=2), log)
+            save_episode(manager, minimal_world(episode=1, tick=2), log)
 
         assert directory_fingerprint(root / "episode_000") == before
         assert sorted(entry.name for entry in root.iterdir()) == ["episode_000"]
@@ -806,7 +835,11 @@ def test_a_future_event_does_not_disturb_an_earlier_episode() -> None:
 def build_chain(manager: SaveManager, episodes: int = 3) -> list:
     """Save a valid chain of episodes and return their manifests."""
     return [
-        manager.save_episode(rich_world(episode=number, tick=20 + number), rich_event_log())
+        save_episode(
+            manager,
+            rich_world(episode=number, tick=20 + number),
+            rich_event_log() if number == 0 else quiet_log(),
+        )
         for number in range(episodes)
     ]
 
@@ -949,7 +982,7 @@ def stage_then_create(root: Path, create: object) -> None:
     module._rename_no_replace = racing
     try:
         with pytest.raises(FileExistsError):
-            manager.save_episode(rich_world(), rich_event_log())
+            save_episode(manager, rich_world(), rich_event_log())
     finally:
         module._rename_no_replace = original
 
@@ -1007,7 +1040,7 @@ def test_a_symlink_appearing_at_the_destination_is_untouched() -> None:
         )
 
         assert (root / "episode_000").is_symlink()
-        assert os.readlink(root / "episode_000") == str(target)
+        assert symlink_target(root / "episode_000") == str(target)
 
 
 def test_a_broken_symlink_destination_is_refused_up_front() -> None:
@@ -1021,10 +1054,10 @@ def test_a_broken_symlink_destination_is_refused_up_front() -> None:
         destination.symlink_to(root / "no_such_target")
 
         with pytest.raises(FileExistsError):
-            SaveManager(root).save_episode(rich_world(), rich_event_log())
+            save_episode(SaveManager(root), rich_world(), rich_event_log())
 
         assert destination.is_symlink()
-        assert os.readlink(destination) == str(root / "no_such_target")
+        assert symlink_target(destination) == str(root / "no_such_target")
         assert not destination.exists(), "still broken, still untouched"
         assert sorted(entry.name for entry in root.iterdir()) == ["episode_000"]
 
@@ -1036,7 +1069,7 @@ def test_a_broken_symlink_appearing_during_publication_is_untouched() -> None:
         stage_then_create(root, lambda destination: destination.symlink_to(root / "no_such_target"))
 
         assert (root / "episode_000").is_symlink()
-        assert os.readlink(root / "episode_000") == str(root / "no_such_target")
+        assert symlink_target(root / "episode_000") == str(root / "no_such_target")
 
 
 def test_the_publication_primitive_refuses_every_kind_of_existing_entry() -> None:
@@ -1320,7 +1353,11 @@ def test_a_canonical_save_still_loads() -> None:
 def save_chain(manager: SaveManager, episodes: int) -> list:
     """Save a valid chain of rich episodes and return their manifests."""
     return [
-        manager.save_episode(rich_world(episode=number, tick=20 + number), rich_event_log())
+        save_episode(
+            manager,
+            rich_world(episode=number, tick=20 + number),
+            rich_event_log() if number == 0 else quiet_log(),
+        )
         for number in range(episodes)
     ]
 
@@ -1402,7 +1439,7 @@ def test_a_longer_chain_loads() -> None:
     with temporary_save_root() as root:
         manager = SaveManager(root)
         manifests = [
-            manager.save_episode(minimal_world(episode=number, tick=number), EventLog())
+            save_episode(manager, minimal_world(episode=number, tick=number), EventLog())
             for number in range(8)
         ]
         loaded = manager.load_episode(7)
@@ -1667,7 +1704,7 @@ def test_a_chain_load_publishes_no_events_and_consumes_no_randomness() -> None:
 
         assert loaded.world.rng.get_state() == expected, "the generator is where it was saved"
         assert loaded.world.tick == 22, "no tick was advanced"
-        assert len(loaded.event_log.events()) == 3
+        assert loaded.event_log.events() == ()
 
 
 def test_a_chain_load_returns_only_the_requested_episode() -> None:
@@ -1735,3 +1772,1099 @@ def test_each_ancestor_is_verified_exactly_once_per_load() -> None:
             SaveManager._verified_documents = original  # type: ignore[method-assign]
 
         assert visited == [0, 1, 2, 3], "ascending order, each episode opened once"
+
+
+# --- Phase 11: the memory must describe the same moment as the world --------
+
+
+def memory_at(episode: int, tick: int) -> WorldMemory:
+    """Return an empty memory checkpointed to a chosen episode and tick."""
+    return WorldMemory((), through_episode=episode, through_tick=tick)
+
+
+def assert_nothing_was_written(root: Path) -> None:
+    """Assert a rejected save left no directory and no staging behind."""
+    assert not (root / "episode_000").exists()
+    assert list(root.iterdir()) == []
+
+
+def test_a_matching_memory_saves() -> None:
+    """The control case for the checkpoint preflight."""
+    with temporary_save_root() as root:
+        world = rich_world(episode=0, tick=20)
+        log = rich_event_log()
+        memory = memory_for(SaveManager(root), world, log)
+        manifest = SaveManager(root).save_episode(world, log, world_memory=memory)
+        assert manifest.episode == 0
+        assert len(memory) == 1, "the episode's WALL_BUILT event must be remembered"
+
+
+@pytest.mark.parametrize("bad", [None, {}, {"facts": [], "schema_version": 1}, "memory", 0])
+def test_a_non_memory_is_refused_before_anything_is_written(bad: object) -> None:
+    """The save API takes the domain object, not a document it never validated."""
+    with temporary_save_root() as root:
+        with pytest.raises((TypeError, ValueError)):
+            SaveManager(root).save_episode(rich_world(), rich_event_log(), world_memory=bad)
+        assert_nothing_was_written(root)
+
+
+def test_an_unprocessed_memory_is_refused() -> None:
+    """An episode saved with a memory that never saw it would lose its history."""
+    with temporary_save_root() as root:
+        with pytest.raises(ValueError):
+            SaveManager(root).save_episode(
+                rich_world(), rich_event_log(), world_memory=WorldMemory.empty()
+            )
+        assert_nothing_was_written(root)
+
+
+@pytest.mark.parametrize("episode", [1, 5])
+def test_a_memory_checkpointed_to_another_episode_is_refused(episode: int) -> None:
+    """A save whose two halves describe different episodes is not one episode.
+
+    Nothing downstream could catch it: both files would be internally valid, and
+    every hash and lineage check would pass.
+    """
+    with temporary_save_root() as root:
+        with pytest.raises(ValueError):
+            SaveManager(root).save_episode(
+                rich_world(episode=0, tick=20),
+                rich_event_log(),
+                world_memory=memory_at(episode, 20),
+            )
+        assert_nothing_was_written(root)
+
+
+@pytest.mark.parametrize("tick", [19, 21, 0])
+def test_a_memory_checkpointed_to_another_tick_is_refused(tick: int) -> None:
+    """The same argument for the moment within the episode."""
+    with temporary_save_root() as root:
+        with pytest.raises(ValueError):
+            SaveManager(root).save_episode(
+                rich_world(episode=0, tick=20),
+                rich_event_log(),
+                world_memory=memory_at(0, tick),
+            )
+        assert_nothing_was_written(root)
+
+
+def test_a_rejected_memory_leaves_every_input_untouched() -> None:
+    """Preflight happens before anything is read, written, or drawn."""
+    with temporary_save_root() as root:
+        world = rich_world(episode=0, tick=20)
+        log = rich_event_log()
+        memory = memory_at(1, 20)
+        before = snapshot_inputs(world, log, memory)
+
+        with pytest.raises(ValueError):
+            SaveManager(root).save_episode(world, log, world_memory=memory)
+
+        assert snapshot_inputs(world, log, memory) == before
+        assert_nothing_was_written(root)
+
+
+def test_a_rejected_memory_leaves_an_earlier_episode_untouched() -> None:
+    """One bad save cannot damage the history behind it."""
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        save_rich(manager, episode=0)
+        before = directory_fingerprint(root / "episode_000")
+
+        with pytest.raises(ValueError):
+            manager.save_episode(
+                rich_world(episode=1, tick=21), rich_event_log(), world_memory=memory_at(1, 99)
+            )
+
+        assert directory_fingerprint(root / "episode_000") == before
+        assert sorted(entry.name for entry in root.iterdir()) == ["episode_000"]
+
+
+# --- Phase 11 Candidate V7: the authoritative world snapshot -----------------
+#
+# Event, MemoryFact, and WorldMemory snapshots are not sufficient while the
+# World itself remains live. SaveManager therefore captures one world-state
+# document up front, strictly reconstructs it, and runs every remaining phase
+# against the reconstruction. These tests install stateful World and entity
+# subclasses whose read budgets are tuned to the exact read sequence Candidate
+# V6 performed, so each one either published an episode V6's own loader refused
+# or silently rewrote the caller's memory checkpoint. Under the snapshot, every
+# adversary collapses to one of two honest outcomes: a clean refusal before the
+# filesystem is touched, or a coherent episode that immediately reloads.
+
+SNAPSHOT_WALL = "wall_boundary_ab"
+"""The wall the snapshot scenarios build."""
+
+SNAPSHOT_BOUNDARY = "boundary_ab"
+"""The boundary that wall stands on."""
+
+SNAPSHOT_LAW = "resource_sharing"
+"""The law the restoration scenario restores."""
+
+
+def _shifting_field(name: str) -> property:
+    """Return a property answering its stored field until a read budget is spent.
+
+    Reads within the budget return whatever the entity stores; every read after
+    it returns the configured shifted value. Writes always land in the backing
+    store, so the ordinary dataclass constructor works unchanged.
+    """
+
+    def read(self: object) -> object:
+        """Count the read and answer from the store or the shift."""
+        self.__dict__["reads"] += 1
+        if self.__dict__["reads"] > self.__dict__["stable_reads"]:
+            return self.__dict__["shifted"]
+        return self.__dict__[f"stored_{name}"]
+
+    def write(self: object, value: object) -> None:
+        """Record the honest value the constructor assigned."""
+        self.__dict__[f"stored_{name}"] = value
+
+    return property(read, write)
+
+
+class _ShiftingReader:
+    """Mixin arming a read-budgeted field before the object initializes."""
+
+    def __init__(self, *args: object, stable_reads: int, shifted: object, **kwargs: object) -> None:
+        """Record the read budget and shifted value, then initialize normally."""
+        self.__dict__.update(stable_reads=stable_reads, shifted=shifted, reads=0)
+        super().__init__(*args, **kwargs)
+
+
+class ShiftingPermanentWall(_ShiftingReader, Wall):
+    """Wall whose ``permanent`` stops being what it stored once its budget is spent.
+
+    With a budget of three this is exactly the reviewer's adversary: Candidate
+    V6 read ``permanent`` three times while validating memory and once more
+    while serializing, so reads 1-3 said True and the published file said false.
+    """
+
+    permanent = _shifting_field("permanent")
+
+
+class ShiftingBuiltTickWall(_ShiftingReader, Wall):
+    """Wall whose ``built_tick`` shifts once its read budget is spent.
+
+    Candidate V6 read ``built_tick`` five times before serialization -- once at
+    construction and four times across memory validation -- and twice while
+    serializing, so a budget of five validated one tick and published another.
+    """
+
+    built_tick = _shifting_field("built_tick")
+
+
+class ShiftingBoundary(_ShiftingReader, Boundary):
+    """Boundary whose ``wall_id`` shifts once its read budget is spent.
+
+    Candidate V6 read ``wall_id`` thirteen times across construction,
+    registration, and validation, and once more while serializing, so a budget
+    of thirteen validated a carried wall and published a boundary without one.
+    """
+
+    wall_id = _shifting_field("wall_id")
+
+
+class ShiftingLaw(_ShiftingReader, Law):
+    """Law whose ``restored_tick`` shifts once its read budget is spent.
+
+    Candidate V6 read ``restored_tick`` four times before serialization -- twice
+    at construction and twice while validating the restoration -- and once while
+    serializing, so a budget of four validated one tick and published another.
+    """
+
+    restored_tick = _shifting_field("restored_tick")
+
+
+class ShiftingTickWorld(_ShiftingReader, World):
+    """World whose ``tick`` shifts once its read budget is spent.
+
+    Candidate V6 read ``tick`` three times while validating and four more times
+    while serializing and building the manifest, so a budget of three matched
+    the memory checkpoint and then recorded a different tick everywhere else.
+    """
+
+    @property
+    def tick(self) -> int:
+        """Answer the stored tick within the budget, the shifted one after it."""
+        self.__dict__["reads"] += 1
+        if self.__dict__["reads"] > self.__dict__["stable_reads"]:
+            return self.__dict__["shifted"]  # type: ignore[return-value]
+        return self._tick
+
+
+class ShiftingEpisodeWorld(_ShiftingReader, World):
+    """World whose ``episode`` shifts once its read budget is spent.
+
+    Candidate V6 read ``episode`` three times while resolving the destination
+    and validating, and twice more while serializing, so a budget of three
+    validated one episode and wrote another into the world state.
+    """
+
+    @property
+    def episode(self) -> int:
+        """Answer the stored episode within the budget, the shifted one after."""
+        self.__dict__["reads"] += 1
+        if self.__dict__["reads"] > self.__dict__["stable_reads"]:
+            return self.__dict__["shifted"]  # type: ignore[return-value]
+        return self._episode
+
+
+class ShiftingMemory(WorldMemory):
+    """Memory whose ``through_tick`` shifts after its first read."""
+
+    @property
+    def through_tick(self) -> int | None:
+        """Answer the stored checkpoint once, then one tick later forever."""
+        reads = self.__dict__["tick_reads"] = self.__dict__.get("tick_reads", 0) + 1
+        if reads > 1 and self._through_tick is not None:
+            return self._through_tick + 1
+        return self._through_tick
+
+
+class RecordingWorld(World):
+    """World that tallies every public read, to pin where reading stops."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """Start an empty tally, then build the world normally."""
+        self.__dict__["reads"] = Counter()
+        super().__init__(*args, **kwargs)
+
+    def _tally(self, name: str) -> None:
+        """Record one read of a public accessor."""
+        self.__dict__["reads"][name] += 1
+
+    @property
+    def tick(self) -> int:
+        """Count the read, then answer normally."""
+        self._tally("tick")
+        return self._tick
+
+    @property
+    def episode(self) -> int:
+        """Count the read, then answer normally."""
+        self._tally("episode")
+        return self._episode
+
+    @property
+    def rng(self) -> object:
+        """Count the read, then answer normally."""
+        self._tally("rng")
+        return self._rng
+
+    @property
+    def districts(self) -> object:
+        """Count the read, then answer normally."""
+        self._tally("districts")
+        return MappingProxyType(self._districts)
+
+    @property
+    def boundaries(self) -> object:
+        """Count the read, then answer normally."""
+        self._tally("boundaries")
+        return MappingProxyType(self._boundaries)
+
+    @property
+    def walls(self) -> object:
+        """Count the read, then answer normally."""
+        self._tally("walls")
+        return MappingProxyType(self._walls)
+
+    @property
+    def laws(self) -> object:
+        """Count the read, then answer normally."""
+        self._tally("laws")
+        return MappingProxyType(self._laws)
+
+    @property
+    def infrastructure(self) -> object:
+        """Count the read, then answer normally."""
+        self._tally("infrastructure")
+        return MappingProxyType(self._infrastructure)
+
+    def has_entity(self, entity_id: str) -> bool:
+        """Count the read, then answer normally."""
+        self._tally("has_entity")
+        return super().has_entity(entity_id)
+
+    def get_entity(self, entity_id: str) -> object:
+        """Count the read, then answer normally."""
+        self._tally("get_entity")
+        return super().get_entity(entity_id)
+
+
+class LoyalWall(Wall):
+    """A legitimate Wall subclass whose every read is coherent."""
+
+
+class LoyalBoundary(Boundary):
+    """A legitimate Boundary subclass whose every read is coherent."""
+
+
+class LoyalLaw(Law):
+    """A legitimate Law subclass whose every read is coherent."""
+
+
+class LoyalWorld(World):
+    """A legitimate World subclass whose every read is coherent."""
+
+
+def snapshot_wall(**overrides: object) -> Wall:
+    """Build the permanent wall the snapshot scenarios stand on."""
+    values: dict[str, object] = {"created_tick": 120, "built_tick": 120}
+    values.update(overrides)
+    return build_wall(SNAPSHOT_WALL, SNAPSHOT_BOUNDARY, **values)  # type: ignore[arg-type]
+
+
+def wall_world(
+    wall: Wall,
+    *,
+    boundary: Boundary | None = None,
+    world_cls: type[World] = World,
+    tick: int = 120,
+    episode: int = 0,
+    **world_extra: object,
+) -> World:
+    """Build the two-district world every stateful-entity scenario uses."""
+    world = world_cls(rng=consumed_rng(), tick=tick, episode=episode, **world_extra)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    world.add_boundary(
+        boundary
+        if boundary is not None
+        else Boundary(
+            id=SNAPSHOT_BOUNDARY,
+            created_tick=0,
+            district_a_id="district_a",
+            district_b_id="district_b",
+        )
+    )
+    world.add_wall(wall)
+    return world
+
+
+def wall_event(tick: int = 120) -> Event:
+    """Return the construction event the snapshot wall answers to."""
+    return Event(
+        tick=tick,
+        type=EventType.WALL_BUILT,
+        payload={"wall_id": SNAPSHOT_WALL},
+        source_id=SNAPSHOT_WALL,
+    )
+
+
+def log_holding(*events: Event) -> EventLog:
+    """Return a log holding these events in order."""
+    log = EventLog()
+    for event in events:
+        log.append(event)
+    return log
+
+
+def built_wall_memory() -> WorldMemory:
+    """Distil the memory the wall-building episode actually requires."""
+    return MemorySignificance().distill_episode(
+        world=wall_world(snapshot_wall()),
+        event_log=log_holding(wall_event()),
+        previous_memory=WorldMemory.empty(),
+    )
+
+
+def restored_law(**overrides: object) -> Law:
+    """Build the restored law the persistence scenario stands on."""
+    values: dict[str, object] = {
+        "name": "Resource Sharing",
+        "active": True,
+        "previous_value": False,
+        "current_value": True,
+        "changed_episode": 0,
+        "restored_tick": 250,
+    }
+    values.update(overrides)
+    return build_law(SNAPSHOT_LAW, **values)  # type: ignore[arg-type]
+
+
+def restored_law_world(law: Law, *, wall: Wall | None = None) -> World:
+    """Build the world in which a law was restored after the wall was built."""
+    world = World(rng=consumed_rng(), tick=250, episode=0)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    world.add_boundary(
+        Boundary(
+            id=SNAPSHOT_BOUNDARY,
+            created_tick=0,
+            district_a_id="district_a",
+            district_b_id="district_b",
+        )
+    )
+    world.add_law(law)
+    world.add_wall(wall if wall is not None else snapshot_wall())
+    return world
+
+
+def law_restored_event(tick: int = 250) -> Event:
+    """Return the restoration event the persistence scenario answers to."""
+    return Event(tick=tick, type=EventType.LAW_RESTORED, payload={}, source_id=SNAPSHOT_LAW)
+
+
+def restored_law_memory() -> WorldMemory:
+    """Distil the memory the wall-then-restoration episode actually requires."""
+    return MemorySignificance().distill_episode(
+        world=restored_law_world(restored_law()),
+        event_log=log_holding(wall_event(), law_restored_event()),
+        previous_memory=WorldMemory.empty(),
+    )
+
+
+def test_a_wall_reporting_permanence_only_to_validation_cannot_poison_a_save() -> None:
+    """The reviewer's stateful wall: Candidate V6 published an episode it refused to load.
+
+    Under the authoritative snapshot the wall is read once, while the world
+    document is captured; whatever it said then is what every later phase
+    validates and what lands on disk, so the save stays loadable.
+    """
+    wall = ShiftingPermanentWall(
+        id=SNAPSHOT_WALL,
+        created_tick=120,
+        boundary_id=SNAPSHOT_BOUNDARY,
+        built_tick=120,
+        integrity=1.0,
+        active=True,
+        permanent=True,
+        dependency_score=0.0,
+        transport_dependency=0.0,
+        resource_dependency=0.0,
+        stable_reads=3,
+        shifted=False,
+    )
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(
+            wall_world(wall), log_holding(wall_event()), world_memory=built_wall_memory()
+        )
+
+        loaded = manager.load_episode(manifest.episode)
+        assert loaded.world.walls[SNAPSHOT_WALL].permanent is True
+        assert loaded.world_memory == built_wall_memory()
+
+
+def test_a_wall_serialized_as_impermanent_while_remembered_permanent_is_refused() -> None:
+    """The preferred outcome: a captured document disagreeing with the memory rejects.
+
+    This wall answers False to every read, so the captured world document says
+    the wall is not permanent while the supplied memory remembers that it is.
+    The save must refuse before anything touches the filesystem.
+    """
+    wall = ShiftingPermanentWall(
+        id=SNAPSHOT_WALL,
+        created_tick=120,
+        boundary_id=SNAPSHOT_BOUNDARY,
+        built_tick=120,
+        integrity=1.0,
+        active=True,
+        permanent=True,
+        dependency_score=0.0,
+        transport_dependency=0.0,
+        resource_dependency=0.0,
+        stable_reads=0,
+        shifted=False,
+    )
+    world = wall_world(wall)
+    memory = built_wall_memory()
+    memory_before = (memory.facts, memory.through_episode, memory.through_tick)
+    with temporary_save_root() as root:
+        rng_before = world.rng.get_state()
+
+        with pytest.raises(ValueError, match="not permanent"):
+            SaveManager(root).save_episode(world, log_holding(wall_event()), world_memory=memory)
+
+        assert_nothing_was_written(root)
+        assert world.rng.get_state() == rng_before
+        assert (memory.facts, memory.through_episode, memory.through_tick) == memory_before
+
+
+def test_a_tick_shifting_world_cannot_rewrite_the_memory_checkpoint() -> None:
+    """The reviewer's stateful world: a memory supplied at tick 120 must stay at 120.
+
+    Candidate V6 matched the checkpoint against early reads and built the
+    manifest from later ones, so the loaded memory came back checkpointed to a
+    tick the caller never processed. The snapshot leaves one tick in the world
+    document, and the checkpoint must match exactly that.
+    """
+    world = ShiftingTickWorld(rng=consumed_rng(), tick=120, episode=0, stable_reads=3, shifted=121)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    world.add_boundary(
+        Boundary(
+            id=SNAPSHOT_BOUNDARY,
+            created_tick=0,
+            district_a_id="district_a",
+            district_b_id="district_b",
+        )
+    )
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(world, EventLog(), world_memory=memory_at(0, 120))
+
+        assert manifest.tick == 120
+        loaded = manager.load_episode(0)
+        assert loaded.manifest.tick == 120
+        assert loaded.world_memory.through_tick == 120
+        assert loaded.world.tick == 120
+
+
+def test_a_tick_captured_beyond_the_checkpoint_is_refused_before_publication() -> None:
+    """A world document captured at tick 121 cannot save a memory processed to 120."""
+    world = ShiftingTickWorld(rng=consumed_rng(), tick=120, episode=0, stable_reads=1, shifted=121)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    with temporary_save_root() as root:
+        rng_before = world.rng.get_state()
+
+        with pytest.raises(ValueError, match=r"tick 120.*121"):
+            SaveManager(root).save_episode(world, EventLog(), world_memory=memory_at(0, 120))
+
+        assert_nothing_was_written(root)
+        assert world.rng.get_state() == rng_before
+
+
+def test_an_episode_shifting_world_cannot_publish_across_episodes() -> None:
+    """One captured episode number names the directory, the parent, and the manifest.
+
+    Candidate V6 resolved the destination from an early read and serialized a
+    later one, publishing a directory whose world state named another episode --
+    an episode its own loader refused.
+    """
+    world = ShiftingEpisodeWorld(rng=consumed_rng(), tick=120, episode=0, stable_reads=3, shifted=1)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(world, EventLog(), world_memory=memory_at(0, 120))
+
+        assert manifest.episode == 0
+        assert sorted(entry.name for entry in root.iterdir()) == ["episode_000"]
+        loaded = manager.load_episode(0)
+        assert loaded.world.episode == 0
+        assert loaded.manifest.episode == 0
+
+
+def test_an_episode_captured_disagreeing_with_the_memory_is_refused() -> None:
+    """A world document captured at episode 1 cannot save episode 0's memory."""
+    world = ShiftingEpisodeWorld(rng=consumed_rng(), tick=120, episode=0, stable_reads=1, shifted=1)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    with temporary_save_root() as root:
+        rng_before = world.rng.get_state()
+
+        with pytest.raises(ValueError, match=r"episode 0.*episode 1|episode 1.*episode 0"):
+            SaveManager(root).save_episode(world, EventLog(), world_memory=memory_at(0, 120))
+
+        assert list(root.iterdir()) == []
+        assert world.rng.get_state() == rng_before
+
+
+def test_a_wall_shifting_built_tick_after_validation_still_saves_a_loadable_episode() -> None:
+    """A built_tick that shifts after validation cannot reach the published file."""
+    wall = ShiftingBuiltTickWall(
+        id=SNAPSHOT_WALL,
+        created_tick=120,
+        boundary_id=SNAPSHOT_BOUNDARY,
+        built_tick=120,
+        integrity=1.0,
+        active=True,
+        permanent=True,
+        dependency_score=0.0,
+        transport_dependency=0.0,
+        resource_dependency=0.0,
+        stable_reads=5,
+        shifted=121,
+    )
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(
+            wall_world(wall), log_holding(wall_event()), world_memory=built_wall_memory()
+        )
+
+        loaded = manager.load_episode(manifest.episode)
+        assert loaded.world.walls[SNAPSHOT_WALL].built_tick == 120
+        assert loaded.world_memory == built_wall_memory()
+
+
+def test_a_boundary_shifting_its_wall_reference_still_saves_a_loadable_episode() -> None:
+    """A wall reference that shifts after validation cannot reach the published file."""
+    boundary = ShiftingBoundary(
+        id=SNAPSHOT_BOUNDARY,
+        created_tick=0,
+        district_a_id="district_a",
+        district_b_id="district_b",
+        stable_reads=13,
+        shifted=None,
+    )
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(
+            wall_world(snapshot_wall(), boundary=boundary),
+            log_holding(wall_event()),
+            world_memory=built_wall_memory(),
+        )
+
+        loaded = manager.load_episode(manifest.episode)
+        assert loaded.world.boundaries[SNAPSHOT_BOUNDARY].wall_id == SNAPSHOT_WALL
+        assert loaded.world_memory == built_wall_memory()
+
+
+def test_a_law_shifting_restored_tick_after_validation_still_saves_a_loadable_episode() -> None:
+    """A restored_tick that shifts after validation cannot reach the published file."""
+    law = ShiftingLaw(
+        id=SNAPSHOT_LAW,
+        created_tick=0,
+        name="Resource Sharing",
+        active=True,
+        previous_value=False,
+        current_value=True,
+        changed_episode=0,
+        restored_tick=250,
+        stable_reads=4,
+        shifted=251,
+    )
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(
+            restored_law_world(law),
+            log_holding(wall_event(), law_restored_event()),
+            world_memory=restored_law_memory(),
+        )
+
+        loaded = manager.load_episode(manifest.episode)
+        assert loaded.world.laws[SNAPSHOT_LAW].restored_tick == 250
+        assert loaded.world_memory == restored_law_memory()
+
+
+def test_a_stable_subclass_family_still_saves_and_reloads() -> None:
+    """The control case: coherent subclasses of World and every entity still work."""
+    world = LoyalWorld(rng=consumed_rng(), tick=250, episode=0)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    world.add_boundary(
+        LoyalBoundary(
+            id=SNAPSHOT_BOUNDARY,
+            created_tick=0,
+            district_a_id="district_a",
+            district_b_id="district_b",
+        )
+    )
+    world.add_law(
+        LoyalLaw(
+            id=SNAPSHOT_LAW,
+            created_tick=0,
+            name="Resource Sharing",
+            active=True,
+            previous_value=False,
+            current_value=True,
+            changed_episode=0,
+            restored_tick=250,
+        )
+    )
+    world.add_wall(
+        LoyalWall(
+            id=SNAPSHOT_WALL,
+            created_tick=120,
+            boundary_id=SNAPSHOT_BOUNDARY,
+            built_tick=120,
+            integrity=1.0,
+            active=True,
+            permanent=True,
+            dependency_score=0.0,
+            transport_dependency=0.0,
+            resource_dependency=0.0,
+        )
+    )
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manifest = manager.save_episode(
+            world,
+            log_holding(wall_event(), law_restored_event()),
+            world_memory=restored_law_memory(),
+        )
+
+        loaded = manager.load_episode(manifest.episode)
+        assert structural_state(loaded.world) == structural_state(world)
+        assert loaded.world_memory == restored_law_memory()
+
+
+def test_the_caller_world_is_not_read_after_the_document_is_captured() -> None:
+    """The counting subclass pins the boundary: a save reads what serialization reads.
+
+    Two identical recording worlds, one handed to ``serialize_world`` alone and
+    one to a full save. If the save consulted the caller world anywhere after
+    capturing the authoritative document -- checkpoint matching, transition
+    validation, the event log, entity counts, the manifest -- its tally would
+    exceed the serializer's.
+    """
+
+    def recording_world() -> World:
+        """Build one of the twin recording worlds."""
+        return wall_world(snapshot_wall(), world_cls=RecordingWorld)
+
+    serialized_only = recording_world()
+    serialize_world(serialized_only)
+
+    saved = recording_world()
+    with temporary_save_root() as root:
+        SaveManager(root).save_episode(
+            saved, log_holding(wall_event()), world_memory=built_wall_memory()
+        )
+
+    assert dict(saved.__dict__["reads"]) == dict(serialized_only.__dict__["reads"])
+
+
+class ReportingSourceEvent(Event):
+    """Event whose ``source_id`` reports a chosen value after construction."""
+
+    @property
+    def source_id(self) -> object:
+        """Answer the doctored value once installed, the stored one before."""
+        if "reported" in self.__dict__:
+            return self.__dict__["reported"]
+        return self.__dict__.get("constructed")
+
+    @source_id.setter
+    def source_id(self, value: object) -> None:
+        """Record the honest value the constructor assigned."""
+        self.__dict__["constructed"] = value
+
+
+class ReportingFact(MemoryFact):
+    """Fact whose derived fields report chosen values after construction."""
+
+    @property
+    def fact_id(self) -> object:
+        """Answer the doctored identifier once installed, the real one before."""
+        if "reported_id" in self.__dict__:
+            return self.__dict__["reported_id"]
+        return self.__dict__.get("derived_id")
+
+    @fact_id.setter
+    def fact_id(self, value: object) -> None:
+        """Record the identifier the fact honestly derived."""
+        self.__dict__["derived_id"] = value
+
+    @property
+    def summary(self) -> object:
+        """Answer the doctored summary once installed, the real one before."""
+        if "reported_summary" in self.__dict__:
+            return self.__dict__["reported_summary"]
+        return self.__dict__.get("derived_summary")
+
+    @summary.setter
+    def summary(self, value: object) -> None:
+        """Record the summary the fact honestly derived."""
+        self.__dict__["derived_summary"] = value
+
+
+class _SubclassedString(str):
+    """A ``str`` subclass: equal to a plain string, and not one."""
+
+
+def _stateful_event_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose log holds an Event subclass with a doctored source."""
+    event = ReportingSourceEvent(
+        tick=120,
+        type=EventType.WALL_BUILT,
+        payload={"wall_id": SNAPSHOT_WALL},
+        source_id=SNAPSHOT_WALL,
+    )
+    event.__dict__["reported"] = _SubclassedString(SNAPSHOT_WALL)
+    return wall_world(snapshot_wall()), log_holding(event), built_wall_memory()
+
+
+def _stateful_fact_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose memory holds a MemoryFact subclass with doctored strings."""
+    base = built_wall_memory().facts[0]
+    fact = ReportingFact(
+        fact_type=base.fact_type,
+        episode=base.episode,
+        tick=base.tick,
+        source_event_index=base.source_event_index,
+        source_event_type=base.source_event_type,
+        source_id=base.source_id,
+        subject_ids=base.subject_ids,
+        details=base.details_as_dict(),
+    )
+    fact.__dict__["reported_id"] = _SubclassedString(base.fact_id)
+    fact.__dict__["reported_summary"] = _SubclassedString(base.summary)
+    memory = WorldMemory((fact,), through_episode=0, through_tick=120)
+    return wall_world(snapshot_wall()), log_holding(wall_event()), memory
+
+
+def _stateful_memory_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose WorldMemory subclass shifts its checkpoint between reads."""
+    memory = ShiftingMemory((), through_episode=0, through_tick=120)
+    world = World(rng=consumed_rng(), tick=120, episode=0)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    return world, EventLog(), memory
+
+
+def _stateful_world_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose World subclass shifts its tick between reads."""
+    world = ShiftingTickWorld(rng=consumed_rng(), tick=120, episode=0, stable_reads=3, shifted=121)
+    world.add_district(build_district("district_a"))
+    world.add_district(build_district("district_b"))
+    return world, EventLog(), memory_at(0, 120)
+
+
+def _stateful_wall_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose Wall subclass shifts ``permanent`` between reads."""
+    wall = ShiftingPermanentWall(
+        id=SNAPSHOT_WALL,
+        created_tick=120,
+        boundary_id=SNAPSHOT_BOUNDARY,
+        built_tick=120,
+        integrity=1.0,
+        active=True,
+        permanent=True,
+        dependency_score=0.0,
+        transport_dependency=0.0,
+        resource_dependency=0.0,
+        stable_reads=3,
+        shifted=False,
+    )
+    return wall_world(wall), log_holding(wall_event()), built_wall_memory()
+
+
+def _stateful_boundary_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose Boundary subclass shifts its wall reference between reads."""
+    boundary = ShiftingBoundary(
+        id=SNAPSHOT_BOUNDARY,
+        created_tick=0,
+        district_a_id="district_a",
+        district_b_id="district_b",
+        stable_reads=13,
+        shifted=None,
+    )
+    world = wall_world(snapshot_wall(), boundary=boundary)
+    return world, log_holding(wall_event()), built_wall_memory()
+
+
+def _stateful_law_scenario() -> tuple[World, EventLog, WorldMemory]:
+    """Return a save whose Law subclass shifts ``restored_tick`` between reads."""
+    law = ShiftingLaw(
+        id=SNAPSHOT_LAW,
+        created_tick=0,
+        name="Resource Sharing",
+        active=True,
+        previous_value=False,
+        current_value=True,
+        changed_episode=0,
+        restored_tick=250,
+        stable_reads=4,
+        shifted=251,
+    )
+    world = restored_law_world(law)
+    return world, log_holding(wall_event(), law_restored_event()), restored_law_memory()
+
+
+STATEFUL_ADVERSARIES = {
+    "event_subclass": _stateful_event_scenario,
+    "memory_fact_subclass": _stateful_fact_scenario,
+    "world_memory_subclass": _stateful_memory_scenario,
+    "world_subclass": _stateful_world_scenario,
+    "wall_subclass": _stateful_wall_scenario,
+    "boundary_subclass": _stateful_boundary_scenario,
+    "law_subclass": _stateful_law_scenario,
+}
+"""Every stateful adversary the successful-save invariant is tested against."""
+
+
+@pytest.mark.parametrize("adversary", sorted(STATEFUL_ADVERSARIES))
+def test_every_successful_save_immediately_reloads(adversary: str) -> None:
+    """The Candidate V7 invariant, against every stateful adversary.
+
+    Rejecting an adversary before the filesystem is touched is valid. Publishing
+    an episode this same implementation cannot immediately reload -- or one whose
+    memory comes back checkpointed to a different moment -- is not.
+    """
+    world, log, memory = STATEFUL_ADVERSARIES[adversary]()
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        rng_before = world.rng.get_state()
+        try:
+            manifest = manager.save_episode(world, log, world_memory=memory)
+        except (TypeError, ValueError):
+            assert list(root.iterdir()) == [], "a rejected save must leave no residue"
+            assert world.rng.get_state() == rng_before
+            return
+
+        loaded = manager.load_episode(manifest.episode)
+        assert loaded.manifest.state_hash == manifest.state_hash
+        assert loaded.manifest.tick == manifest.tick
+        assert loaded.world_memory.through_episode == manifest.episode
+        assert loaded.world_memory.through_tick == manifest.tick
+
+
+def test_a_rejected_stateful_save_leaves_the_parent_episode_untouched() -> None:
+    """One stateful adversary cannot damage the history behind it."""
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        manager.save_episode(
+            wall_world(snapshot_wall()),
+            log_holding(wall_event()),
+            world_memory=built_wall_memory(),
+        )
+        before = directory_fingerprint(root / "episode_000")
+        parent_memory = manager.load_episode(0).world_memory
+
+        impermanent = ShiftingPermanentWall(
+            id=SNAPSHOT_WALL,
+            created_tick=120,
+            boundary_id=SNAPSHOT_BOUNDARY,
+            built_tick=120,
+            integrity=1.0,
+            active=True,
+            permanent=True,
+            dependency_score=0.0,
+            transport_dependency=0.0,
+            resource_dependency=0.0,
+            stable_reads=0,
+            shifted=False,
+        )
+        child = wall_world(impermanent, tick=250, episode=1)
+        rng_before = child.rng.get_state()
+
+        with pytest.raises(ValueError, match="permanent"):
+            manager.save_episode(
+                child,
+                quiet_log(),
+                world_memory=parent_memory.advance(episode=1, tick=250, new_facts=()),
+            )
+
+        assert not (root / "episode_001").exists()
+        assert sorted(entry.name for entry in root.iterdir()) == ["episode_000"]
+        assert directory_fingerprint(root / "episode_000") == before
+        assert child.rng.get_state() == rng_before
+
+
+# --- hostile __class__ at the save boundary ----------------------------------
+
+
+class HostileClass:
+    """Raises from ``__class__`` instead of answering."""
+
+    @property
+    def __class__(self) -> type:
+        """Raise instead of revealing a type."""
+        raise RuntimeError("boom")
+
+
+def test_a_hostile_save_root_is_refused() -> None:
+    """The root's true runtime type decides, not its ``__class__`` property."""
+    with pytest.raises(TypeError, match="save_root must be a str or Path, got HostileClass"):
+        SaveManager(HostileClass())
+
+
+def test_a_hostile_world_is_refused_before_anything_is_written() -> None:
+    """A fake world is refused without executing its ``__class__`` property."""
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        log = rich_event_log()
+        events_before = log.events()
+        memory = empty_memory(rich_world())
+        checkpoint_before = (memory.through_episode, memory.through_tick, memory.facts)
+
+        with pytest.raises(TypeError, match="world must be a World, got HostileClass"):
+            manager.save_episode(world=HostileClass(), event_log=log, world_memory=memory)
+
+        assert list(root.iterdir()) == []
+        assert log.events() == events_before
+        assert (memory.through_episode, memory.through_tick, memory.facts) == checkpoint_before
+
+
+def test_a_hostile_event_log_is_refused_before_anything_is_written() -> None:
+    """A fake log is refused without executing its ``__class__`` property."""
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        world = rich_world()
+        world_before = structural_state(world)
+        rng_before = world.rng.get_state()
+        memory = empty_memory(world)
+        checkpoint_before = (memory.through_episode, memory.through_tick, memory.facts)
+
+        with pytest.raises(TypeError, match="event_log must be an EventLog, got HostileClass"):
+            manager.save_episode(world=world, event_log=HostileClass(), world_memory=memory)
+
+        assert structural_state(world) == world_before
+        assert world.rng.get_state() == rng_before
+        assert (memory.through_episode, memory.through_tick, memory.facts) == checkpoint_before
+        assert list(root.iterdir()) == []
+
+
+def test_a_hostile_memory_is_refused_before_anything_is_written() -> None:
+    """A fake memory is refused without executing its ``__class__`` property."""
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        world = rich_world()
+        log = rich_event_log()
+        world_before = structural_state(world)
+        events_before = log.events()
+        rng_before = world.rng.get_state()
+
+        with pytest.raises(TypeError, match="world_memory must be a WorldMemory, got HostileClass"):
+            manager.save_episode(world=world, event_log=log, world_memory=HostileClass())
+
+        assert structural_state(world) == world_before
+        assert log.events() == events_before
+        assert world.rng.get_state() == rng_before
+        assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("registry_attr", "message"),
+    [
+        ("_districts", "district must be a District, got HostileClass"),
+        ("_boundaries", "boundary must be a Boundary, got HostileClass"),
+        ("_walls", "wall must be a Wall, got HostileClass"),
+        ("_laws", "law must be a Law, got HostileClass"),
+        ("_infrastructure", "infrastructure must be an Infrastructure, got HostileClass"),
+    ],
+)
+def test_a_hostile_entity_inside_the_world_aborts_the_save_cleanly(
+    registry_attr: str, message: str
+) -> None:
+    """The Phase 10 serializers refuse a fake entity before anything is written."""
+    with temporary_save_root() as root:
+        manager = SaveManager(root)
+        world = rich_world()
+        registry = getattr(world, registry_attr)
+        key = sorted(registry)[0]
+        fake = HostileClass()
+        for klass in type(registry[key]).__mro__:
+            for name in getattr(klass, "__slots__", ()):
+                setattr(fake, name, getattr(registry[key], name))
+        registry[key] = fake
+        world._entities[key] = fake
+
+        log = rich_event_log()
+        memory = empty_memory(world)
+        events_before = log.events()
+        rng_before = world.rng.get_state()
+        checkpoint_before = (memory.through_episode, memory.through_tick, memory.facts)
+        keys_before = {
+            attr: sorted(getattr(world, attr))
+            for attr in ("_districts", "_boundaries", "_walls", "_laws", "_infrastructure")
+        }
+
+        with pytest.raises(TypeError, match=message):
+            manager.save_episode(world=world, event_log=log, world_memory=memory)
+
+        assert list(root.iterdir()) == []
+        assert log.events() == events_before
+        assert world.rng.get_state() == rng_before
+        assert (memory.through_episode, memory.through_tick, memory.facts) == checkpoint_before
+        assert (world.tick, world.episode) == (20, 0)
+        assert {
+            attr: sorted(getattr(world, attr))
+            for attr in ("_districts", "_boundaries", "_walls", "_laws", "_infrastructure")
+        } == keys_before
+        assert getattr(world, registry_attr)[key] is fake

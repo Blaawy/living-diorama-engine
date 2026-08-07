@@ -11,6 +11,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_non_negative_real,
     require_unit_interval,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 
 _KEYS = frozenset(
     {
@@ -49,7 +50,7 @@ def serialize_infrastructure(infrastructure: Infrastructure) -> dict[str, JsonVa
         TypeError: If the argument is not Infrastructure or a field is mistyped.
         ValueError: If a field carries an invalid value.
     """
-    if not isinstance(infrastructure, Infrastructure):
+    if not is_runtime_instance(infrastructure, Infrastructure):
         raise TypeError(
             f"infrastructure must be an Infrastructure, got {type(infrastructure).__name__}"
         )

@@ -15,6 +15,13 @@ from types import MappingProxyType
 from living_diorama import __version__ as ENGINE_VERSION
 from living_diorama.events import EventLog
 from living_diorama.events.event import JsonValue
+from living_diorama.memory import WorldMemory
+from living_diorama.memory._integrity import (
+    snapshot_event_log,
+    snapshot_world_memory,
+    validate_memory_transition_events,
+)
+from living_diorama.memory.world_memory import _is_runtime_instance
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
 from living_diorama.persistence.schema.world_schema_v1 import (
@@ -175,13 +182,14 @@ class LoadedEpisode:
         world: The reconstructed world, a new object sharing nothing with the
             world that was saved.
         event_log: The episode's history, in its original append order.
-        world_memory: The opaque world-memory document, detached and read-only.
+        world_memory: The cumulative durable history, checkpointed to this
+            episode's verified manifest.
         manifest: The verified metadata describing the episode.
     """
 
     world: World
     event_log: EventLog
-    world_memory: "MappingProxyType[str, JsonValue]"
+    world_memory: WorldMemory
     manifest: EpisodeManifest
 
 
@@ -209,7 +217,7 @@ class SaveManager:
         Raises:
             TypeError: If ``save_root`` is not a ``str`` or ``Path``.
         """
-        if not isinstance(save_root, str | Path):
+        if not (_is_runtime_instance(save_root, str) or _is_runtime_instance(save_root, Path)):
             raise TypeError(f"save_root must be a str or Path, got {type(save_root).__name__}")
         self._save_root = Path(save_root)
 
@@ -232,7 +240,7 @@ class SaveManager:
         world: World,
         event_log: EventLog,
         *,
-        world_memory: Mapping[str, JsonValue] | None = None,
+        world_memory: WorldMemory,
     ) -> EpisodeManifest:
         """Write one episode directory atomically and return its manifest.
 
@@ -242,11 +250,26 @@ class SaveManager:
         disagreed with the state it contains would be indistinguishable from a
         correct one until the next episode failed to link to it.
 
+        The caller-owned world is consulted exactly once, at the top: it is
+        serialized into one world-state document, and that document is strictly
+        reconstructed into an exact base :class:`World`. Every later step --
+        the episode number, the destination directory, parent lookup, memory
+        checkpoint matching, memory-transition validation, entity counts, and
+        the manifest -- reads the reconstructed world, and ``world_state.json``
+        is the exact captured document. A ``World`` or entity subclass that
+        answers differently on a later read therefore cannot say one thing to
+        validation and another to disk: whatever single snapshot the serializer
+        captured is the whole truth the save is judged by, and a snapshot the
+        loader would refuse is refused here, before publication.
+
         Args:
-            world: The world to persist. Not modified.
-            event_log: The episode's event history. Not modified.
-            world_memory: Optional opaque memory document. When omitted, an
-                empty placeholder is written.
+            world: The world to persist. Not modified, and never read again
+                after the authoritative world-state document has been captured.
+            event_log: The episode's event history. Read exactly once and not
+                modified.
+            world_memory: The cumulative durable history for this episode. Its
+                checkpoint must match the captured world, so an episode and
+                its memory can never describe different moments.
 
         Returns:
             The manifest describing the episode just written.
@@ -254,16 +277,45 @@ class SaveManager:
         Raises:
             TypeError: If an argument is of the wrong type or a stored value is
                 mistyped.
-            ValueError: If the world is inconsistent or a value is invalid.
+            ValueError: If the world is inconsistent, its captured document does
+                not reconstruct, or a value is invalid.
             FileExistsError: If the episode directory already exists.
             FileNotFoundError: If a previous episode is required and absent.
         """
-        if not isinstance(world, World):
+        if not _is_runtime_instance(world, World):
             raise TypeError(f"world must be a World, got {type(world).__name__}")
-        if not isinstance(event_log, EventLog):
+        if not _is_runtime_instance(event_log, EventLog):
             raise TypeError(f"event_log must be an EventLog, got {type(event_log).__name__}")
 
-        episode = require_exact_int(world.episode, "world episode")
+        # The authoritative snapshot. ``serialize_world`` validates the
+        # aggregate and builds the one document this save may write, but its
+        # internal reads are still reads of a live object -- a stateful subclass
+        # can change between them. Reconstructing the document proves that the
+        # actual bytes headed for disk describe a world this implementation
+        # would load, and yields the exact base World every remaining phase
+        # reads. When reconstruction fails, no save is published. The
+        # caller-owned world is never consulted again after this line.
+        world_document = serialize_world(world)
+        world_snapshot = deserialize_world(world_document)
+
+        episode = world_snapshot.episode
+        tick = world_snapshot.tick
+
+        # Both remaining caller-owned inputs are normalized into exact
+        # base-domain objects before anything is validated or written. Freezing
+        # which objects are involved is not enough: a subclass can report one
+        # value to validation and another to serialization, and the save that
+        # results is one this implementation cannot reload. Everything below
+        # reads only the snapshots, so what is validated is exactly what is
+        # published.
+        events = snapshot_event_log(event_log)
+        memory = snapshot_world_memory(world_memory, "world_memory")
+        self._require_matching_memory(memory, world_snapshot)
+
+        snapshot_log = EventLog()
+        for event in events:
+            snapshot_log.append(event)
+
         destination = self.episode_directory(episode)
         # ``lexists`` rather than ``exists``: a broken symlink is an existing
         # directory entry that ``exists`` reports as absent, and publishing over
@@ -274,16 +326,25 @@ class SaveManager:
                 "are immutable and are never overwritten"
             )
 
-        parent_state_hash = self._resolve_parent_state_hash(episode)
+        # The parent is loaded once and used for both jobs it is needed for: the
+        # verified state hash, and the history this episode must continue from.
+        parent = None if episode == 0 else self._load_parent(episode)
+        parent_state_hash = None if parent is None else parent.manifest.state_hash
+        validate_memory_transition_events(
+            previous_memory=None if parent is None else parent.world_memory,
+            current_memory=memory,
+            world=world_snapshot,
+            events=events,
+        )
 
+        # ``world_state.json`` is the exact captured document that passed
+        # reconstruction -- not a second serialization of anything live.
         payloads = {
-            WORLD_STATE_FILE: dumps_canonical(serialize_world(world), WORLD_STATE_FILE),
+            WORLD_STATE_FILE: dumps_canonical(world_document, WORLD_STATE_FILE),
             EVENT_LOG_FILE: dumps_canonical(
-                serialize_event_log(event_log, episode, world.tick), EVENT_LOG_FILE
+                serialize_event_log(snapshot_log, episode, tick), EVENT_LOG_FILE
             ),
-            WORLD_MEMORY_FILE: dumps_canonical(
-                serialize_world_memory(world_memory), WORLD_MEMORY_FILE
-            ),
+            WORLD_MEMORY_FILE: dumps_canonical(serialize_world_memory(memory), WORLD_MEMORY_FILE),
         }
         files = {
             name: FileMetadata(sha256=sha256_hex(data), bytes=len(data))
@@ -295,11 +356,11 @@ class SaveManager:
             engine_version=ENGINE_VERSION,
             python_version=platform.python_version(),
             episode=episode,
-            tick=world.tick,
+            tick=tick,
             state_hash=files[WORLD_STATE_FILE].sha256,
             parent_state_hash=parent_state_hash,
-            event_count=len(event_log.events()),
-            entity_counts=MappingProxyType(entity_counts(world)),
+            event_count=len(events),
+            entity_counts=MappingProxyType(entity_counts(world_snapshot)),
             files=MappingProxyType(files),
         )
         documents = dict(payloads)
@@ -308,25 +369,63 @@ class SaveManager:
         self._publish(destination, documents)
         return manifest
 
-    def _resolve_parent_state_hash(self, episode: int) -> str | None:
-        """Return the verified parent state hash for an episode, or ``None``.
+    @staticmethod
+    def _require_matching_memory(world_memory: object, world: World) -> None:
+        """Verify the memory describes the same moment as the world being saved.
 
-        The parent is loaded and fully verified rather than trusted, and the
-        caller is never asked for the hash. A lineage built from an unverified
-        claim would prove nothing at all.
+        Checked before anything touches the filesystem, and checked against the
+        reconstructed world snapshot rather than the caller's live object -- the
+        checkpoint that matters is the one the captured world-state document
+        actually records, because that is the tick and episode the loader will
+        rebuild the memory against. A memory checkpointed to a different episode
+        or tick is not this episode's history, and writing it would produce a
+        save whose two halves quietly disagree -- with no hash or lineage check
+        able to notice, because both files would be internally valid.
+
+        Raises:
+            TypeError: If the argument is not a ``WorldMemory``.
+            ValueError: If it has not been processed, or its checkpoint does not
+                match the world.
+        """
+        if not _is_runtime_instance(world_memory, WorldMemory):
+            raise TypeError(
+                f"world_memory must be a WorldMemory, got {type(world_memory).__name__}"
+            )
+        if world_memory.through_episode is None or world_memory.through_tick is None:
+            raise ValueError(
+                "world_memory has not been processed for any episode; distil the episode "
+                "before saving it"
+            )
+        if world_memory.through_episode != world.episode:
+            raise ValueError(
+                f"world_memory was processed through episode {world_memory.through_episode} "
+                f"but the world records episode {world.episode}"
+            )
+        if world_memory.through_tick != world.tick:
+            raise ValueError(
+                f"world_memory was processed through tick {world_memory.through_tick} but "
+                f"the world records tick {world.tick}"
+            )
+
+    def _load_parent(self, episode: int) -> LoadedEpisode:
+        """Load and fully verify the episode this one continues from.
+
+        Loaded rather than trusted, and loaded exactly once: the same verified
+        parent supplies both the state hash copied into the new manifest and the
+        history the new memory must begin with. Reconstructing it twice would
+        cost a second full ancestry walk and invite the two answers to differ.
 
         Raises:
             FileNotFoundError: If the previous episode does not exist.
+            ValueError: If it fails verification.
         """
-        if episode == 0:
-            return None
-        parent = episode - 1
-        if not self.episode_directory(parent).exists():
+        parent_number = episode - 1
+        if not os.path.lexists(self.episode_directory(parent_number)):
             raise FileNotFoundError(
-                f"episode {episode} cannot be saved because its parent episode {parent} "
-                f"does not exist at {self.episode_directory(parent)}"
+                f"episode {episode} cannot be saved because its parent episode "
+                f"{parent_number} does not exist at {self.episode_directory(parent_number)}"
             )
-        return self.load_episode(parent).manifest.state_hash
+        return self.load_episode(parent_number)
 
     def _publish(self, destination: Path, documents: Mapping[str, bytes]) -> None:
         """Write documents to a staging directory and rename it into place.
@@ -385,8 +484,8 @@ class SaveManager:
         Every episode from zero up to the requested one is verified in order:
         directory shape, canonical bytes, lengths, digests, manifest schema, and
         then full semantic reconstruction of the world, the event log, and the
-        memory document -- with each link to the episode before it compared as
-        the walk goes.
+        memory document -- with both links to the episode before it compared as
+        the walk goes: the world-state hash, and the inherited history.
 
         The ancestry is walked in full because a shorter check does not mean
         what it appears to. Verifying only the direct parent's files establishes
@@ -429,6 +528,7 @@ class SaveManager:
             FileNotFoundError: If any episode in the chain is absent.
         """
         previous: EpisodeManifest | None = None
+        previous_memory: WorldMemory | None = None
         target_episode: LoadedEpisode | None = None
 
         for number in range(target + 1):
@@ -438,8 +538,19 @@ class SaveManager:
             # a parent whose world or log could never have been loaded.
             loaded = self._reconstruct(manifest, documents)
             self._verify_lineage_edge(manifest, previous)
+            # State lineage says this episode descends from its parent's world.
+            # It says nothing about the parent's history, so the memory edge is
+            # checked separately -- otherwise a child could quietly forget or
+            # rewrite everything the world had remembered.
+            validate_memory_transition_events(
+                previous_memory=previous_memory,
+                current_memory=loaded.world_memory,
+                world=loaded.world,
+                events=tuple(loaded.event_log.events()),
+            )
 
             previous = manifest
+            previous_memory = loaded.world_memory
             if number == target:
                 target_episode = loaded
 
@@ -570,13 +681,19 @@ class SaveManager:
         require_entity_counts(world, manifest.entity_counts)
 
         event_log = deserialize_event_log(documents[EVENT_LOG_FILE], world.tick, world.episode)
-        if len(event_log.events()) != manifest.event_count:
+        loaded_events = tuple(event_log.events())
+        if len(loaded_events) != manifest.event_count:
             raise ValueError(
                 f"manifest records {manifest.event_count} events but the log holds "
-                f"{len(event_log.events())}"
+                f"{len(loaded_events)}"
             )
 
-        world_memory = deserialize_world_memory(documents[WORLD_MEMORY_FILE], WORLD_MEMORY_FILE)
+        world_memory = deserialize_world_memory(
+            documents[WORLD_MEMORY_FILE],
+            WORLD_MEMORY_FILE,
+            through_episode=manifest.episode,
+            through_tick=manifest.tick,
+        )
         return LoadedEpisode(
             world=world, event_log=event_log, world_memory=world_memory, manifest=manifest
         )

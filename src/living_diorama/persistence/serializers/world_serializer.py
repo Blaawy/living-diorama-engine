@@ -25,6 +25,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_schema_version,
     require_sorted_unique,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 from living_diorama.persistence.serializers.boundary_serializer import (
     deserialize_boundary,
     serialize_boundary,
@@ -119,7 +120,7 @@ def validate_world(world: World) -> None:
             entity, a name is reused, the index disagrees with a registry, or
             the topology is inconsistent.
     """
-    if not isinstance(world, World):
+    if not is_runtime_instance(world, World):
         raise TypeError(f"world must be a World, got {type(world).__name__}")
     require_exact_int(world.tick, "world tick")
     require_exact_int(world.episode, "world episode")

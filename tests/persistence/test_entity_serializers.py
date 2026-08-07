@@ -5,7 +5,9 @@ cannot speak for its state now. A save is a permanent record: every test here
 is about refusing to write down corrupt state rather than repairing it.
 """
 
+import ast
 import math
+from pathlib import Path
 
 import pytest
 
@@ -42,7 +44,13 @@ from living_diorama.persistence.serializers.wall_serializer import (
     deserialize_wall,
     serialize_wall,
 )
-from persistence.conftest import build_district, build_infrastructure, build_law, build_wall
+from persistence.conftest import (
+    build_district,
+    build_infrastructure,
+    build_law,
+    build_wall,
+    rich_world,
+)
 
 NONCANONICAL_IDS = ["", " ", "  ", "a ", " a", "a\t", "\na"]
 """Identifiers a save must refuse rather than silently strip."""
@@ -511,3 +519,129 @@ def test_negative_zero_survives_as_a_law_value() -> None:
         round_trip(serialize_law(build_law("law", current_value=-0.0))), "law"
     )
     assert math.copysign(1.0, restored.current_value) == -1.0  # type: ignore[arg-type]
+
+
+# --- hostile __class__ at the serializer boundaries --------------------------
+
+
+class HostileClass:
+    """Raises from ``__class__`` instead of answering."""
+
+    @property
+    def __class__(self) -> type:
+        """Raise instead of revealing a type."""
+        raise RuntimeError("boom")
+
+
+def hostile_copy(entity: object) -> HostileClass:
+    """Return a hostile object carrying every stored attribute of the entity."""
+    fake = HostileClass()
+    for klass in type(entity).__mro__:
+        for name in getattr(klass, "__slots__", ()):
+            setattr(fake, name, getattr(entity, name))
+    return fake
+
+
+def subclass_twin(entity: object) -> object:
+    """Return an instance of a trivial subclass carrying identical state."""
+    twin_type = type(f"Sturdy{type(entity).__name__}", (type(entity),), {})
+    twin = twin_type.__new__(twin_type)
+    for klass in type(entity).__mro__:
+        for name in getattr(klass, "__slots__", ()):
+            setattr(twin, name, getattr(entity, name))
+    return twin
+
+
+def test_a_hostile_entity_is_refused_by_each_entity_serializer() -> None:
+    """The entity's true runtime type decides, not its ``__class__`` property."""
+    world = rich_world()
+    cases = [
+        (serialize_district, world.districts, "district must be a District"),
+        (serialize_boundary, world.boundaries, "boundary must be a Boundary"),
+        (serialize_wall, world.walls, "wall must be a Wall"),
+        (serialize_law, world.laws, "law must be a Law"),
+        (
+            serialize_infrastructure,
+            world.infrastructure,
+            "infrastructure must be an Infrastructure",
+        ),
+    ]
+    for serialize, registry, prefix in cases:
+        template = registry[sorted(registry)[0]]
+        with pytest.raises(TypeError, match=f"{prefix}, got HostileClass"):
+            serialize(hostile_copy(template))
+
+
+def test_a_hostile_isolation_state_is_refused() -> None:
+    """A corrupted enum field is refused from its true runtime type."""
+    district = build_district("district_a")
+    district.isolation_state = HostileClass()
+    with pytest.raises(TypeError, match="must be an IsolationState, got HostileClass"):
+        serialize_district(district)
+
+
+def test_a_hostile_resources_value_is_refused() -> None:
+    """A corrupted resources field is refused from its true runtime type."""
+    district = build_district("district_a")
+    district.resources = HostileClass()
+    with pytest.raises(TypeError, match="must be a ResourcePool, got HostileClass"):
+        serialize_district(district)
+
+
+def test_a_hostile_stock_value_is_refused() -> None:
+    """A corrupted stock mapping is refused from its true runtime type."""
+    pool = ResourcePool(stock={resource: 1.0 for resource in ResourceType})
+    object.__setattr__(pool, "stock", HostileClass())
+    with pytest.raises(TypeError, match="stock must be a mapping, got HostileClass"):
+        serialize_resource_pool(pool, "pool")
+
+
+def test_legitimate_entity_subclasses_serialize_identically() -> None:
+    """A subclass produces exactly the document its base-class twin produces."""
+    world = rich_world()
+    pool = ResourcePool(stock={resource: 1.5 for resource in ResourceType})
+    for serialize, original in [
+        (serialize_district, world.districts[sorted(world.districts)[0]]),
+        (serialize_boundary, world.boundaries[sorted(world.boundaries)[0]]),
+        (serialize_wall, world.walls[sorted(world.walls)[0]]),
+        (serialize_law, world.laws[sorted(world.laws)[0]]),
+        (serialize_infrastructure, world.infrastructure[sorted(world.infrastructure)[0]]),
+    ]:
+        assert serialize(subclass_twin(original)) == serialize(original)
+
+    # ResourcePool is a frozen dataclass, so its subclass twin goes through the
+    # ordinary constructor rather than slot copying.
+    pool_twin_type = type("SturdyResourcePool", (ResourcePool,), {})
+    pool_twin = pool_twin_type(stock={resource: 1.5 for resource in ResourceType})
+    assert serialize_resource_pool(pool_twin, "pool") == serialize_resource_pool(pool, "pool")
+
+
+SERIALIZER_PACKAGE = (
+    Path(__file__).resolve().parents[2] / "src" / "living_diorama" / "persistence" / "serializers"
+)
+"""The Phase 10 serializer package, audited for unsafe instance checks."""
+
+
+def test_the_serializer_package_never_calls_isinstance_directly() -> None:
+    """Serializer validation must not consult a caller-controlled ``__class__``.
+
+    When its fast path fails, ``isinstance`` may read the instance's
+    ``__class__`` attribute, executing code owned by the very object under
+    validation. The serializer package decides type through its private safe
+    runtime-type helper instead. Only real AST calls count, so a mention in a
+    comment, docstring, or string does not trip the guard. Ruff and mypy
+    remain the source of truth for style and typing.
+    """
+    paths = sorted(SERIALIZER_PACKAGE.glob("*.py"))
+    # Guards the walker itself, so an empty glob cannot pass everything.
+    assert len(paths) >= 8, "the serializer package must be present to audit"
+    offenders: list[str] = []
+    for path in paths:
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "isinstance"
+            ):
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert offenders == []

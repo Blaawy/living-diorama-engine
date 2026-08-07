@@ -18,7 +18,6 @@ PERSISTENCE_ROOT = SOURCE_ROOT / "persistence"
 
 ALLOWED_STDLIB = {
     "collections",
-    "copy",
     "ctypes",
     "dataclasses",
     "errno",
@@ -45,13 +44,18 @@ otherwise flag it as third-party.
 
 FORBIDDEN_FOR_PERSISTENCE = (
     "living_diorama.systems",
-    "living_diorama.memory",
     "living_diorama.render",
     "living_diorama.narration",
     "living_diorama.cli",
     "living_diorama.engine",
 )
-"""Layers persistence may not depend on: peers and downstream consumers."""
+"""Layers persistence may not depend on: peers and downstream consumers.
+
+``living_diorama.memory`` is deliberately absent. Persistence stores the durable
+history, so it depends on the memory domain -- the arrow runs that way and only
+that way, which the memory package's own boundary tests enforce from the far
+side.
+"""
 
 UPSTREAM_PACKAGES = ("entities", "events", "simulation")
 """Layers that must not import persistence."""

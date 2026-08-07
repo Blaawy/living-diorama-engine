@@ -1,13 +1,15 @@
 """Serialization for :class:`ResourcePool`."""
 
-from collections.abc import Mapping
-
 from living_diorama.entities import ResourcePool, ResourceType
 from living_diorama.events.event import JsonValue
 from living_diorama.persistence.json_codec import require_document
 from living_diorama.persistence.schema.world_schema_v1 import (
     require_exact_keys,
     require_non_negative_real,
+)
+from living_diorama.persistence.serializers._runtime_types import (
+    has_mapping_type,
+    is_runtime_instance,
 )
 
 _RESOURCE_KEYS = frozenset(resource.value for resource in ResourceType)
@@ -26,7 +28,7 @@ def serialize_resource_pool(pool: ResourcePool, description: str) -> dict[str, J
             real number.
         ValueError: If an amount is not finite or is negative.
     """
-    if not isinstance(pool, ResourcePool):
+    if not is_runtime_instance(pool, ResourcePool):
         raise TypeError(f"{description} must be a ResourcePool, got {type(pool).__name__}")
 
     # The constructor normalizes the mapping, but the pool stays reachable and
@@ -34,7 +36,7 @@ def serialize_resource_pool(pool: ResourcePool, description: str) -> dict[str, J
     # recognizes would quietly drop a corrupted entry and write a repaired
     # subset, so the stored key set is checked instead of trusted.
     stock = pool.stock
-    if not isinstance(stock, Mapping):
+    if not has_mapping_type(stock):
         raise TypeError(f"{description} stock must be a mapping, got {type(stock).__name__}")
     unknown = sorted(repr(key) for key in stock if type(key) is not ResourceType)
     if unknown:

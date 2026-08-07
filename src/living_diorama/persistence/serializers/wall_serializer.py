@@ -10,6 +10,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_identifier,
     require_unit_interval,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 
 _KEYS = frozenset(
     {
@@ -41,7 +42,7 @@ def serialize_wall(wall: Wall) -> dict[str, JsonValue]:
         ValueError: If a field carries an invalid value, or the wall claims to
             have been built before it was created.
     """
-    if not isinstance(wall, Wall):
+    if not is_runtime_instance(wall, Wall):
         raise TypeError(f"wall must be a Wall, got {type(wall).__name__}")
     label = require_identifier(wall.id, "wall id")
     created = require_exact_int(wall.created_tick, f"created_tick of wall {label!r}")

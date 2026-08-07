@@ -10,6 +10,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_non_negative_real,
     require_unit_interval,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 from living_diorama.persistence.serializers.resource_pool_serializer import (
     deserialize_resource_pool,
     serialize_resource_pool,
@@ -61,10 +62,10 @@ def serialize_district(district: District) -> dict[str, JsonValue]:
         TypeError: If the argument is not a District or a field is mistyped.
         ValueError: If a field carries an invalid value.
     """
-    if not isinstance(district, District):
+    if not is_runtime_instance(district, District):
         raise TypeError(f"district must be a District, got {type(district).__name__}")
     label = require_identifier(district.id, "district id")
-    if not isinstance(district.isolation_state, IsolationState):
+    if not is_runtime_instance(district.isolation_state, IsolationState):
         raise TypeError(
             f"isolation_state of district {label!r} must be an IsolationState, "
             f"got {type(district.isolation_state).__name__}"

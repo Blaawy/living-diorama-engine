@@ -8,6 +8,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_exact_keys,
     require_identifier,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 
 _KEYS = frozenset({"created_tick", "district_a_id", "district_b_id", "id", "wall_id"})
 """Exactly the keys a serialized boundary carries."""
@@ -25,7 +26,7 @@ def serialize_boundary(boundary: Boundary) -> dict[str, JsonValue]:
         ValueError: If an identifier is noncanonical, a tick is negative, or the
             boundary joins a district to itself.
     """
-    if not isinstance(boundary, Boundary):
+    if not is_runtime_instance(boundary, Boundary):
         raise TypeError(f"boundary must be a Boundary, got {type(boundary).__name__}")
     label = require_identifier(boundary.id, "boundary id")
     district_a = require_identifier(boundary.district_a_id, f"district_a_id of boundary {label!r}")

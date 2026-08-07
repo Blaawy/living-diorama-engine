@@ -1,20 +1,25 @@
-"""Persistence-only handling of the opaque world-memory document.
+"""Serialization of :class:`WorldMemory` into the world-memory payload.
 
-Phase 10 carries this document; it does not understand it. Deciding which facts
-matter, how they are worded, or what they imply belongs to a later phase, and
-doing any of it here would put interpretation inside the save layer where no
-test could distinguish a recorded fact from an invented one.
+Persistence stores memory; it does not judge it. Nothing here decides what is
+significant, writes a summary, invents a fact, or drops one. It converts a
+memory the caller already distilled into strict documents, and converts strict
+documents back into a memory -- rejecting anything that does not survive the
+domain object's own validation.
+
+The checkpoint deliberately does not appear in the file. The episode manifest
+already states the authoritative episode and tick, and writing them twice would
+create two sources of truth that could drift apart.
 """
 
-import copy
-from collections.abc import Mapping
-from types import MappingProxyType
 from typing import Final
 
 from living_diorama.events.event import JsonValue
-from living_diorama.persistence.json_codec import require_document, require_json_value
+from living_diorama.memory import MemoryFact, WorldMemory
+from living_diorama.memory._integrity import snapshot_world_memory
+from living_diorama.persistence.json_codec import require_document
 from living_diorama.persistence.schema.world_schema_v1 import (
     SCHEMA_VERSION,
+    require_exact_int,
     require_exact_keys,
     require_schema_version,
 )
@@ -24,68 +29,93 @@ _KEYS: Final = frozenset({"facts", "schema_version"})
 
 
 def empty_world_memory() -> dict[str, JsonValue]:
-    """Return the placeholder document written when no memory is supplied."""
+    """Return the document written for a memory holding nothing."""
     return {"facts": [], "schema_version": SCHEMA_VERSION}
 
 
 def serialize_world_memory(
-    world_memory: object | None, description: str = "world_memory"
+    world_memory: object, description: str = "world_memory"
 ) -> dict[str, JsonValue]:
-    """Return a validated, independent copy of the world-memory document.
+    """Return the document for a memory, in its own canonical fact order.
 
-    Facts are checked for JSON safety and copied in order. Nothing is filtered,
-    summarized, deduplicated, reordered, or generated: what the caller supplied
-    is exactly what lands on disk.
+    Facts are written exactly as the memory holds them. They are not sorted
+    here: the memory has already established canonical order and re-deriving it
+    at the storage layer would give two places the power to decide what the
+    history says came first.
 
     Args:
-        world_memory: The document to persist, or ``None`` for the placeholder.
-        description: What is being checked, used in error messages.
+        world_memory: The memory to persist. Normalized into exact base objects
+            before anything is written.
+        description: What is being written, used in error messages.
 
     Returns:
         A new document safe to encode.
 
     Raises:
-        TypeError: If the document or a fact is not JSON-compatible, or
-            ``facts`` is not a list.
-        ValueError: If keys are missing or extra, or the schema version is
-            unsupported.
+        TypeError: If the argument is not a ``WorldMemory``, or a fact is not a
+            ``MemoryFact``.
+        ValueError: If a fact's claimed identifier or summary is not what its own
+            content implies.
     """
-    if world_memory is None:
-        return empty_world_memory()
-
-    if not isinstance(world_memory, Mapping):
-        raise TypeError(f"{description} must be a mapping, got {type(world_memory).__name__}")
-    document = require_document(require_json_value(dict(world_memory), description), description)
-    require_exact_keys(document, _KEYS, description)
-    require_schema_version(document, description)
-
-    facts = document["facts"]
-    if type(facts) is not list:
-        raise TypeError(f"{description} facts must be a list, got {type(facts).__name__}")
+    # Normalized first. ``to_document()`` is overridable, so serializing the
+    # caller's facts directly would let a subclass decide what lands on disk --
+    # including a summary the fact's own content does not imply, which the loader
+    # would then correctly refuse. The normalized base objects are the only ones
+    # asked for a document.
+    snapshot = snapshot_world_memory(world_memory, description)
     return {
-        "facts": [
-            require_json_value(fact, f"{description} facts[{index}]")
-            for index, fact in enumerate(facts)
-        ],
+        "facts": [fact.to_document() for fact in snapshot.facts],
         "schema_version": SCHEMA_VERSION,
     }
 
 
 def deserialize_world_memory(
-    value: JsonValue, description: str = "world_memory"
-) -> "MappingProxyType[str, JsonValue]":
-    """Return the loaded world-memory document, detached and read-only.
+    value: JsonValue,
+    description: str = "world_memory",
+    *,
+    through_episode: int,
+    through_tick: int,
+) -> WorldMemory:
+    """Rebuild a memory from a document, checkpointed to the verified manifest.
+
+    Every fact is reconstructed through the domain object, which recomputes its
+    identifier and summary and refuses a document whose recorded values disagree
+    with what its own content implies. Canonical order, duplicate identifiers,
+    repeated wall-build claims, and facts lying beyond the checkpoint are all
+    rejected by ``WorldMemory`` itself rather than re-checked here.
+
+    The empty Phase 10 placeholder loads as a memory holding nothing, checkpointed
+    to the episode it was saved in.
+
+    Args:
+        value: The parsed world-memory document.
+        description: What is being read, used in error messages.
+        through_episode: Episode the verified manifest records.
+        through_tick: Tick the verified manifest records.
+
+    Returns:
+        A fully detached, immutable memory.
 
     Raises:
-        TypeError: If the value is not a JSON object or ``facts`` is not a list.
-        ValueError: If keys are missing or extra, or the schema version is
-            unsupported.
+        TypeError: If the document, ``facts``, or a fact is of the wrong type.
+        ValueError: If keys are missing or extra, the schema version is
+            unsupported, or any fact fails validation.
     """
     document = require_document(value, description)
     require_exact_keys(document, _KEYS, description)
     require_schema_version(document, description)
+    require_exact_int(through_episode, "through_episode")
+    require_exact_int(through_tick, "through_tick")
 
     facts = document["facts"]
     if type(facts) is not list:
         raise TypeError(f"{description} facts must be a list, got {type(facts).__name__}")
-    return MappingProxyType({"facts": copy.deepcopy(facts), "schema_version": SCHEMA_VERSION})
+
+    return WorldMemory(
+        [
+            MemoryFact.from_document(entry, f"{description} facts[{index}]")
+            for index, entry in enumerate(facts)
+        ],
+        through_episode=through_episode,
+        through_tick=through_tick,
+    )

@@ -14,6 +14,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_identifier,
     require_schema_version,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 
 _EVENT_KEYS = frozenset({"payload", "source_id", "tick", "type"})
 """Exactly the keys a serialized event carries."""
@@ -53,9 +54,9 @@ def serialize_event(event: Event, description: str, world_tick: int) -> dict[str
         ValueError: If the tick is negative, the event postdates the world, or
             the payload is not JSON-safe.
     """
-    if not isinstance(event, Event):
+    if not is_runtime_instance(event, Event):
         raise TypeError(f"{description} must be an Event, got {type(event).__name__}")
-    if not isinstance(event.type, EventType):
+    if not is_runtime_instance(event.type, EventType):
         raise TypeError(f"{description} type must be an EventType, got {type(event.type).__name__}")
     tick = require_exact_int(event.tick, f"{description} tick")
     if tick > world_tick:
@@ -141,7 +142,7 @@ def serialize_event_log(event_log: EventLog, episode: int, world_tick: int) -> d
         TypeError: If the argument is not an EventLog or an event is mistyped.
         ValueError: If an event carries an invalid value or postdates the world.
     """
-    if not isinstance(event_log, EventLog):
+    if not is_runtime_instance(event_log, EventLog):
         raise TypeError(f"event_log must be an EventLog, got {type(event_log).__name__}")
     checked_tick = require_exact_int(world_tick, "world_tick")
     return {

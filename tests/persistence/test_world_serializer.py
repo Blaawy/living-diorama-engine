@@ -552,3 +552,62 @@ def test_a_healthy_resource_pool_still_serializes() -> None:
     document = serialize_world(world)
     district = next(entry for entry in document["districts"] if entry["id"] == "district_a")
     assert district["resources"] == {resource.value: 2.5 for resource in ResourceType}
+
+
+# --- hostile __class__ inside a full world -----------------------------------
+
+
+class HostileClass:
+    """Raises from ``__class__`` instead of answering."""
+
+    @property
+    def __class__(self) -> type:
+        """Raise instead of revealing a type."""
+        raise RuntimeError("boom")
+
+
+def plant_hostile(world: World, registry_attr: str) -> None:
+    """Replace one entity of the given registry with a hostile lookalike."""
+    registry = getattr(world, registry_attr)
+    key = sorted(registry)[0]
+    fake = HostileClass()
+    for klass in type(registry[key]).__mro__:
+        for name in getattr(klass, "__slots__", ()):
+            setattr(fake, name, getattr(registry[key], name))
+    registry[key] = fake
+    world._entities[key] = fake
+
+
+@pytest.mark.parametrize(
+    ("registry_attr", "message"),
+    [
+        ("_districts", "district must be a District, got HostileClass"),
+        ("_boundaries", "boundary must be a Boundary, got HostileClass"),
+        ("_walls", "wall must be a Wall, got HostileClass"),
+        ("_laws", "law must be a Law, got HostileClass"),
+        ("_infrastructure", "infrastructure must be an Infrastructure, got HostileClass"),
+    ],
+)
+def test_a_hostile_entity_inside_a_world_is_refused_deterministically(
+    registry_attr: str, message: str
+) -> None:
+    """Each hostile entity gets the documented refusal, never its own exception."""
+    world = rich_world()
+    plant_hostile(world, registry_attr)
+    with pytest.raises(TypeError, match=message):
+        serialize_world(world)
+
+
+def test_a_legitimate_world_subclass_serializes_identically() -> None:
+    """A World subclass produces exactly the document its base twin produces."""
+
+    class ObservantWorld(World):
+        """A World subclass that changes nothing."""
+
+    world = rich_world()
+    twin = ObservantWorld.__new__(ObservantWorld)
+    for klass in type(world).__mro__:
+        for name in getattr(klass, "__slots__", ()):
+            setattr(twin, name, getattr(world, name))
+
+    assert serialize_world(twin) == serialize_world(world)

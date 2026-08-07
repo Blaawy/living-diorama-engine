@@ -63,7 +63,10 @@ def test_the_save_manager_exposes_the_agreed_api() -> None:
     save = inspect.signature(SaveManager.save_episode)
     assert list(save.parameters) == ["self", "world", "event_log", "world_memory"]
     assert save.parameters["world_memory"].kind is inspect.Parameter.KEYWORD_ONLY
-    assert save.parameters["world_memory"].default is None
+    assert save.parameters["world_memory"].default is inspect.Parameter.empty, (
+        "memory is required: an episode saved without its history would silently "
+        "discard everything the world remembers"
+    )
 
     load = inspect.signature(SaveManager.load_episode)
     assert list(load.parameters) == ["self", "episode"]

@@ -23,6 +23,7 @@ from living_diorama.entities import (
     Wall,
 )
 from living_diorama.events import Event, EventLog, EventType
+from living_diorama.memory import MemorySignificance, WorldMemory
 from living_diorama.simulation.rng import DeterministicRNG
 from living_diorama.simulation.world import World
 
@@ -425,3 +426,57 @@ def rng_sequence(rng: DeterministicRNG, rounds: int = 6) -> list[object]:
         rng.shuffle(deck)
         drawn.append(tuple(deck))
     return drawn
+
+
+def empty_memory(world: World) -> WorldMemory:
+    """Return a memory holding nothing, checkpointed to this world.
+
+    Only valid for a world whose episode produced no significant events; the save
+    API now checks that a memory is exactly what the episode's events require.
+    """
+    return WorldMemory((), through_episode=world.episode, through_tick=world.tick)
+
+
+def quiet_log() -> EventLog:
+    """Return an empty log, for an episode in which nothing happened.
+
+    Later episodes in the persistence chain fixtures use this. Replaying episode
+    zero's log would re-report ticks the previous episode already covered and
+    claim a second construction of the same wall -- both correctly refused now
+    that memory lineage is enforced.
+    """
+    return EventLog()
+
+
+def memory_for(manager: object, world: World, event_log: EventLog) -> WorldMemory:
+    """Return the memory this episode's events actually require.
+
+    Distilled rather than fabricated, continuing from whatever the parent episode
+    left on disk. Persistence tests are about files and hashes, but a save now
+    has to carry a history that matches its own events, so the fixtures build a
+    real one.
+    """
+    previous = WorldMemory.empty()
+    if world.episode > 0:
+        parent = manager.episode_directory(world.episode - 1)  # type: ignore[attr-defined]
+        if parent.exists():
+            loaded = manager.load_episode(world.episode - 1)  # type: ignore[attr-defined]
+            previous = loaded.world_memory
+        else:
+            previous = WorldMemory((), through_episode=world.episode - 1, through_tick=0)
+    return MemorySignificance().distill_episode(
+        world=world, event_log=event_log, previous_memory=previous
+    )
+
+
+def save_episode(
+    manager: object, world: World, event_log: EventLog, *, world_memory: object = None
+) -> object:
+    """Save an episode, defaulting to the memory its events require.
+
+    The save API requires a memory whose checkpoint and content match the world
+    and its log exactly, so a test that is not about memory would otherwise have
+    to distil one at every call site.
+    """
+    memory = memory_for(manager, world, event_log) if world_memory is None else world_memory
+    return manager.save_episode(world, event_log, world_memory=memory)  # type: ignore[attr-defined]

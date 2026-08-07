@@ -13,6 +13,7 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_identifier,
     require_text,
 )
+from living_diorama.persistence.serializers._runtime_types import is_runtime_instance
 
 _KEYS = frozenset(
     {
@@ -66,7 +67,7 @@ def serialize_law(law: Law) -> dict[str, JsonValue]:
         TypeError: If the argument is not a Law or a field is mistyped.
         ValueError: If a field carries an invalid value.
     """
-    if not isinstance(law, Law):
+    if not is_runtime_instance(law, Law):
         raise TypeError(f"law must be a Law, got {type(law).__name__}")
     label = require_identifier(law.id, "law id")
     stored_restored_tick = law.restored_tick
