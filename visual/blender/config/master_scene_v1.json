@@ -1,0 +1,254 @@
+{
+  "format": "living_diorama_blender_master_scene",
+  "schema_version": 1,
+  "visual_seed": "living-diorama-master-v1",
+  "world": {
+    "platform_radius": 84.0,
+    "platform_thickness": 5.0
+  },
+  "districts": {
+    "district_a": {
+      "center": [
+        -16.0,
+        6.0
+      ],
+      "radius": 26.0,
+      "elevation": 0.0,
+      "character": "civic",
+      "depot_capacity": 240.0
+    },
+    "district_b": {
+      "center": [
+        38.0,
+        -6.0
+      ],
+      "radius": 19.0,
+      "elevation": -0.15,
+      "character": "port",
+      "depot_capacity": 90.0
+    },
+    "district_c": {
+      "center": [
+        -30.0,
+        -34.0
+      ],
+      "radius": 21.0,
+      "elevation": 0.15,
+      "character": "residential",
+      "depot_capacity": 150.0
+    },
+    "district_d": {
+      "center": [
+        -2.0,
+        42.0
+      ],
+      "radius": 22.0,
+      "elevation": 0.3,
+      "character": "terrace",
+      "depot_capacity": 180.0
+    }
+  },
+  "boundaries": {
+    "boundary_ab": {
+      "districts": [
+        "district_a",
+        "district_b"
+      ],
+      "path": [
+        [
+          -4.0,
+          4.0
+        ],
+        [
+          10.0,
+          0.5
+        ],
+        [
+          26.0,
+          -3.0
+        ],
+        [
+          52.0,
+          -8.5
+        ]
+      ],
+      "wall_station": {
+        "center": [
+          17.0,
+          -1.0
+        ],
+        "direction": [
+          -0.22,
+          1.0
+        ],
+        "length": 44.0
+      }
+    },
+    "boundary_ac": {
+      "districts": [
+        "district_a",
+        "district_c"
+      ],
+      "path": [
+        [
+          -18.0,
+          -6.0
+        ],
+        [
+          -25.0,
+          -20.0
+        ]
+      ],
+      "wall_station": {
+        "center": [
+          -21.5,
+          -13.0
+        ],
+        "direction": [
+          1.0,
+          -0.5
+        ],
+        "length": 22.0
+      }
+    },
+    "boundary_ad": {
+      "districts": [
+        "district_a",
+        "district_d"
+      ],
+      "path": [
+        [
+          -12.0,
+          18.0
+        ],
+        [
+          -7.0,
+          29.0
+        ]
+      ],
+      "wall_station": {
+        "center": [
+          -9.5,
+          23.5
+        ],
+        "direction": [
+          1.0,
+          0.45
+        ],
+        "length": 22.0
+      }
+    },
+    "boundary_cd": {
+      "districts": [
+        "district_c",
+        "district_d"
+      ],
+      "path": [
+        [
+          -40.0,
+          -20.0
+        ],
+        [
+          -46.0,
+          4.0
+        ],
+        [
+          -32.0,
+          28.0
+        ]
+      ],
+      "wall_station": {
+        "center": [
+          -45.0,
+          4.0
+        ],
+        "direction": [
+          1.0,
+          0.15
+        ],
+        "length": 22.0
+      }
+    }
+  },
+  "landmarks": {
+    "golden_seal": {
+      "location": [
+        -16.0,
+        6.0
+      ],
+      "radius": 7.5
+    }
+  },
+  "cameras": {
+    "CAM_HERO_WORLD": {
+      "location": [
+        86.0,
+        -66.0,
+        34.0
+      ],
+      "look_at": [
+        -10.0,
+        6.0,
+        4.0
+      ],
+      "lens_mm": 42.0,
+      "f_stop": 8.0
+    },
+    "CAM_HERO_SCAR": {
+      "location": [
+        72.0,
+        -15.0,
+        8.5
+      ],
+      "look_at": [
+        14.0,
+        0.5,
+        8.5
+      ],
+      "lens_mm": 35.0,
+      "f_stop": 5.6
+    },
+    "CAM_SCAR_DETAIL": {
+      "location": [
+        25.0,
+        16.5,
+        3.2
+      ],
+      "look_at": [
+        14.2,
+        -4.5,
+        7.6
+      ],
+      "lens_mm": 28.0,
+      "f_stop": 4.0
+    },
+    "CAM_SEAL_DETAIL": {
+      "location": [
+        -2.0,
+        9.0,
+        6.2
+      ],
+      "look_at": [
+        -17.0,
+        3.8,
+        5.2
+      ],
+      "lens_mm": 30.0,
+      "f_stop": 4.0
+    },
+    "CAM_VERIFY_TOPOLOGY": {
+      "location": [
+        4.0,
+        -30.0,
+        150.0
+      ],
+      "look_at": [
+        -2.0,
+        4.0,
+        0.0
+      ],
+      "lens_mm": 38.0,
+      "f_stop": 11.0
+    }
+  }
+}
