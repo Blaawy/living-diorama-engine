@@ -1,0 +1,76 @@
+{
+  "format": "living_diorama_motion_time",
+  "schema_version": 1,
+  "timeline": {
+    "fps": 24,
+    "start_frame": 1,
+    "start_hold_frames": 24,
+    "transition_frames": 120,
+    "end_hold_frames": 48,
+    "end_frame": 193
+  },
+  "channels": [
+    {
+      "channel": "law_seal_glow",
+      "interpolation": "smoothstep",
+      "strategy": "together",
+      "window": [0.02, 0.55],
+      "samples": 8
+    },
+    {
+      "channel": "district_glazing",
+      "interpolation": "smoothstep",
+      "strategy": "together",
+      "window": [0.1, 0.85],
+      "samples": 8
+    },
+    {
+      "channel": "wall_presence",
+      "interpolation": "smoothstep",
+      "strategy": "staged",
+      "window": [0.05, 0.9],
+      "member_span": 0.14,
+      "rise_metres": 22.0,
+      "samples": 8
+    },
+    {
+      "channel": "depot_slot_presence",
+      "interpolation": "step",
+      "strategy": "staged",
+      "window": [0.3, 0.95],
+      "member_span": 0.1,
+      "samples": 1
+    },
+    {
+      "channel": "depot_slot_settle",
+      "interpolation": "step",
+      "strategy": "staged",
+      "window": [0.3, 0.95],
+      "member_span": 0.1,
+      "samples": 1
+    },
+    {
+      "channel": "infra_strut_presence",
+      "interpolation": "step",
+      "strategy": "staged",
+      "window": [0.55, 0.98],
+      "member_span": 0.16,
+      "samples": 1
+    },
+    {
+      "channel": "infra_strut_settle",
+      "interpolation": "step",
+      "strategy": "staged",
+      "window": [0.55, 0.98],
+      "member_span": 0.16,
+      "samples": 1
+    }
+  ],
+  "proof_samples": [
+    {"name": "start", "position": "start"},
+    {"name": "transition_25", "position": 0.25},
+    {"name": "transition_50", "position": 0.5},
+    {"name": "transition_75", "position": 0.75},
+    {"name": "end", "position": "end"}
+  ]
+}
