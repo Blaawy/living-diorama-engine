@@ -1,0 +1,1928 @@
+{
+  "format": "living_diorama_blender_production_world",
+  "schema_version": 3,
+  "visual_seed": "living-diorama-production-v1",
+  "fabric_limit_radius": 74.0,
+  "districts": {
+    "district_a": {
+      "expansion_radius": 56.0
+    },
+    "district_b": {
+      "expansion_radius": 48.0
+    },
+    "district_c": {
+      "expansion_radius": 52.0
+    },
+    "district_d": {
+      "expansion_radius": 53.0
+    }
+  },
+  "neighborhoods": {
+    "westfront": {
+      "district": "district_a",
+      "center": [
+        -57.0,
+        4.0
+      ],
+      "radius": 12.0,
+      "profile": "midrise_front",
+      "pitch": 8.6,
+      "height_scale": 1.05,
+      "elevation": 0.0
+    },
+    "wallside": {
+      "district": "district_a",
+      "center": [
+        14.0,
+        -29.0
+      ],
+      "radius": 8.5,
+      "profile": "scar_rows",
+      "pitch": 8.0,
+      "height_scale": 1.0,
+      "elevation": 0.0
+    },
+    "quay_north": {
+      "district": "district_b",
+      "center": [
+        49.0,
+        21.0
+      ],
+      "radius": 6.5,
+      "profile": "port_yard",
+      "pitch": 8.0,
+      "height_scale": 0.95,
+      "elevation": -0.1,
+      "yard_street": "quay_north_service"
+    },
+    "harborworks": {
+      "district": "district_b",
+      "center": [
+        30.0,
+        -42.0
+      ],
+      "radius": 9.5,
+      "profile": "industrial",
+      "pitch": 8.6,
+      "height_scale": 1.0,
+      "elevation": -0.1,
+      "yard_street": "works_yard"
+    },
+    "southside": {
+      "district": "district_c",
+      "center": [
+        2.0,
+        -52.0
+      ],
+      "radius": 11.0,
+      "profile": "grid_rows",
+      "pitch": 8.2,
+      "height_scale": 1.0,
+      "elevation": 0.05,
+      "anchor": "plaza",
+      "plaza_anchor": [
+        8.75,
+        -48.5,
+        2.6
+      ]
+    },
+    "west_meadow": {
+      "district": "district_c",
+      "center": [
+        -60.0,
+        -25.0
+      ],
+      "radius": 8.0,
+      "profile": "meadow_courts",
+      "pitch": 8.0,
+      "height_scale": 0.9,
+      "elevation": 0.05
+    },
+    "garden_north": {
+      "district": "district_d",
+      "center": [
+        -44.0,
+        42.0
+      ],
+      "radius": 9.5,
+      "profile": "garden_rows",
+      "pitch": 8.0,
+      "height_scale": 0.92,
+      "elevation": 0.15
+    },
+    "eastgate": {
+      "district": "district_d",
+      "center": [
+        33.0,
+        33.0
+      ],
+      "radius": 10.0,
+      "profile": "business",
+      "pitch": 8.6,
+      "height_scale": 1.12,
+      "elevation": 0.1
+    }
+  },
+  "streets": {
+    "orbital": {
+      "class": "arterial",
+      "trees": "right",
+      "path": [
+        [
+          51.96,
+          35.98
+        ],
+        [
+          48.28,
+          41.52
+        ],
+        [
+          44.48,
+          47.2
+        ],
+        [
+          40.06,
+          52.59
+        ],
+        [
+          34.69,
+          57.06
+        ],
+        [
+          28.7,
+          60.72
+        ],
+        [
+          22.34,
+          63.81
+        ],
+        [
+          15.66,
+          66.25
+        ],
+        [
+          8.77,
+          68.46
+        ],
+        [
+          1.58,
+          69.8
+        ],
+        [
+          -5.73,
+          69.76
+        ],
+        [
+          -12.97,
+          68.64
+        ],
+        [
+          -20.0,
+          66.67
+        ],
+        [
+          -26.75,
+          63.95
+        ],
+        [
+          -33.18,
+          60.6
+        ],
+        [
+          -39.28,
+          56.73
+        ],
+        [
+          -44.83,
+          52.11
+        ],
+        [
+          -49.49,
+          46.64
+        ],
+        [
+          -53.36,
+          40.65
+        ],
+        [
+          -56.66,
+          34.45
+        ],
+        [
+          -59.67,
+          28.21
+        ],
+        [
+          -62.37,
+          21.84
+        ],
+        [
+          -64.55,
+          15.26
+        ],
+        [
+          -66.1,
+          8.47
+        ],
+        [
+          -66.88,
+          1.52
+        ],
+        [
+          -66.77,
+          -5.49
+        ],
+        [
+          -66.12,
+          -12.49
+        ],
+        [
+          -65.16,
+          -19.55
+        ],
+        [
+          -63.42,
+          -26.53
+        ],
+        [
+          -60.53,
+          -33.14
+        ],
+        [
+          -57.42,
+          -39.76
+        ],
+        [
+          -54.11,
+          -46.54
+        ],
+        [
+          -49.67,
+          -52.71
+        ],
+        [
+          -43.73,
+          -57.41
+        ],
+        [
+          -36.75,
+          -60.44
+        ],
+        [
+          -29.49,
+          -62.38
+        ],
+        [
+          -22.49,
+          -64.21
+        ],
+        [
+          -15.56,
+          -65.84
+        ],
+        [
+          -8.44,
+          -65.9
+        ],
+        [
+          -1.48,
+          -65.09
+        ],
+        [
+          5.29,
+          -64.28
+        ],
+        [
+          11.93,
+          -63.14
+        ],
+        [
+          18.28,
+          -60.92
+        ],
+        [
+          24.27,
+          -58.02
+        ],
+        [
+          30.02,
+          -54.83
+        ],
+        [
+          35.47,
+          -51.22
+        ],
+        [
+          40.38,
+          -46.94
+        ],
+        [
+          45.2,
+          -42.6
+        ],
+        [
+          49.96,
+          -38.06
+        ],
+        [
+          54.18,
+          -32.94
+        ],
+        [
+          55.96,
+          -30.01
+        ]
+      ],
+      "front_runs": [
+        {
+          "side": "i",
+          "range": [
+            134.0,
+            150.0
+          ],
+          "kind": "midrise_slab",
+          "count": 2
+        },
+        {
+          "side": "i",
+          "range": [
+            152.0,
+            168.0
+          ],
+          "kind": "midrise_slab",
+          "count": 2
+        },
+        {
+          "side": "i",
+          "range": [
+            170.0,
+            186.0
+          ],
+          "kind": "midrise_slab",
+          "count": 2
+        },
+        {
+          "side": "i",
+          "range": [
+            198.0,
+            214.0
+          ],
+          "kind": "row_mid",
+          "count": 2
+        }
+      ]
+    },
+    "gate_port_north": {
+      "class": "arterial",
+      "path": [
+        [
+          51.96,
+          35.98
+        ],
+        [
+          50.5,
+          23.0
+        ]
+      ],
+      "end_b": {
+        "lands_on": "district_b"
+      }
+    },
+    "gate_port_south": {
+      "class": "arterial",
+      "path": [
+        [
+          55.96,
+          -30.01
+        ],
+        [
+          52.0,
+          -26.0
+        ]
+      ],
+      "end_b": {
+        "lands_on": "district_b"
+      }
+    },
+    "north_boulevard": {
+      "class": "arterial",
+      "trees": "both",
+      "path": [
+        [
+          1.58,
+          69.8
+        ]
+      ],
+      "end_a": {
+        "lands_on": "district_d"
+      }
+    },
+    "west_boulevard": {
+      "class": "arterial",
+      "trees": "both",
+      "path": [
+        [
+          -34.0,
+          48.0
+        ],
+        [
+          -44.83,
+          52.11
+        ]
+      ],
+      "end_a": {
+        "lands_on": "district_d"
+      }
+    },
+    "south_boulevard": {
+      "class": "arterial",
+      "trees": "both",
+      "path": [
+        [
+          -29.49,
+          -62.38
+        ]
+      ],
+      "end_a": {
+        "lands_on": "district_c"
+      }
+    },
+    "gate_west": {
+      "class": "arterial",
+      "trees": "right",
+      "path": [
+        [
+          -54.0,
+          -3.4
+        ],
+        [
+          -66.77,
+          -5.49
+        ]
+      ],
+      "end_a": {
+        "lands_on": "district_a"
+      },
+      "front_runs": [
+        {
+          "side": "i",
+          "range": [
+            7.0,
+            19.0
+          ],
+          "kind": "midrise_slab",
+          "count": 1
+        },
+        {
+          "side": "o",
+          "range": [
+            9.0,
+            21.0
+          ],
+          "kind": "midrise_slab",
+          "count": 1
+        }
+      ]
+    },
+    "eastgate_axis": {
+      "class": "collector",
+      "trees": "left",
+      "path": [
+        [
+          21.3,
+          12.8
+        ],
+        [
+          34.69,
+          57.06
+        ]
+      ],
+      "end_a": {
+        "termination": "plaza_approach"
+      },
+      "front_runs": [
+        {
+          "side": "o",
+          "range": [
+            12.0,
+            24.0
+          ],
+          "kind": "midrise_slab",
+          "count": 1
+        },
+        {
+          "side": "o",
+          "range": [
+            26.0,
+            42.0
+          ],
+          "kind": "office_slab",
+          "count": 2
+        },
+        {
+          "side": "i",
+          "range": [
+            10.0,
+            26.0
+          ],
+          "kind": "midrise_slab",
+          "count": 2
+        }
+      ]
+    },
+    "eastgate_cross": {
+      "class": "local",
+      "path": [
+        [
+          26.0,
+          41.0
+        ],
+        [
+          35.0,
+          33.0
+        ]
+      ],
+      "end_a": {
+        "termination": "cul_de_sac"
+      },
+      "end_b": {
+        "termination": "cul_de_sac"
+      }
+    },
+    "cd_extension": {
+      "class": "collector",
+      "trees": "both",
+      "path": [
+        [
+          -32.0,
+          28.0
+        ],
+        [
+          -33.5,
+          38.0
+        ],
+        [
+          -34.0,
+          48.0
+        ]
+      ],
+      "end_a": {
+        "avenue": "boundary_cd",
+        "end": "b"
+      }
+    },
+    "garden_lane": {
+      "class": "local",
+      "trees": "left",
+      "path": [
+        [
+          -33.5,
+          38.0
+        ],
+        [
+          -45.0,
+          38.0
+        ],
+        [
+          -56.66,
+          34.45
+        ]
+      ]
+    },
+    "westfront_mews_north": {
+      "class": "local",
+      "path": [
+        [
+          -62.37,
+          21.84
+        ],
+        [
+          -53.5,
+          24.0
+        ]
+      ],
+      "end_b": {
+        "termination": "cul_de_sac"
+      }
+    },
+    "meadow_lane": {
+      "class": "local",
+      "path": [
+        [
+          -57.42,
+          -39.76
+        ],
+        [
+          -54.5,
+          -22.0
+        ]
+      ],
+      "end_b": {
+        "termination": "cul_de_sac"
+      },
+      "trees": "both"
+    },
+    "southside_high": {
+      "class": "collector",
+      "path": [
+        [
+          -29.5,
+          -61.5
+        ],
+        [
+          -20.0,
+          -59.5
+        ],
+        [
+          -9.0,
+          -56.0
+        ],
+        [
+          14.0,
+          -56.0
+        ]
+      ],
+      "front_runs": [
+        {
+          "side": "i",
+          "range": [
+            24.0,
+            40.0
+          ],
+          "kind": "row_mid",
+          "count": 2
+        }
+      ]
+    },
+    "southside_mid": {
+      "class": "local",
+      "path": [
+        [
+          5.29,
+          -64.28
+        ],
+        [
+          3.5,
+          -56.0
+        ],
+        [
+          3.5,
+          -44.5
+        ]
+      ],
+      "end_b": {
+        "termination": "cul_de_sac"
+      }
+    },
+    "southside_east": {
+      "class": "local",
+      "path": [
+        [
+          14.0,
+          -56.0
+        ],
+        [
+          14.0,
+          -44.5
+        ]
+      ]
+    },
+    "wallside_street": {
+      "class": "collector",
+      "path": [
+        [
+          14.0,
+          -44.5
+        ],
+        [
+          10.5,
+          -32.0
+        ],
+        [
+          7.0,
+          -15.0
+        ]
+      ],
+      "end_b": {
+        "termination": "cul_de_sac"
+      }
+    },
+    "works_spine": {
+      "class": "collector",
+      "path": [
+        [
+          14.0,
+          -56.0
+        ],
+        [
+          24.0,
+          -50.0
+        ],
+        [
+          36.0,
+          -45.0
+        ],
+        [
+          45.2,
+          -42.6
+        ]
+      ],
+      "front_runs": [
+        {
+          "side": "i",
+          "range": [
+            8.0,
+            20.0
+          ],
+          "kind": "office_slab",
+          "count": 1
+        }
+      ]
+    },
+    "works_yard": {
+      "class": "service",
+      "path": [
+        [
+          10.5,
+          -32.0
+        ],
+        [
+          26.0,
+          -34.0
+        ],
+        [
+          38.0,
+          -35.0
+        ]
+      ],
+      "end_b": {
+        "termination": "service_destination"
+      }
+    },
+    "quay_north_service": {
+      "class": "service",
+      "path": [
+        [
+          50.5,
+          23.0
+        ],
+        [
+          56.0,
+          15.5
+        ]
+      ],
+      "end_b": {
+        "termination": "service_destination"
+      }
+    },
+    "meadow_row": {
+      "class": "local",
+      "path": [
+        [
+          -54.5,
+          -3.48
+        ],
+        [
+          -54.5,
+          -22.0
+        ]
+      ],
+      "trees": "both"
+    }
+  },
+  "landscape": {
+    "keep_margin": 0.35,
+    "park_zones": {
+      "founders_park": {
+        "center": [
+          41.5,
+          29.0
+        ],
+        "radius": 8.5
+      },
+      "grove_north": {
+        "center": [
+          26.0,
+          50.0
+        ],
+        "radius": 11.0
+      },
+      "quay_grove": {
+        "center": [
+          61.0,
+          20.0
+        ],
+        "radius": 6.5
+      },
+      "scar_meadow": {
+        "center": [
+          15.0,
+          16.0
+        ],
+        "radius": 5.5
+      },
+      "scar_buffer": {
+        "center": [
+          18.0,
+          -24.0
+        ],
+        "radius": 6.5
+      },
+      "southside_green": {
+        "center": [
+          -3.5,
+          -39.0
+        ],
+        "radius": 7.5
+      },
+      "south_pocket": {
+        "center": [
+          47.0,
+          -53.0
+        ],
+        "radius": 6.0
+      }
+    },
+    "park_replants": {
+      "groups_per_zone": 6,
+      "min_trees": 2,
+      "max_trees": 4
+    },
+    "street_trees": {
+      "spacing": 7.4,
+      "setback": 1.6
+    },
+    "plaza_gardens": {},
+    "promenade": {
+      "count": 10,
+      "setback": 5.4
+    }
+  },
+  "cameras": {
+    "CAM_P16_WORLD_HERO": {
+      "location": [
+        140.0,
+        -116.0,
+        79.0
+      ],
+      "look_at": [
+        -6.0,
+        2.0,
+        -4.0
+      ],
+      "lens_mm": 34.0,
+      "f_stop": 8.0,
+      "focus": [
+        12.0,
+        -2.0,
+        4.0
+      ]
+    },
+    "CAM_P16_SYSTEM": {
+      "location": [
+        96.0,
+        -96.0,
+        118.0
+      ],
+      "look_at": [
+        -4.0,
+        0.0,
+        0.0
+      ],
+      "lens_mm": 38.0,
+      "f_stop": 11.0,
+      "focus": [
+        0.0,
+        0.0,
+        2.0
+      ]
+    },
+    "CAM_P16_CORE_CONTEXT": {
+      "location": [
+        84.0,
+        -58.0,
+        46.0
+      ],
+      "look_at": [
+        -20.0,
+        8.0,
+        0.0
+      ],
+      "lens_mm": 36.0,
+      "f_stop": 9.0,
+      "focus": [
+        -16.0,
+        6.0,
+        3.0
+      ]
+    },
+    "CAM_P16_SCAR_CONTEXT": {
+      "location": [
+        70.0,
+        -36.0,
+        24.0
+      ],
+      "look_at": [
+        14.0,
+        0.0,
+        7.0
+      ],
+      "lens_mm": 38.0,
+      "f_stop": 8.0,
+      "focus": [
+        17.0,
+        -1.0,
+        8.0
+      ]
+    },
+    "CAM_P16_ROADS": {
+      "location": [
+        2.0,
+        -2.0,
+        272.0
+      ],
+      "look_at": [
+        2.0,
+        -2.0,
+        0.0
+      ],
+      "lens_mm": 39.0,
+      "f_stop": 11.0,
+      "focus": [
+        2.0,
+        -2.0,
+        0.0
+      ]
+    },
+    "CAM_P16_DENSITY": {
+      "location": [
+        -98.0,
+        -86.0,
+        72.0
+      ],
+      "look_at": [
+        6.0,
+        6.0,
+        0.0
+      ],
+      "lens_mm": 36.0,
+      "f_stop": 9.0,
+      "focus": [
+        0.0,
+        0.0,
+        4.0
+      ]
+    },
+    "CAM_P16_VALIDITY": {
+      "location": [
+        8.0,
+        -100.0,
+        168.0
+      ],
+      "look_at": [
+        2.0,
+        0.0,
+        0.0
+      ],
+      "lens_mm": 42.0,
+      "f_stop": 11.0,
+      "focus": [
+        2.0,
+        0.0,
+        0.0
+      ]
+    },
+    "CAM_P16_URBAN": {
+      "location": [
+        -52.0,
+        -118.0,
+        64.0
+      ],
+      "look_at": [
+        10.0,
+        -28.0,
+        0.0
+      ],
+      "lens_mm": 38.0,
+      "f_stop": 9.0,
+      "focus": [
+        8.0,
+        -50.0,
+        2.0
+      ]
+    },
+    "CAM_P16_COMPOSITION": {
+      "location": [
+        -124.0,
+        -88.0,
+        112.0
+      ],
+      "look_at": [
+        4.0,
+        0.0,
+        0.0
+      ],
+      "lens_mm": 38.0,
+      "f_stop": 11.0,
+      "focus": [
+        -6.0,
+        -8.0,
+        2.0
+      ]
+    }
+  },
+  "ground": {
+    "bury_gap_deg": 130.0,
+    "plates": {
+      "district_a": {
+        "ring": "full",
+        "skirt": [
+          [
+            0.0,
+            2.0
+          ],
+          [
+            40.0,
+            3.0
+          ],
+          [
+            70.0,
+            4.0
+          ],
+          [
+            100.0,
+            4.5
+          ],
+          [
+            130.0,
+            5.5
+          ],
+          [
+            160.0,
+            7.0
+          ],
+          [
+            185.0,
+            8.5
+          ],
+          [
+            210.0,
+            8.0
+          ],
+          [
+            240.0,
+            6.0
+          ],
+          [
+            270.0,
+            4.0
+          ],
+          [
+            300.0,
+            4.0
+          ],
+          [
+            330.0,
+            2.5
+          ]
+        ]
+      },
+      "district_b": {
+        "ring": "arcs",
+        "skirt": [
+          [
+            20.0,
+            4.0
+          ],
+          [
+            45.0,
+            4.5
+          ],
+          [
+            70.0,
+            5.0
+          ],
+          [
+            95.0,
+            6.0
+          ],
+          [
+            120.0,
+            6.0
+          ],
+          [
+            150.0,
+            5.0
+          ],
+          [
+            175.0,
+            4.0
+          ],
+          [
+            200.0,
+            5.0
+          ],
+          [
+            230.0,
+            7.0
+          ],
+          [
+            255.0,
+            8.5
+          ],
+          [
+            280.0,
+            7.0
+          ],
+          [
+            300.0,
+            5.0
+          ],
+          [
+            330.0,
+            4.0
+          ]
+        ]
+      },
+      "district_c": {
+        "ring": "arcs",
+        "skirt": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            40.0,
+            4.0
+          ],
+          [
+            70.0,
+            3.5
+          ],
+          [
+            100.0,
+            3.5
+          ],
+          [
+            130.0,
+            5.0
+          ],
+          [
+            160.0,
+            8.0
+          ],
+          [
+            200.0,
+            8.0
+          ],
+          [
+            235.0,
+            8.0
+          ],
+          [
+            260.0,
+            6.0
+          ],
+          [
+            290.0,
+            3.0
+          ],
+          [
+            320.0,
+            3.0
+          ],
+          [
+            350.0,
+            4.5
+          ]
+        ]
+      },
+      "district_d": {
+        "ring": "arcs",
+        "skirt": [
+          [
+            0.0,
+            5.0
+          ],
+          [
+            30.0,
+            5.0
+          ],
+          [
+            60.0,
+            4.0
+          ],
+          [
+            90.0,
+            3.5
+          ],
+          [
+            120.0,
+            4.0
+          ],
+          [
+            150.0,
+            4.5
+          ],
+          [
+            180.0,
+            5.0
+          ],
+          [
+            210.0,
+            4.5
+          ],
+          [
+            240.0,
+            4.0
+          ],
+          [
+            270.0,
+            4.0
+          ],
+          [
+            300.0,
+            4.5
+          ],
+          [
+            330.0,
+            5.0
+          ]
+        ]
+      }
+    },
+    "cells": {
+      "west_park": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            -56.0,
+            16.5
+          ],
+          [
+            -50.0,
+            12.5
+          ],
+          [
+            -45.0,
+            14.0
+          ],
+          [
+            -43.0,
+            20.0
+          ],
+          [
+            -46.0,
+            26.5
+          ],
+          [
+            -53.0,
+            28.0
+          ],
+          [
+            -58.0,
+            23.0
+          ]
+        ]
+      },
+      "southside_ground": {
+        "surface": "pavement",
+        "level": 0.29,
+        "points": [
+          [
+            -27.0,
+            -58.5
+          ],
+          [
+            -14.0,
+            -54.5
+          ],
+          [
+            3.0,
+            -52.0
+          ],
+          [
+            16.5,
+            -52.5
+          ],
+          [
+            18.0,
+            -58.0
+          ],
+          [
+            8.0,
+            -61.5
+          ],
+          [
+            -6.0,
+            -63.0
+          ],
+          [
+            -20.0,
+            -62.0
+          ],
+          [
+            -27.5,
+            -60.5
+          ]
+        ]
+      },
+      "wallside_ground": {
+        "surface": "pavement",
+        "level": 0.24,
+        "points": [
+          [
+            15.5,
+            -44.0
+          ],
+          [
+            12.0,
+            -32.0
+          ],
+          [
+            8.5,
+            -16.0
+          ],
+          [
+            4.5,
+            -14.0
+          ],
+          [
+            7.5,
+            -31.0
+          ],
+          [
+            11.0,
+            -45.0
+          ]
+        ]
+      },
+      "eastgate_ground": {
+        "surface": "pavement",
+        "level": 0.34,
+        "points": [
+          [
+            20.2,
+            17.2
+          ],
+          [
+            26.0,
+            15.0
+          ],
+          [
+            38.0,
+            45.0
+          ],
+          [
+            33.0,
+            52.0
+          ],
+          [
+            25.5,
+            41.0
+          ],
+          [
+            18.9,
+            22.5
+          ]
+        ]
+      },
+      "works_ground": {
+        "surface": "concrete",
+        "level": 0.17,
+        "points": [
+          [
+            12.0,
+            -34.0
+          ],
+          [
+            26.0,
+            -31.0
+          ],
+          [
+            38.5,
+            -32.0
+          ],
+          [
+            44.0,
+            -38.0
+          ],
+          [
+            40.0,
+            -46.0
+          ],
+          [
+            28.0,
+            -49.0
+          ],
+          [
+            16.0,
+            -51.0
+          ],
+          [
+            10.0,
+            -43.0
+          ]
+        ]
+      },
+      "quay_ground": {
+        "surface": "concrete",
+        "level": 0.17,
+        "points": [
+          [
+            44.5,
+            13.5
+          ],
+          [
+            50.0,
+            10.0
+          ],
+          [
+            57.5,
+            13.0
+          ],
+          [
+            60.0,
+            20.0
+          ],
+          [
+            55.5,
+            25.5
+          ],
+          [
+            48.0,
+            22.0
+          ]
+        ]
+      },
+      "garden_ground": {
+        "surface": "pavement",
+        "level": 0.39,
+        "points": [
+          [
+            -50.5,
+            36.0
+          ],
+          [
+            -40.0,
+            34.5
+          ],
+          [
+            -34.5,
+            39.0
+          ],
+          [
+            -36.0,
+            46.5
+          ],
+          [
+            -44.0,
+            49.5
+          ],
+          [
+            -51.0,
+            45.0
+          ]
+        ]
+      },
+      "grove_north_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            15.0,
+            44.0
+          ],
+          [
+            24.0,
+            40.5
+          ],
+          [
+            33.0,
+            44.0
+          ],
+          [
+            36.0,
+            52.0
+          ],
+          [
+            30.0,
+            58.5
+          ],
+          [
+            19.0,
+            57.0
+          ],
+          [
+            13.5,
+            50.0
+          ]
+        ]
+      },
+      "founders_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            35.0,
+            23.0
+          ],
+          [
+            42.0,
+            20.5
+          ],
+          [
+            48.5,
+            25.0
+          ],
+          [
+            48.0,
+            33.0
+          ],
+          [
+            42.0,
+            37.5
+          ],
+          [
+            35.5,
+            33.5
+          ]
+        ]
+      },
+      "quay_grove_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            56.0,
+            15.5
+          ],
+          [
+            62.0,
+            14.0
+          ],
+          [
+            66.0,
+            18.0
+          ],
+          [
+            64.5,
+            24.0
+          ],
+          [
+            58.5,
+            25.0
+          ]
+        ]
+      },
+      "southside_green_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            -9.5,
+            -34.5
+          ],
+          [
+            -2.0,
+            -32.5
+          ],
+          [
+            3.5,
+            -36.0
+          ],
+          [
+            3.0,
+            -43.0
+          ],
+          [
+            -3.0,
+            -46.0
+          ],
+          [
+            -9.0,
+            -43.5
+          ]
+        ]
+      },
+      "south_pocket_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            42.0,
+            -49.0
+          ],
+          [
+            48.5,
+            -47.5
+          ],
+          [
+            52.5,
+            -51.0
+          ],
+          [
+            49.5,
+            -54.0
+          ],
+          [
+            44.5,
+            -56.5
+          ],
+          [
+            41.0,
+            -53.5
+          ]
+        ]
+      },
+      "west_meadow_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            -63.0,
+            -18.5
+          ],
+          [
+            -57.0,
+            -17.0
+          ],
+          [
+            -52.5,
+            -21.0
+          ],
+          [
+            -52.5,
+            -29.0
+          ],
+          [
+            -56.5,
+            -33.5
+          ],
+          [
+            -62.0,
+            -31.0
+          ],
+          [
+            -64.0,
+            -25.0
+          ]
+        ]
+      },
+      "westfront_ground_north": {
+        "surface": "pavement",
+        "level": 0.24,
+        "points": [
+          [
+            -63.5,
+            13.0
+          ],
+          [
+            -57.0,
+            15.0
+          ],
+          [
+            -52.0,
+            9.5
+          ],
+          [
+            -53.0,
+            6.6
+          ],
+          [
+            -60.0,
+            5.6
+          ],
+          [
+            -63.8,
+            7.5
+          ]
+        ]
+      },
+      "westfront_ground_south": {
+        "surface": "pavement",
+        "level": 0.24,
+        "points": [
+          [
+            -63.9,
+            -2.0
+          ],
+          [
+            -58.0,
+            -1.6
+          ],
+          [
+            -52.0,
+            -2.5
+          ],
+          [
+            -51.5,
+            -8.0
+          ],
+          [
+            -56.0,
+            -11.5
+          ],
+          [
+            -62.0,
+            -9.0
+          ]
+        ]
+      },
+      "southwest_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            -57.0,
+            -35.0
+          ],
+          [
+            -51.0,
+            -33.0
+          ],
+          [
+            -44.0,
+            -38.0
+          ],
+          [
+            -42.0,
+            -46.0
+          ],
+          [
+            -46.0,
+            -50.0
+          ],
+          [
+            -53.0,
+            -48.0
+          ],
+          [
+            -57.0,
+            -41.0
+          ]
+        ]
+      },
+      "northwest_lawn": {
+        "surface": "lawn",
+        "level": 0.19,
+        "points": [
+          [
+            -58.0,
+            31.0
+          ],
+          [
+            -52.0,
+            29.0
+          ],
+          [
+            -46.0,
+            32.0
+          ],
+          [
+            -45.0,
+            38.0
+          ],
+          [
+            -50.0,
+            42.0
+          ],
+          [
+            -57.0,
+            40.0
+          ],
+          [
+            -60.0,
+            35.0
+          ]
+        ]
+      }
+    }
+  },
+  "blocks": {
+    "westfront_crescent": {
+      "street": "orbital",
+      "side": "i",
+      "from": 151.5,
+      "to": 160.5,
+      "form": "row",
+      "kind": "midrise_slab",
+      "units": 2,
+      "depth": 5.4,
+      "height": 17.0,
+      "step": -0.8,
+      "priority": 10
+    },
+    "eastgate_business": {
+      "street": "eastgate_axis",
+      "side": "o",
+      "from": 6.5,
+      "to": 17.0,
+      "form": "row",
+      "kind": "midrise_slab",
+      "units": 2,
+      "depth": 5.4,
+      "height": 18.0,
+      "step": -0.7,
+      "priority": 10
+    },
+    "eastgate_north": {
+      "street": "orbital",
+      "side": "i",
+      "from": 7.0,
+      "to": 14.0,
+      "form": "row",
+      "kind": "midrise_point",
+      "units": 1,
+      "depth": 5.2,
+      "height": 15.5,
+      "priority": 25
+    },
+    "wallside_row": {
+      "street": "wallside_street",
+      "side": "i",
+      "from": 9.5,
+      "to": 20.5,
+      "form": "row",
+      "kind": "row_mid",
+      "units": 3,
+      "depth": 5.4,
+      "height": 14.0,
+      "step": 0.4,
+      "priority": 15
+    },
+    "works_offices": {
+      "street": "works_spine",
+      "side": "i",
+      "from": 12.0,
+      "to": 20.0,
+      "form": "row",
+      "kind": "office_slab",
+      "units": 2,
+      "depth": 5.4,
+      "height": 12.5,
+      "priority": 20
+    },
+    "southside_high_row": {
+      "street": "southside_high",
+      "side": "i",
+      "from": 22.0,
+      "to": 28.0,
+      "form": "row",
+      "kind": "row_low",
+      "units": 1,
+      "depth": 5.2,
+      "height": 9.0,
+      "priority": 25
+    },
+    "quay_sheds": {
+      "street": "gate_port_north",
+      "side": "i",
+      "from": 1.0,
+      "to": 7.0,
+      "form": "row",
+      "kind": "shed",
+      "units": 1,
+      "depth": 5.2,
+      "height": 8.2,
+      "priority": 30
+    },
+    "garden_lane_row": {
+      "street": "garden_lane",
+      "side": "i",
+      "from": 13.5,
+      "to": 17.5,
+      "form": "row",
+      "kind": "duo_low",
+      "units": 1,
+      "depth": 5.0,
+      "height": 7.5,
+      "priority": 60
+    },
+    "quay_office": {
+      "street": "gate_port_north",
+      "side": "o",
+      "from": 18.5,
+      "to": 22.5,
+      "form": "row",
+      "kind": "office_slab",
+      "units": 1,
+      "depth": 5.0,
+      "height": 11.5,
+      "priority": 60
+    },
+    "port_south_shed": {
+      "street": "orbital",
+      "side": "i",
+      "from": 337.5,
+      "to": 342.0,
+      "form": "row",
+      "kind": "shed",
+      "units": 1,
+      "depth": 5.0,
+      "height": 7.8,
+      "priority": 45
+    }
+  }
+}
