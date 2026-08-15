@@ -1,0 +1,153 @@
+{
+  "format": "living_diorama_daily_life_mobility",
+  "schema_version": 1,
+  "mobility_seed": "living-diorama-daily-life-mobility-v1",
+  "cycle": {
+    "pedestrian_cycles": 1,
+    "vehicle_cycles": 1,
+    "collision_frame_stride": 1
+  },
+  "pedestrians": {
+    "moving_fraction": 0.3,
+    "min_moving": 1,
+    "max_moving": 28,
+    "speed": {
+      "reference_height": 1.75,
+      "base_speed": 1.44,
+      "min": 1.0,
+      "max": 1.55
+    },
+    "route": {
+      "excursion_min": 2.6,
+      "excursion_max": 6.0,
+      "lateral_offset": 1.1,
+      "sample_step": 0.15,
+      "max_turn_rate_deg_s": 165.0,
+      "clearance": 0.0,
+      "vehicle_clearance": 1.0,
+      "ground_tolerance": 0.06,
+      "speed_ladder": [
+        1.0,
+        0.92,
+        0.84,
+        0.76
+      ],
+      "anchor_positions": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "anchor_tolerance": 0.2
+    },
+    "gait": {
+      "phases": 8,
+      "stride_factor": 0.83,
+      "stride_tolerance": 0.2,
+      "leg_swing_max_deg": 32.0,
+      "knee_bend_deg": 26.0,
+      "arm_swing_ratio": 0.8,
+      "bob_metres": 0.0,
+      "min_limb_travel": 0.05
+    }
+  },
+  "vehicles": {
+    "target_count": 14,
+    "max_count": 18,
+    "driving_side": "right",
+    "lane": {
+      "edge_margin": 0.25,
+      "centreline_margin": 0.25,
+      "corner_radius": 3.6,
+      "corner_radius_min": 2.2,
+      "sample_step": 0.4
+    },
+    "speed": {
+      "min": 4.0,
+      "max": 10.0
+    },
+    "slot_pitch": 8.6,
+    "body_clearance": 0.4,
+    "pedestrian_clearance": 1.0,
+    "archetypes": {
+      "compact": 1.0,
+      "sedan": 1.15,
+      "suv": 0.85,
+      "van": 0.55,
+      "coupe": 0.45
+    },
+    "budget": {
+      "triangles_per_vehicle": 2500,
+      "layer_triangles": 35000
+    },
+    "rolling_radius_tolerance": 0.05
+  },
+  "proof": {
+    "cameras": {
+      "CAM_P19_DAILY_LIFE": {
+        "location": [
+          -44.0,
+          18.0,
+          10.0
+        ],
+        "look_at": [
+          -58.0,
+          -2.0,
+          1.5
+        ],
+        "lens_mm": 35.0
+      },
+      "CAM_P19_GAIT": {
+        "location": [
+          10.86,
+          -39.63,
+          1.72
+        ],
+        "look_at": [
+          3.86,
+          -39.63,
+          1.02
+        ],
+        "lens_mm": 28.0
+      },
+      "CAM_P19_TRAFFIC": {
+        "location": [
+          -58.6,
+          -25.0,
+          1.6
+        ],
+        "look_at": [
+          -54.0,
+          -25.0,
+          0.9
+        ],
+        "lens_mm": 28.0
+      },
+      "CAM_P19_CITY": {
+        "location": [
+          -12.0,
+          6.0,
+          72.0
+        ],
+        "look_at": [
+          -12.0,
+          6.0,
+          0.0
+        ],
+        "lens_mm": 15.0
+      },
+      "CAM_P19_VALIDITY": {
+        "location": [
+          -42.0,
+          10.0,
+          50.0
+        ],
+        "look_at": [
+          -42.0,
+          10.0,
+          0.0
+        ],
+        "lens_mm": 20.0
+      }
+    }
+  }
+}
