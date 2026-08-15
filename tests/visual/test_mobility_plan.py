@@ -212,12 +212,15 @@ def test_every_walker_starts_and_ends_on_its_own_anchor(built: dict) -> None:
         anchor = walker["anchor"]
         assert math.hypot(points[0][0] - anchor["x"], points[0][1] - anchor["y"]) <= tolerance
         stations = mp.loop_stations(points)
+        # The distance authority here must be the published polyline itself:
+        # walker["route_length"] is separately rounded metadata (its agreement
+        # with the geometry has its own test), and on another libm the two
+        # roundings can disagree by just over the closure tolerance.
+        published_length = stations[-1]["s"]
         start = mp.sample_loop(stations, 0.0)
         end = mp.sample_loop(
             stations,
-            mp.frame_distance(
-                timeline["end_frame"], timeline, walker["route_length"], walker["cycles"]
-            ),
+            mp.frame_distance(timeline["end_frame"], timeline, published_length, walker["cycles"]),
         )
         for axis in ("x", "y", "z", "heading"):
             # A micrometre. The route's points are published rounded to six
