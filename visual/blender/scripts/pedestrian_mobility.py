@@ -792,52 +792,53 @@ def body_chains(identity: dict, primitives: dict | None = None) -> dict:
     """Recover the four limb chains from a LOCKED Phase 18 body.
 
     Read off the emitted primitives, never re-derived from the proportions
-    table. Phase 18 owns how a body is shaped and Phase 19 is not allowed a
-    second opinion: if the kit moves a knee, this follows it, and if a garment
-    splits an arm into a sleeve and a bare forearm the chain is reassembled
-    from both pieces rather than assumed to be one.
+    table -- and, since the chain contract v2, never re-derived from a private
+    opinion about limb structure either. ``figure_kit.CHAIN_SPEC`` is the one
+    published description of what a limb is made of: which primitives form
+    each chain, how many lofted rings each holds, which articulation level
+    every ring rides at, and which member's rings the three JOINTS -- root,
+    middle, tip -- are measured from. This function only reads that table
+    against the built vertices. If the kit gives a leg five rings and a calf,
+    or hangs a hand off the wrist, the walk follows without this file
+    changing again: that is the entire point of the amendment.
 
-    Each chain publishes its three JOINTS -- root, middle, tip -- and, for every
-    primitive it is drawn from, which chain joint each of that primitive's rings
-    belongs to. That mapping is the whole reason a split sleeve articulates
-    identically to a bare arm: the sleeve's second ring and the forearm's first
-    ring are the same elbow, so they move together and no seam can open.
+    Joints are still ring CENTROIDS of built geometry, and seam rings are
+    still the same circle of vertices in both members -- the sleeve's elbow
+    and the forearm's elbow move together, so no articulation can open a
+    seam. A body whose primitives do not match the published spec is refused,
+    never repaired.
     """
     built = primitives or {
         entry["name"]: list(entry["vertices"]) for entry in figure_kit.figure_geometry(identity)
     }
     chains: dict[str, dict] = {}
     for side in ("left", "right"):
-        if f"{side}_leg" not in built or f"{side}_foot" not in built:
-            raise PedestrianMobilityError(f"a Phase 18 body has no {side} leg to walk on")
-        rings = _rings(built[f"{side}_leg"], figure_kit.LEG_SIDES, f"{side}_leg")
-        if len(rings) != 3:
-            raise PedestrianMobilityError(f"{side} leg has {len(rings)} rings, expected 3")
-        chains[f"{side}_leg"] = {
-            "sides": figure_kit.LEG_SIDES,
-            "joints": [_centroid(ring) for ring in rings],
-            "members": {f"{side}_leg": (0, 1, 2)},
-            "foot": f"{side}_foot",
-        }
-        if f"{side}_arm" in built:
-            rings = _rings(built[f"{side}_arm"], figure_kit.ARM_SIDES, f"{side}_arm")
-            if len(rings) != 3:
-                raise PedestrianMobilityError(f"{side} arm has {len(rings)} rings, expected 3")
-            joints = [_centroid(ring) for ring in rings]
-            members = {f"{side}_arm": (0, 1, 2)}
-        else:
-            upper = _rings(built[f"{side}_upper_arm"], figure_kit.ARM_SIDES, f"{side}_upper_arm")
-            lower = _rings(built[f"{side}_forearm"], figure_kit.ARM_SIDES, f"{side}_forearm")
-            if len(upper) != 2 or len(lower) != 2:
-                raise PedestrianMobilityError(f"{side} split arm does not hold two rings a piece")
-            joints = [_centroid(upper[0]), _centroid(upper[1]), _centroid(lower[1])]
-            members = {f"{side}_upper_arm": (0, 1), f"{side}_forearm": (1, 2)}
-        chains[f"{side}_arm"] = {
-            "sides": figure_kit.ARM_SIDES,
-            "joints": joints,
-            "members": members,
-            "foot": None,
-        }
+        for chain_name, spec in figure_kit.CHAIN_SPEC.items():
+            ringed: dict[str, list] = {}
+            members: dict[str, tuple] = {}
+            for member, levels in spec["members"].items():
+                name = f"{side}_{member}"
+                if name not in built:
+                    raise PedestrianMobilityError(
+                        f"a Phase 18 body has no {name}, which the chain contract requires"
+                    )
+                rings = _rings(built[name], spec["sides"], name)
+                if len(rings) != len(levels):
+                    raise PedestrianMobilityError(
+                        f"{name} holds {len(rings)} rings where the chain contract "
+                        f"declares {len(levels)}"
+                    )
+                ringed[member] = rings
+                members[name] = tuple(levels)
+            foot = spec["foot"]
+            if foot is not None and f"{side}_{foot}" not in built:
+                raise PedestrianMobilityError(f"a Phase 18 body has no {side} {foot} to walk on")
+            chains[f"{side}_{chain_name}"] = {
+                "sides": spec["sides"],
+                "joints": [_centroid(ringed[member][ring]) for member, ring in spec["joints"]],
+                "members": members,
+                "foot": f"{side}_{foot}" if foot is not None else None,
+            }
     return chains
 
 

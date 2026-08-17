@@ -4,6 +4,15 @@ Executed by ``run_blender_tests.py`` inside background Blender, against a
 scene the runner has already built from the Master Scene Spec. These tests
 own the PERSISTENT half of the contract: collections, cameras, districts,
 boundaries, the Golden Seal, naming, and build idempotency.
+
+They also own the RIBBON TRIM, because Phase 15 is the build that lays the
+avenues, sidewalks, curbs, markings and spurs and therefore the build that
+has to stop laying them through founding architecture. The pure suite
+``tests/visual/test_road_trim.py`` proves the trim's arithmetic by
+reconstructing the faces the builder will emit; what no pure suite can
+prove is that the builder actually emits those faces. That is what
+:func:`test_no_built_road_mesh_stands_in_founding_architecture` is for, and
+it is the reason the pure reconstruction cannot quietly go stale.
 """
 
 import sys
@@ -17,6 +26,44 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import build_master_scene  # noqa: E402
 from blender_runtime import CHILD_COLLECTIONS, ROOT_COLLECTION  # noqa: E402
+from spatial_occupancy import (  # noqa: E402
+    _rect_corners,
+    _rect_point_distance,
+    convex_polygons_intersect,
+    founding_building_footprints,
+)
+
+ROAD_LAYER_PREFIXES = (
+    "LD_ROAD__",
+    "LD_SIDEWALK__",
+    "LD_CURB__",
+    "LD_MARKING__",
+    "LD_SPUR__",
+)
+"""Every object family the ribbon trim is responsible for.
+
+The five drawn road layers, including ``LD_MARKING__<boundary>__center``:
+the centre dashes are individual boxes rather than a strip, so they are
+filtered by :func:`spatial_occupancy.founding_point_is_covered` on their
+CENTRE POINT alone. That filter is only safe while no dash centre lands
+within half a dash of a building -- and the built mesh, not the filter, is
+what this suite measures, so a dash box poking into a podium fails here
+even though the point filter waved it through.
+"""
+
+RING_DISC_SEGMENTS_PINNED_PURELY = 72
+"""What ``tests/visual/test_road_trim.py`` assumes the disc resolution is.
+
+That suite cannot import :mod:`build_master_scene` -- the module needs
+``bpy`` -- so it carries its own copy of the constant and reconstructs the
+wedge fan from it. A copy is a thing that can drift, so the two are
+compared HERE, where both are importable. This is the cheapest possible
+insurance that a resolution change fails somewhere loudly instead of
+silently invalidating a pure pin.
+"""
+
+SWALLOWED_SPUR = "LD_SPUR__boundary_cd__district_c"
+"""The one road object whose entire run lies inside a founding building."""
 
 
 def scene_object_names() -> set[str]:
@@ -140,3 +187,166 @@ def test_rebuild_is_semantically_idempotent(context) -> None:
     assert not any(name.endswith(".001") for name in scene_object_names()), (
         "rebuild produced .001 duplicates"
     )
+
+
+# ---------------------------------------------------------------------------
+# The ribbon trim, proved on the mesh Blender actually welded
+# ---------------------------------------------------------------------------
+
+
+def _founding_parts(context) -> list[dict]:
+    """Every founding building part, as the rects the ribbon trim reads.
+
+    The same source ``vehicle_lane_network`` refuses runs from and the same
+    source ``_trimmed_ribbon`` trims against, so the drawn mesh, the lane
+    guard and this test cannot disagree about where a building stands.
+    """
+    return [
+        entry["shape"]
+        for lot in founding_building_footprints(context["spec"])
+        for entry in lot["parts"]
+    ]
+
+
+def _road_layer_objects() -> list:
+    """Every built mesh belonging to a trimmed road family."""
+    return [
+        obj
+        for obj in bpy.data.objects
+        if obj.type == "MESH" and obj.name.startswith(ROAD_LAYER_PREFIXES)
+    ]
+
+
+def test_the_road_layers_were_actually_built(context) -> None:
+    """The trim test below is worthless if it inspects an empty scene."""
+    built = _road_layer_objects()
+    assert built, "no road-layer object exists at all"
+    families = {obj.name.split("__")[0] for obj in built}
+    assert families == {prefix.rstrip("_") for prefix in ROAD_LAYER_PREFIXES}, (
+        f"the scene is missing a road family: {sorted(families)}"
+    )
+    for boundary_id in context["spec"]["boundaries"]:
+        assert bpy.data.objects.get(f"LD_ROAD__{boundary_id}") is not None
+
+
+def test_no_built_road_mesh_stands_in_founding_architecture(context) -> None:
+    """The assertion the pure reconstruction cannot make for itself.
+
+    Every road-layer mesh in the file is measured against the founding
+    footprints in WORLD space: every vertex, every edge midpoint and every
+    face centre must lie outside every building. Sampling all three matters
+    because a face can straddle a footprint without any of its corners being
+    inside it, and the projected-face check below closes even that gap.
+
+    This is the test that fails loudly if a builder's offset or width ever
+    diverges from the ``BOUNDARY_LAYERS`` table the pure suite reconstructs
+    from. A pure suite pinned to a reconstruction can pass forever against a
+    model that no longer describes the builder; this one reads the mesh.
+    """
+    bpy.context.view_layer.update()
+    parts = _founding_parts(context)
+    assert parts, "the founding layer reported no building parts to avoid"
+    offenders: list[str] = []
+    for obj in _road_layer_objects():
+        mesh = obj.data
+        matrix = obj.matrix_world
+        world = [matrix @ vertex.co for vertex in mesh.vertices]
+        samples: list[tuple[str, float, float]] = [
+            (f"vertex {index}", point.x, point.y) for index, point in enumerate(world)
+        ]
+        for edge in mesh.edges:
+            near, far = world[edge.vertices[0]], world[edge.vertices[1]]
+            samples.append(
+                (f"edge {edge.index} midpoint", (near.x + far.x) / 2.0, (near.y + far.y) / 2.0)
+            )
+        for polygon in mesh.polygons:
+            centre = matrix @ polygon.center
+            samples.append((f"face {polygon.index} centre", centre.x, centre.y))
+        for label, x, y in samples:
+            inside = next(
+                (shape for shape in parts if _rect_point_distance(shape, x, y) <= 0.0), None
+            )
+            if inside is not None:
+                offenders.append(f"{obj.name} {label} at ({x:.2f}, {y:.2f})")
+                break
+    assert not offenders, "road geometry inside founding architecture: " + "; ".join(offenders[:6])
+
+
+def test_no_built_road_face_straddles_founding_architecture(context) -> None:
+    """A face can cross a building without putting a single point inside it.
+
+    The point samples above would miss a long thin face spanning a small
+    footprint, so every horizontal face is also tested AS A POLYGON, with the
+    same separating-axis routine the trim itself is gated on. Faces that
+    project to a line -- the vertical sides an extrusion produces -- carry no
+    area in plan and are skipped rather than fed to a convex test that has no
+    meaningful answer for them.
+    """
+    bpy.context.view_layer.update()
+    parts = _founding_parts(context)
+    offenders: list[str] = []
+    for obj in _road_layer_objects():
+        mesh = obj.data
+        matrix = obj.matrix_world
+        for polygon in mesh.polygons:
+            corners = [matrix @ mesh.vertices[index].co for index in polygon.vertices]
+            flat = {(round(point.x, 6), round(point.y, 6)) for point in corners}
+            if len(flat) < 3:
+                continue
+            hit = next(
+                (
+                    shape
+                    for shape in parts
+                    if convex_polygons_intersect(
+                        [(point.x, point.y) for point in corners], _rect_corners(shape)
+                    )
+                ),
+                None,
+            )
+            if hit is not None:
+                offenders.append(f"{obj.name} face {polygon.index}")
+                break
+    assert not offenders, "road faces crossing founding architecture: " + "; ".join(offenders[:6])
+
+
+def test_the_pure_suites_ring_disc_resolution_is_still_correct(context) -> None:
+    """The duplicated constant is compared where both copies are importable.
+
+    ``tests/visual/test_road_trim.py`` reconstructs the ring-disc wedge fan
+    from its own copy of this number, because importing the builder would
+    pull in ``bpy``. If the builder ever changes resolution, that pure pin
+    silently starts describing a disc nobody draws -- unless this fails
+    first, which is the whole job of this test.
+    """
+    assert build_master_scene.RING_DISC_SEGMENTS == RING_DISC_SEGMENTS_PINNED_PURELY
+
+
+def test_a_road_swallowed_by_a_building_survives_as_an_empty_object(context) -> None:
+    """A road the city cannot draw keeps its name and draws nothing.
+
+    ``LD_SPUR__boundary_cd__district_c`` runs entirely inside
+    ``LD_BLDG__district_c__001``, so every span of it is trimmed away. The
+    contract is that it still EXISTS: an empty object is honest about a road
+    the city cannot show, and nothing that looks the name up is left holding
+    a reference to something that vanished. A test asserting that every road
+    object carries faces would be wrong, and this is the object that proves
+    it -- so the emptiness is pinned here rather than left to be "fixed".
+    """
+    obj = bpy.data.objects.get(SWALLOWED_SPUR)
+    assert obj is not None, f"{SWALLOWED_SPUR} was deleted rather than emptied"
+    assert obj.type == "MESH"
+    assert len(obj.data.polygons) == 0, (
+        f"{SWALLOWED_SPUR} drew {len(obj.data.polygons)} face(s); its whole run is inside a "
+        "founding building"
+    )
+    assert len(obj.data.vertices) == 0
+    # Every OTHER spur still draws something, or the trim has eaten the city.
+    drawing = [
+        other
+        for other in bpy.data.objects
+        if other.type == "MESH"
+        and other.name.startswith("LD_SPUR__")
+        and other.name != SWALLOWED_SPUR
+        and len(other.data.polygons)
+    ]
+    assert len(drawing) >= 6, f"only {len(drawing)} spurs still draw geometry"

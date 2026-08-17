@@ -355,6 +355,40 @@ def test_hair_never_sits_flush_with_the_skull() -> None:
                 assert extent["x"][1] < frame["front"], f"{name} reaches around onto the face"
 
 
+def test_the_cap_brim_projects_forward_without_reaching_the_eyes() -> None:
+    """The one hair piece allowed in front of the face, held to its purpose.
+
+    ``hair_brim`` is exempt from the rule above, and it has to be: a brim that
+    did not reach past the head's own forward extent would not be a brim. That
+    exemption is the only hole in "no hair geometry stands in front of a
+    face", so the brim is held to a narrower promise instead of none at all --
+    it must project FORWARD, and it must stay clear ABOVE the eyes.
+
+    Checked as a band rather than as a bounding-box overlap. A brim whose
+    underside dropped to eye level would shade them into the sunglasses the
+    v2 face was redesigned to eliminate, and it would do so long before its
+    box actually intersected an eye.
+    """
+    caps = [entry for entry in every_head() if entry["hair"] == "cap"]
+    assert caps, "the vocabulary no longer offers a cap"
+    for entry in caps:
+        frame, features = head_local(entry)
+        assert "hair_brim" in features, f"a {entry['age_presentation']} cap grew no brim"
+        brim = bounds(features["hair_brim"])
+        assert brim["x"][1] > frame["front"], (
+            "the brim does not project past the face, so it is not a brim"
+        )
+        eyes_top = max(bounds(features[eye])["z"][1] for eye in ("left_eye", "right_eye"))
+        clearance = (brim["z"][0] - eyes_top) / frame["height"]
+        assert clearance > 0.0, (
+            f"{entry['age_presentation']}/{entry['face']} brim hangs to eye level"
+        )
+        assert clearance >= 0.05, (
+            f"{entry['age_presentation']}/{entry['face']} brim clears the eyes by only "
+            f"{clearance:.4f} of head height"
+        )
+
+
 def test_hair_actually_covers_the_skull_it_sits_on() -> None:
     """The guard that was missing, and the defect it would have caught.
 

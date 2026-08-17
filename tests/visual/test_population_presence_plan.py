@@ -735,6 +735,74 @@ def test_heading_jitter_stays_inside_its_declared_bound() -> None:
 
 
 # ---------------------------------------------------------------------------
+# The canonical fleet: a portable pin and the geometry budget
+# ---------------------------------------------------------------------------
+
+
+MAX_TRIANGLES_PER_FIGURE = 950
+MAX_FLEET_TRIANGLES = 68000
+"""The remediation's geometry ceilings, restated where the fleet is planned.
+
+The per-figure 950 must stay equal to ``MAX_TRIANGLES_PER_FIGURE`` in
+``test_figure_kit.py``: the kit suite proves no body the VOCABULARY can build
+exceeds it, and this suite proves the bodies the canonical story actually
+FIELDS stay under both it and the 68,000 layer ceiling. Two constants that
+drifted apart would let a budget argument pass in one court and fail in the
+other. Measured against the FINAL kit on 2026-08-16, the canonical eighty
+cost 66,300 of the 68,000 ceiling -- only 1,700 spare -- at a fleet mean of
+828.8, with the heaviest fielded body at 902 (``district_c__slot_011``) and
+the lightest at 668 (``district_a__slot_028``).
+
+That margin is thin and this is the test that holds it. Eighty proxies may
+average 850; they currently average 828.8, so the whole layer rides on about
+twenty-one triangles a person. The heaviest body the vocabulary can build is
+902, and eighty of those would be 72,160 -- so the fleet fits because the
+dressing draw spreads across light and heavy identities, not because every
+identity fits. That is precisely why the sum below walks the real eighty
+instead of multiplying a maximum, and why a change to the dressing weights
+is a change to the geometry budget whether or not any body grew.
+
+That fleet mean is NOT the vocabulary mean of 830.3 that ``test_figure_kit``
+records: the fleet is the eighty bodies the story actually dresses, not an
+average over every combination the kit can build. Multiplying the vocabulary
+mean by eighty gives a total some three hundred triangles adrift, which is
+why the sum below is taken PER PROXY rather than estimated -- that per-proxy
+sum is the number which actually gates the 68,000.
+
+Evidence for the headroom, not a second contract; only the two ceilings are
+asserted.
+"""
+
+
+def test_the_canonical_story_fields_eighty_unique_slots() -> None:
+    """Eighty proxies, eighty distinct slots, from the repo's own numbers.
+
+    This pin is PORTABLE on purpose: ``CANONICAL`` derives from the in-repo
+    ``STORY_POPULATIONS`` and the synthetic export above, so the eighty holds
+    on any machine with no generated story file present. The mobility suite
+    pins the same eighty only where the canonical world export exists; this is
+    the copy of that promise a fresh checkout can still enforce.
+    """
+    slots = [proxy["slot"] for proxy in CANONICAL["proxies"]]
+    assert len(slots) == 80, f"the canonical story fields {len(slots)} proxies"
+    assert len(set(slots)) == len(slots), "two proxies share one slot"
+    assert CANONICAL["summary"]["active_proxies"] == 80
+
+
+def test_the_canonical_fleet_fits_the_declared_triangle_budget() -> None:
+    """The eighty bodies the story fields fit the remediation's ceilings.
+
+    The kit suite bounds the whole vocabulary; this bounds the FLEET, because
+    a dressing draw that drifted heavy -- every proxy in a coat with a beard
+    -- would blow the layer budget without any single body breaking its own.
+    """
+    counts = [figure_kit.figure_triangles(proxy) for proxy in CANONICAL["proxies"]]
+    heaviest = max(counts)
+    assert heaviest <= MAX_TRIANGLES_PER_FIGURE, f"the heaviest proxy costs {heaviest}"
+    assert sum(counts) <= MAX_FLEET_TRIANGLES, f"the fleet costs {sum(counts)} triangles"
+
+
+# ---------------------------------------------------------------------------
 # The validator has teeth
 # ---------------------------------------------------------------------------
 

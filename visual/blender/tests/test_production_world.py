@@ -372,3 +372,74 @@ def test_scene_stays_production_practical(context) -> None:
     """The expanded world keeps a render- and animation-practical budget."""
     total = len(bpy.data.objects)
     assert total < 1500, f"scene object count {total} exceeds the production budget"
+
+
+def test_the_kept_ring_disc_clears_the_towers_that_block_its_ring(context) -> None:
+    """The trimmed disc is proved on the mesh, not on the shadow set.
+
+    This belongs to PHASE 16 and not to Phase 15, because Phase 15 draws
+    every plate's ring disc as a plain full cylinder: the trim happens in
+    ``build_production_world.trim_kept_ring_discs``, which redraws the kept
+    discs under the same name once the composition has decided which rings
+    survive. Asserting this against the founding scene would fail for a
+    disc nobody has trimmed yet.
+
+    The shadowing set is recomputed here from the carriageway condition --
+    a founding part standing within the ring's own half-width of the ring's
+    own path, which is exactly what ``vehicle_lane_network`` refuses a run
+    for -- rather than taken from ``founding_ring_shadow``, so this checks
+    the built mesh against an independently derived answer instead of
+    against the function that produced it.
+
+    A wedge may legitimately still touch a building that does NOT reach the
+    carriageway: that tower stands on its own plate rather than in traffic,
+    and Phase 15 always drew the asphalt under it.
+    """
+    from spatial_occupancy import (
+        _rect_point_distance,
+        _rect_segment_distance,
+        founding_building_footprints,
+        founding_carriageways,
+    )
+
+    bpy.context.view_layer.update()
+    master_spec = load_master_scene_spec(context["spec_path"])
+    footprints = founding_building_footprints(master_spec)
+    plan = _plan(context)
+    checked = 0
+    for district_id, plate in sorted(plan["ground"]["plates"].items()):
+        if plate["ring"] != "full":
+            continue
+        obj = bpy.data.objects.get(f"LD_DISTRICT__{district_id}{RING_ROAD_SUFFIX}")
+        assert obj is not None, f"{district_id} keeps its ring but carries no disc"
+        ring = next(
+            (
+                way
+                for way in founding_carriageways(master_spec)
+                if way["id"] == f"ring_{district_id}"
+            ),
+            None,
+        )
+        if ring is None:
+            continue
+        shadowing = [
+            entry["shape"]
+            for lot in footprints
+            for entry in lot["parts"]
+            if any(
+                _rect_segment_distance(entry["shape"], a[0], a[1], b[0], b[1]) <= ring["half"]
+                for a, b in zip(ring["path"], ring["path"][1:], strict=False)
+            )
+        ]
+        if not shadowing:
+            continue
+        matrix = obj.matrix_world
+        for polygon in obj.data.polygons:
+            centre = matrix @ polygon.center
+            for shape in shadowing:
+                assert _rect_point_distance(shape, centre.x, centre.y) > 0.0, (
+                    f"{obj.name} still draws asphalt under architecture that blocks its ring, "
+                    f"at ({centre.x:.2f}, {centre.y:.2f})"
+                )
+        checked += 1
+    assert checked, "no kept ring disc stood among architecture that blocks its ring"

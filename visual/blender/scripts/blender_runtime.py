@@ -127,12 +127,44 @@ def link_only(obj: bpy.types.Object, collection: bpy.types.Collection) -> None:
     collection.objects.link(obj)
 
 
-def add_bevel(obj: bpy.types.Object, width: float = 0.09, segments: int = 2) -> None:
-    """Give a hard-surface object physically plausible edge softening."""
+def add_bevel(
+    obj: bpy.types.Object,
+    width: float = 0.09,
+    segments: int = 2,
+    *,
+    limit_method: str = "ANGLE",
+) -> None:
+    """Give a hard-surface object physically plausible edge softening.
+
+    The default picks edges by ANGLE, which is right for everything that holds
+    still: a facade, a kerb, a parked body shell. Only the edges sharp enough
+    to catch a highlight are softened, and the forty degree threshold is what
+    separates them from the flat panel joins that should stay flat.
+
+    WHY THE METHOD IS A PARAMETER. An angle threshold asks a question about
+    GEOMETRY, and an object that deforms answers it differently on every frame.
+    A figure's knee is the clearest case: the two bands meeting at the joint
+    rotate their normals in OPPOSITE senses as the leg bends, so the dihedral
+    there travels roughly twice the bend angle, and any threshold it passes
+    through is a bevel that appears on one frame and is gone on the next.
+    Because a bevel inserts vertices, the evaluated mesh changes LENGTH mid
+    gait, and anything that read frame zero's vertices and indexed a later
+    frame's by the same numbers walks off the end of the list.
+
+    Raising the threshold does not fix this, and the measurement says so
+    plainly: swept across the whole walking vocabulary the dihedrals of a
+    figure's own edges cover every angle from near zero to a hundred and
+    twenty-eight degrees without a gap, so there is no number to retreat to
+    that some edge does not cross. What fixes it is declining to ask the
+    question. ``NONE`` bevels every edge, which makes the selected set a fact
+    about the topology -- and therefore about the identity -- rather than about
+    the pose, and a deforming body's evaluated vertex count stops depending on
+    which frame you look at it on.
+    """
     modifier = obj.modifiers.new("LD_Bevel", "BEVEL")
     modifier.width = width
     modifier.segments = segments
-    modifier.limit_method = "ANGLE"
+    modifier.limit_method = limit_method
     modifier.angle_limit = math.radians(40.0)
     modifier.harden_normals = False
 

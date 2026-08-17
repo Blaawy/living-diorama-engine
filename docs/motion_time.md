@@ -52,8 +52,8 @@ if a proof animates no material channel at all, there is nothing for material
 equivalence to mean, and that is an error rather than a green tick.
 
 That single requirement decides which channels V1 can carry. A property the
-LOCKED Phase 15 static application never writes cannot be animated, because
-driving it would make the animated end state differ from the static end state.
+Phase 15 static application never writes cannot be animated, because driving
+it would make the animated end state differ from the static end state.
 So the V1 channel list is not a wish list — it is exactly the set of
 properties the existing state mapping already drives:
 

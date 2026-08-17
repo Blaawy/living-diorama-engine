@@ -45,7 +45,7 @@ from blender_runtime import (  # noqa: E402
     require_supported_blender,
     set_practical_light_scale,
 )
-from build_master_scene import ROAD_LEVEL  # noqa: E402
+from build_master_scene import ROAD_LEVEL, trim_ring_disc  # noqa: E402
 from city_ground import ground_level_at, kept_ring_paths  # noqa: E402
 from production_spec import (  # noqa: E402
     load_production_world_spec,
@@ -330,6 +330,30 @@ def build_city_ground(plan: dict, collections: dict, materials: dict) -> None:
             collection,
             [materials[GROUND_MATERIALS[surface]]],
         )
+
+
+def trim_kept_ring_discs(plan: dict, master_spec: dict, materials: dict) -> dict[str, int]:
+    """Cut the founding towers' footings out of the ring discs the city keeps.
+
+    A district whose circle survives whole still draws its Phase 15 asphalt
+    disc, and on the civic plate that disc runs straight under two founding
+    towers. The lane network already refuses those sectors; this stops
+    drawing them, from the same footprints, so the picture agrees with the
+    traffic. The object keeps its name -- the composition still asks a
+    ``full`` ring for its founding disc -- and districts whose ring is
+    buried are untouched here, because their disc is suppressed outright.
+    """
+    trimmed: dict[str, int] = {}
+    collection = bpy.data.collections.get("LD_DISTRICTS")
+    if collection is None:
+        return trimmed
+    for district_id, plate in sorted(plan["ground"]["plates"].items()):
+        if plate["ring"] != "full":
+            continue
+        sectors = trim_ring_disc(master_spec, district_id, collection, materials["asphalt"])
+        if sectors:
+            trimmed[district_id] = sectors
+    return trimmed
 
 
 def build_ring_arcs(plan: dict, master_spec: dict, collections: dict, materials: dict) -> None:
@@ -978,6 +1002,7 @@ def add_production_world(
     collections = ensure_production_collections()
     materials = _scene_materials()
     suppress_legacy_presentation(plan)
+    trim_kept_ring_discs(plan, master_spec, materials)
     build_city_ground(plan, collections, materials)
     build_ring_arcs(plan, master_spec, collections, materials)
     build_plinths(plan, collections, materials)

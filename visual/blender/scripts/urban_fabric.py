@@ -41,6 +41,7 @@ from city_ground import (
 )
 from production_spec import PLATE_MARGIN, coast_coordinate, port_frame
 from road_graph import (
+    ROAD_CLASS_WIDTHS,
     distance_point_polyline,
     junction_pads,
 )
@@ -49,10 +50,12 @@ from spatial_occupancy import (
     PlacementValidator,
     capsule,
     circle,
+    founding_blocked_buildings,
     founding_building_lots,
     founding_grove_clusters,
     polyline_capsules,
     rect,
+    signed_gap,
 )
 
 PRODUCTION_ROAD_OCCUPANCY = {
@@ -114,6 +117,22 @@ PLINTH_TOP = 0.30
 margin, top at PLINTH_TOP + quarter elevation. Ground is derived from the
 lots -- blocks against streets -- so the city never reads as circular
 pods."""
+
+PLINTH_CARRIAGEWAY_CLEARANCE = 0.1
+"""Open ground a lot's plinth keeps from every carriageway.
+
+A plinth is the only part of a lot the occupancy contract never used to
+see: masses are validated, the ground slab they stand on was not, and it
+reaches PLINTH_MARGIN beyond them. Four production plinths therefore
+stood inside carriageway plan-space -- invisible, because they sit under
+the road deck, and harmless only by luck of elevation. A building's
+foundation does not belong in the street whether or not anyone can see
+it, so the plinth is now laddered and audited like everything else.
+
+The bar is the CARRIAGEWAY, not the wider occupancy envelope: a plinth
+legitimately underlies the frontage strip that road_occupancy covers --
+that strip is the lot's own pavement -- but it may never underlie the
+surface a vehicle drives on."""
 
 PLINTH_LIP = 0.06
 """How far a plinth must rise above whatever ground it stands on.
@@ -544,17 +563,166 @@ def lot_shapes(lot: dict) -> list[dict]:
 
 
 def plinth_shape(lot: dict) -> dict:
-    """The lot's ground plinth: footprint hull plus a small margin."""
+    """The lot's ground plinth: footprint hull plus its skirt.
+
+    The skirt is :data:`PLINTH_MARGIN` unless the lot carries a narrower
+    ``plinth_margin`` of its own, which :func:`_fit_plinth_skirts` gives
+    the handful of lots whose full skirt would otherwise reach into a
+    carriageway. Trimming a slab's overhang is the cheapest honest way to
+    keep a building out of the street: the mass does not move, the lot is
+    not lost, and the ground under the road stops being claimed.
+    """
     half_w, front, back = lot_extents(lot["masses"])
     center_off = (front - back) / 2.0
     cos_r, sin_r = math.cos(lot["rotation"]), math.sin(lot["rotation"])
+    margin = float(lot.get("plinth_margin", PLINTH_MARGIN))
     return rect(
         lot["x"] - sin_r * center_off,
         lot["y"] + cos_r * center_off,
-        half_w + PLINTH_MARGIN,
-        (front + back) / 2.0 + PLINTH_MARGIN,
+        half_w + margin,
+        (front + back) / 2.0 + margin,
         lot["rotation"],
     )
+
+
+PLINTH_MARGIN_FLOOR = 0.2
+PLINTH_MARGIN_STEP = 0.05
+"""How far a plinth skirt may be trimmed, and in what increments.
+
+A skirt narrower than the floor stops reading as a base and starts
+reading as a building with no footing, so a lot that would need less than
+this keeps its full skirt and its overlap is published instead. The step
+keeps the result a short, deterministic ladder rather than a solved
+equation with a floating-point tail."""
+
+
+def _fit_plinth_skirts(quarter_lots: dict[str, list[dict]], carriageways: list[dict]) -> int:
+    """Narrow the few plinth skirts that would otherwise reach into a street.
+
+    Runs after placement, because it is a property of where the lot ended
+    up, and it changes nothing else about the lot: the masses, the
+    rotation and the frontage are already decided and stay exactly as the
+    ladder placed them. Only the slab's overhang shrinks, and only on lots
+    that need it.
+
+    Returns how many lots were trimmed.
+    """
+    trimmed = 0
+    for neighborhood_id in sorted(quarter_lots):
+        for lot in quarter_lots[neighborhood_id]:
+            if plinth_carriageway_clearance(lot, carriageways) >= PLINTH_CARRIAGEWAY_CLEARANCE:
+                continue
+            margin = PLINTH_MARGIN
+            while margin - PLINTH_MARGIN_STEP >= PLINTH_MARGIN_FLOOR:
+                margin = round(margin - PLINTH_MARGIN_STEP, 4)
+                candidate = {**lot, "plinth_margin": margin}
+                if (
+                    plinth_carriageway_clearance(candidate, carriageways)
+                    >= PLINTH_CARRIAGEWAY_CLEARANCE
+                ):
+                    lot["plinth_margin"] = margin
+                    trimmed += 1
+                    break
+    return trimmed
+
+
+def carriageway_envelopes(master_spec: dict, graph: dict, ground: dict | None) -> list[dict]:
+    """Every driveable surface in the city, with the clearance it demands.
+
+    The CARRIAGEWAY half-widths (:data:`road_graph.ROAD_CLASS_WIDTHS`),
+    not the wider occupancy envelope, plus every junction pad and
+    turnaround bulb the network implies. Buried founding ring sectors are
+    excluded exactly as the occupancy contract excludes them: a sector the
+    final composition put under the urban table is no longer a street.
+
+    Returns ``[{"shape", "kind"}]``; ``kind`` is ``"carriageway"`` for the
+    surfaces a plinth is laddered away from and ``"pad"`` for the junction
+    aprons it is only measured against (see :func:`plinth_pad_lap`).
+    """
+    envelopes: list[dict] = []
+    for segment_id, segment in sorted(graph["segments"].items()):
+        half = ROAD_CLASS_WIDTHS[segment["class"]] / 2.0
+        district_id = segment_id.removeprefix("ring_")
+        if ground is not None and district_id in ground.get("plates", {}):
+            paths = ring_occupancy_paths(master_spec, ground, district_id)
+        else:
+            paths = [segment["path"]]
+        for path in paths:
+            envelopes.extend(
+                {"shape": shape, "kind": "carriageway"} for shape in polyline_capsules(path, half)
+            )
+    for pad in junction_pads(graph):
+        envelopes.append({"shape": circle(pad["x"], pad["y"], pad["r"]), "kind": "pad"})
+    return envelopes
+
+
+def plinth_carriageway_clearance(lot: dict, envelopes: list[dict]) -> float:
+    """How far a lot's ground slab misses the nearest carriageway.
+
+    Negative means the slab stands in the surface a vehicle drives on.
+    """
+    shape = plinth_shape(lot)
+    return min(
+        (
+            signed_gap(shape, envelope["shape"])
+            for envelope in envelopes
+            if envelope["kind"] == "carriageway"
+        ),
+        default=math.inf,
+    )
+
+
+def plinth_pad_lap(lot: dict, envelopes: list[dict]) -> float:
+    """How deep a lot's ground slab reaches into a junction apron, or 0.0.
+
+    Junction-pad laps are MEASURED and published, never refused. A pad is
+    an apron of ``carriageway/2 + 1.0`` drawn around a node, so its outer
+    metre is margin rather than road, and a slab may lap into that margin
+    without ever reaching a surface a vehicle drives on. Refusing them was
+    tried and measured: it costs the composition an AUTHORED mid-rise
+    block (``wallside_row``, three units) and takes the city's mid-rise
+    shoulder from nine masses to five, because a block's position is a
+    design decision with no set-back ladder to retreat along. Deleting
+    real buildings to buy a slab's last 0.3m under an apron nobody can see
+    is a bad trade, so :func:`audit_plan` publishes the laps and leaves
+    the judgment visible instead of paying for it silently.
+    """
+    shape = plinth_shape(lot)
+    deepest = max(
+        (
+            -signed_gap(shape, envelope["shape"])
+            for envelope in envelopes
+            if envelope["kind"] == "pad"
+        ),
+        default=0.0,
+    )
+    return max(0.0, deepest)
+
+
+def plinth_is_clear(lot: dict, envelopes: list[dict]) -> bool:
+    """True when a lot's ground slab stays out of every carriageway."""
+    return plinth_carriageway_clearance(lot, envelopes) >= PLINTH_CARRIAGEWAY_CLEARANCE
+
+
+def _plinth_first(rungs):
+    """Walk a placement ladder twice: plinth-clear rungs first, then all.
+
+    The plinth rule is a PREFERENCE, never a veto. Run as a veto it did
+    not push the four offending lots back a rung as intended -- it deleted
+    them, taking the city from eighteen lots to fourteen, because the
+    ground behind each of them was claimed by something else. Trading four
+    real buildings for an invisible sub-deck overlap is not a fix, so the
+    ladder now takes the best rung whose slab is clear and, only if no
+    rung offers one, takes the rung it would have taken anyway. A lot can
+    therefore move to satisfy the rule but can never be lost to it, and
+    the overlaps that survive are published by :func:`audit_plan` instead
+    of being paid for in architecture.
+    """
+    ordered = list(rungs)
+    for rung in ordered:
+        yield True, rung
+    for rung in ordered:
+        yield False, rung
 
 
 # ---------------------------------------------------------------------------
@@ -670,6 +838,7 @@ def _plan_designed_blocks(
     validator: PlacementValidator,
     seed: str,
     fabric_limit: float,
+    carriageways: list[dict],
 ) -> dict:
     """Place the AUTHORED urban blocks: the city's designed street walls.
 
@@ -716,7 +885,7 @@ def _plan_designed_blocks(
 
         placed = 0
         quarter_id = block.get("quarter")
-        for attempt_units in range(units, 0, -1):
+        for prefer_clear_plinth, attempt_units in _plinth_first(range(units, 0, -1)):
             attempt_run = (span_to - span_from) * attempt_units / units
             attempt_to = span_from + attempt_run
             unit_run = attempt_run / attempt_units
@@ -782,6 +951,8 @@ def _plan_designed_blocks(
                 for wall in walls
             ):
                 continue
+            if prefer_clear_plinth and not plinth_is_clear(lot, carriageways):
+                continue
             if validator.place(f"lot_{lot['name']}", "BUILDING", lot_shapes(lot)):
                 continue
             quarter_lots[quarter_id].append(lot)
@@ -813,6 +984,7 @@ def _plan_front_runs(
     validator: PlacementValidator,
     seed: str,
     fabric_limit: float,
+    carriageways: list[dict],
 ) -> None:
     """Designed street walls: continuous rows on declared frontage runs.
 
@@ -854,7 +1026,7 @@ def _plan_front_runs(
                 radius = contexts[neighborhood_id]["radius"]
                 falloff = 1.0 - 0.2 * min(1.0, station_reach / (radius + CORE_FALLOFF_REACH))
                 advance = 3.0
-                for push in (0.0, 1.2, 2.6):
+                for prefer_clear_plinth, push in _plinth_first((0.0, 1.2, 2.6)):
                     rng = stable_rng(
                         seed,
                         "frontrun",
@@ -896,6 +1068,8 @@ def _plan_front_runs(
                         "on_pad": station_reach <= radius,
                         "lit_salt": round(rng.random(), 6),
                     }
+                    if prefer_clear_plinth and not plinth_is_clear(lot, carriageways):
+                        continue
                     if validator.place(f"lot_{lot['name']}", "BUILDING", lot_shapes(lot)):
                         continue
                     quarter_lots[neighborhood_id].append(lot)
@@ -938,6 +1112,7 @@ def _plan_all_lots(
     validator: PlacementValidator,
     seed: str,
     fabric_limit: float,
+    carriageways: list[dict],
 ) -> None:
     """Street-fronting compound lots along EVERY production street.
 
@@ -1023,52 +1198,56 @@ def _plan_all_lots(
         street_token = segment_id
         for quarter_id in sorted(contexts):
             street_token = street_token.replace(f"_{quarter_id}", "")
-        for kind in kinds:
-            for push_index, push in enumerate((0.0, 1.2, 2.6, 4.2, 6.2, 8.4)):
-                attempt_rng = stable_rng(
-                    seed,
-                    neighborhood_id,
-                    "mass",
-                    segment_id,
-                    side_label,
-                    str(station_index),
-                    kind,
-                    str(push_index),
-                )
-                masses = _masses_for_kind(kind, height_scale, falloff, attempt_rng)
-                half_w, front, _back = lot_extents(masses)
-                offset = road_occupancy(segment) + front_gap + push + front
-                lot_x = x + normal[0] * offset
-                lot_y = y + normal[1] * offset
-                if math.hypot(lot_x, lot_y) + half_w > fabric_limit:
-                    continue
-                if coast_coordinate((lot_x, lot_y), master_spec) > quay_limit:
-                    continue
-                if any(
-                    distance_point_polyline((lot_x, lot_y), wall["line"]) < wall["lot_clearance"]
-                    for wall in walls
-                ):
-                    continue
-                if not fronts_own_street((x, y), normal, (lot_x, lot_y), segment_id):
-                    break
-                lot = {
-                    "name": (
-                        f"{neighborhood_id}__{street_token}__"
-                        f"{sweep[0]}{side_label}{station_index:03d}"
-                    ),
-                    "kind": kind,
-                    "x": round(lot_x, 6),
-                    "y": round(lot_y, 6),
-                    "rotation": round(rotation, 6),
-                    "face": (round(x, 6), round(y, 6)),
-                    "street_class": segment["class"],
-                    "masses": masses,
-                    "on_pad": station_reach <= radius,
-                    "lit_salt": 0.0,
-                }
-                if validator.place(f"lot_{lot['name']}", "BUILDING", lot_shapes(lot)):
-                    continue
-                return (lot, half_w, falloff)
+        for prefer_clear_plinth in (True, False):
+            for kind in kinds:
+                for push_index, push in enumerate((0.0, 1.2, 2.6, 4.2, 6.2, 8.4)):
+                    attempt_rng = stable_rng(
+                        seed,
+                        neighborhood_id,
+                        "mass",
+                        segment_id,
+                        side_label,
+                        str(station_index),
+                        kind,
+                        str(push_index),
+                    )
+                    masses = _masses_for_kind(kind, height_scale, falloff, attempt_rng)
+                    half_w, front, _back = lot_extents(masses)
+                    offset = road_occupancy(segment) + front_gap + push + front
+                    lot_x = x + normal[0] * offset
+                    lot_y = y + normal[1] * offset
+                    if math.hypot(lot_x, lot_y) + half_w > fabric_limit:
+                        continue
+                    if coast_coordinate((lot_x, lot_y), master_spec) > quay_limit:
+                        continue
+                    if any(
+                        distance_point_polyline((lot_x, lot_y), wall["line"])
+                        < wall["lot_clearance"]
+                        for wall in walls
+                    ):
+                        continue
+                    if not fronts_own_street((x, y), normal, (lot_x, lot_y), segment_id):
+                        break
+                    lot = {
+                        "name": (
+                            f"{neighborhood_id}__{street_token}__"
+                            f"{sweep[0]}{side_label}{station_index:03d}"
+                        ),
+                        "kind": kind,
+                        "x": round(lot_x, 6),
+                        "y": round(lot_y, 6),
+                        "rotation": round(rotation, 6),
+                        "face": (round(x, 6), round(y, 6)),
+                        "street_class": segment["class"],
+                        "masses": masses,
+                        "on_pad": station_reach <= radius,
+                        "lit_salt": 0.0,
+                    }
+                    if prefer_clear_plinth and not plinth_is_clear(lot, carriageways):
+                        continue
+                    if validator.place(f"lot_{lot['name']}", "BUILDING", lot_shapes(lot)):
+                        continue
+                    return (lot, half_w, falloff)
         return None
 
     def try_rear(
@@ -1092,7 +1271,7 @@ def _plan_all_lots(
             if rear_fallback not in rear_kinds:
                 rear_kinds.append(rear_fallback)
         _lw, _lf, lot_back = lot_extents(lot["masses"])
-        for rear_kind in rear_kinds:
+        for prefer_clear_plinth, rear_kind in _plinth_first(rear_kinds):
             rear_rng = stable_rng(
                 seed,
                 neighborhood_id,
@@ -1126,6 +1305,7 @@ def _plan_all_lots(
                     for wall in walls
                 )
                 and fronts_own_street(lot["face"], normal, (rear["x"], rear["y"]), segment_id)
+                and (not prefer_clear_plinth or plinth_is_clear(rear, carriageways))
             )
             if rear_clear and not (
                 validator.place(f"lot_{rear['name']}", "BUILDING", lot_shapes(rear))
@@ -1229,6 +1409,7 @@ def _plan_interior_lots(
     validator: PlacementValidator,
     seed: str,
     fabric_limit: float,
+    carriageways: list[dict],
 ) -> None:
     """Interior block fabric on deterministic anchors, validator-proven."""
     walls = _wall_lines(master_spec)
@@ -1284,7 +1465,7 @@ def _plan_interior_lots(
                 kinds = [primary_kind]
                 if primary_kind != "single_low":
                     kinds.append("single_low")
-                for kind in kinds:
+                for prefer_clear_plinth, kind in _plinth_first(kinds):
                     attempt_rng = stable_rng(
                         seed,
                         neighborhood_id,
@@ -1317,6 +1498,8 @@ def _plan_interior_lots(
                         "on_pad": True,
                         "lit_salt": lit_salt,
                     }
+                    if prefer_clear_plinth and not plinth_is_clear(lot, carriageways):
+                        continue
                     if validator.place(f"lot_{lot['name']}", "BUILDING", lot_shapes(lot)):
                         continue
                     lots.append(lot)
@@ -1659,18 +1842,52 @@ def plan_urban_fabric(master_spec: dict, production_spec: dict, graph: dict) -> 
     for neighborhood_id, neighborhood in ordered:
         plazas[neighborhood_id] = _plan_plaza(neighborhood_id, neighborhood, validator)
     fabric_limit = float(production_spec["fabric_limit_radius"])
+    carriageways = carriageway_envelopes(master_spec, graph, ground)
     blocks = _plan_designed_blocks(
-        master_spec, production_spec, graph, contexts, quarter_lots, validator, seed, fabric_limit
+        master_spec,
+        production_spec,
+        graph,
+        contexts,
+        quarter_lots,
+        validator,
+        seed,
+        fabric_limit,
+        carriageways,
     )
     _plan_front_runs(
-        master_spec, production_spec, graph, contexts, quarter_lots, validator, seed, fabric_limit
+        master_spec,
+        production_spec,
+        graph,
+        contexts,
+        quarter_lots,
+        validator,
+        seed,
+        fabric_limit,
+        carriageways,
     )
     _plan_all_lots(
-        master_spec, production_spec, graph, contexts, quarter_lots, validator, seed, fabric_limit
+        master_spec,
+        production_spec,
+        graph,
+        contexts,
+        quarter_lots,
+        validator,
+        seed,
+        fabric_limit,
+        carriageways,
     )
     _plan_interior_lots(
-        master_spec, production_spec, graph, contexts, quarter_lots, validator, seed, fabric_limit
+        master_spec,
+        production_spec,
+        graph,
+        contexts,
+        quarter_lots,
+        validator,
+        seed,
+        fabric_limit,
+        carriageways,
     )
+    _fit_plinth_skirts(quarter_lots, carriageways)
     yard_rows: dict[str, list[dict]] = {}
     for neighborhood_id, neighborhood in ordered:
         yard_rows[neighborhood_id] = _plan_yard_rows(
@@ -1717,6 +1934,7 @@ def plan_urban_fabric(master_spec: dict, production_spec: dict, graph: dict) -> 
         }
 
     plan["blocks"] = blocks
+    plan["founding_blocked"] = founding_blocked_buildings(master_spec)
     plan["spatial"] = audit_plan(plan, master_spec, graph, validator)
     plan["summary"] = fabric_totals(plan)
     return plan
@@ -1727,9 +1945,15 @@ def audit_plan(plan: dict, master_spec: dict, graph: dict, validator: PlacementV
 
     The counts here are the manifest's spatial-validity numbers: they come
     from re-checking the final plan, not from trusting the generator.
+
+    Lot PLINTHS are audited separately from the masses standing on them:
+    they are not validator entries (their ground legitimately underlies
+    the frontage strip other envelopes claim), so the one thing they must
+    never touch -- the driveable surface -- is measured here directly.
     """
     metrics = {
         "building_road_collisions": 0,
+        "plinth_carriageway_collisions": 0,
         "tree_road_collisions": 0,
         "tree_building_collisions": 0,
         "building_building_overlaps": 0,
@@ -1791,7 +2015,17 @@ def audit_plan(plan: dict, master_spec: dict, graph: dict, validator: PlacementV
     validator raise a real conflict that the audit then silently dropped,
     and the manifest would publish a zero the plan had never earned."""
     audited = 0
+    pad_laps = 0
+    worst_pad_lap = 0.0
+    carriageways = carriageway_envelopes(master_spec, graph, plan.get("ground"))
     for neighborhood_id, entry in sorted(plan["neighborhoods"].items()):
+        for lot in entry["lots"]:
+            if not plinth_is_clear(lot, carriageways):
+                metrics["plinth_carriageway_collisions"] += 1
+            lap = plinth_pad_lap(lot, carriageways)
+            if lap > 0.0:
+                pad_laps += 1
+                worst_pad_lap = max(worst_pad_lap, lap)
         placed: list[tuple[str, str, list[dict]]] = []
         if entry["plaza"] is not None:
             plaza = entry["plaza"]
@@ -1833,11 +2067,24 @@ def audit_plan(plan: dict, master_spec: dict, graph: dict, validator: PlacementV
     metrics["audited_objects"] = audited
     metrics["rejected_candidates"] = len(validator.rejections)
     metrics["rejections_by_pair"] = validator.rejection_summary()
+    metrics["plinth_pad_laps"] = pad_laps
+    metrics["worst_plinth_pad_lap"] = round(worst_pad_lap, 4)
     return metrics
 
 
 def fabric_totals(plan: dict) -> dict:
-    """Deterministic aggregate counts for reports and manifests."""
+    """Deterministic aggregate counts for reports and manifests.
+
+    ``founding_blocked_buildings`` is the residual of the road-encroachment
+    remediation: founding architecture that stands in legal carriageway
+    space and keeps its Phase 15 ground, accepted as a permanent
+    compatibility exception rather than an open defect. Four of the five
+    have no legal alternative position anywhere on their own plate; the
+    fifth had one off the relocation ladder and it was declined (see
+    :func:`spatial_occupancy.founding_blocked_buildings`). It is published
+    here so the number is pinned by the manifest and by the frozen-evidence
+    baselines -- a residual nobody counts is a residual that grows.
+    """
     lots = [lot for entry in plan["neighborhoods"].values() for lot in entry["lots"]]
     masses = [mass for lot in lots for mass in lot["masses"]]
     industrial = [mass for lot in lots if lot["kind"] in INDUSTRIAL_KINDS for mass in lot["masses"]]
@@ -1864,6 +2111,7 @@ def fabric_totals(plan: dict) -> dict:
         "legacy_clusters_removed": len(legacy["removed"]),
         "legacy_trees_kept": sum(record["trees"] for record in legacy["kept"].values()),
         "legacy_trees_removed": sum(record["trees"] for record in legacy["removed"].values()),
+        "founding_blocked_buildings": len(plan.get("founding_blocked", ())),
     }
 
 
@@ -1919,7 +2167,19 @@ def validate_urban_fabric(
             )
     metrics = audit_plan(plan, master_spec, graph, validator)
     for key, value in metrics.items():
-        if key in ("audited_objects", "rejected_candidates", "rejections_by_pair"):
+        # The plinth keys are MEASUREMENTS the plan publishes rather than
+        # violations it forbids: a slab may lap a junction apron, and a
+        # slab the ladder could not pull out of a carriageway is reported
+        # rather than paid for by deleting the building standing on it
+        # (see :func:`plinth_pad_lap` and :func:`_plinth_first`).
+        if key in (
+            "audited_objects",
+            "rejected_candidates",
+            "rejections_by_pair",
+            "plinth_carriageway_collisions",
+            "plinth_pad_laps",
+            "worst_plinth_pad_lap",
+        ):
             continue
         if value:
             errors.append(f"spatial contract violated: {key} = {value}")

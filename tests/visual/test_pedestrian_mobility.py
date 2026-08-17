@@ -11,6 +11,7 @@ from the travel so a walker cannot skate.
 """
 
 import importlib
+import itertools
 import math
 import sys
 from pathlib import Path
@@ -413,6 +414,52 @@ def test_a_split_sleeve_arm_articulates_as_one_chain(spec: dict, timeline: dict)
     lower = primitives["left_forearm"]["vertices"][: figure_kit.ARM_SIDES]
     for a, b in zip(upper, lower, strict=True):
         assert math.dist(a, b) < 0.02
+
+
+def test_every_vocabulary_body_can_walk(spec: dict, timeline: dict) -> None:
+    """No age, stature or build the kit can dress may be unable to stride.
+
+    The presence plan draws walkers from the whole vocabulary, so a body the
+    gait arithmetic refuses is a mobility plan that fails at derivation time on
+    a world that validated. Every age x stature x build is asked for the gait
+    its own speed demands, and the two invariants the arithmetic rests on are
+    measured per body: the legs it swings are equal at idle -- the kit builds
+    the right leg as the left's mirror, and a walker on uneven legs would limp
+    at the seam of every cycle -- and the leg is a plausible fraction of the
+    body, because a stride formula fed a leg outside 0.42 to 0.60 of height is
+    solving a pendulum no human silhouette owns.
+    """
+    for age, stature, build in itertools.product(
+        figure_kit.AGE_PRESENTATIONS, figure_kit.STATURES, figure_kit.BUILDS
+    ):
+        identity = {
+            "age_presentation": age,
+            "presentation": "unspecified",
+            "stature": stature,
+            "build": build,
+            "hair": "short",
+            "facial_hair": "none",
+            "face": "a",
+            "clothing": "shirt",
+            "palette": "slate",
+            "complexion": "c1",
+            "hair_tone": "h1",
+            "pose": "idle",
+        }
+        height = figure_kit.figure_dimensions(identity)["height"]
+        speed = walking.walking_speed(height, spec)
+        length = mobility_spec.pedestrian_route_length(speed, timeline)
+        cycle = walking.gait_cycles(length, identity, spec)
+        chains = walking.body_chains(identity)
+        left = chains["left_leg"]["joints"]
+        right = chains["right_leg"]["joints"]
+        assert math.dist(left[0], left[2]) == pytest.approx(
+            math.dist(right[0], right[2]), abs=1.0e-9
+        ), f"a {stature} {build} {age} stands on unequal legs"
+        ratio = cycle["leg_length"] / height
+        assert 0.42 <= ratio <= 0.60, (
+            f"a {stature} {build} {age} walks on legs {ratio:.4f} of its height"
+        )
 
 
 def test_the_gait_is_deterministic(spec: dict, timeline: dict) -> None:

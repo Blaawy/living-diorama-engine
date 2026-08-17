@@ -29,29 +29,82 @@ def test_canonical_plan_validates_clean(
     assert errors == []
 
 
+PUBLISHED_NOT_GATED = (
+    "audited_objects",
+    "rejected_candidates",
+    "rejections_by_pair",
+    "plinth_pad_laps",
+    "worst_plinth_pad_lap",
+)
+"""The spatial keys that are MEASUREMENTS rather than violations.
+
+Mirrors the exemption list inside ``validate_urban_fabric`` exactly, and has
+to keep mirroring it: the first three are bookkeeping, and the last two are a
+trade the composition made on purpose. A plinth may lap a junction apron,
+because the apron's outer metre is margin rather than carriageway and
+refusing the lap was measured to cost an AUTHORED mid-rise block -- deleting
+real buildings to buy a slab's last 0.3m under an apron nobody can see is a
+bad trade. So the number is published and left visible instead of being
+quietly zeroed, and this test admits it as a measurement while still pinning
+its value.
+"""
+
+PUBLISHED_PAD_LAPS = 2
+WORST_PAD_LAP = 0.8839
+"""The pad laps the canonical composition actually accepts, and the deepest.
+
+Pinned, because "published rather than gated" must not decay into
+"unwatched". A third lap appearing, or the worst one deepening, is a real
+change in the trade and has to be argued for rather than absorbed.
+"""
+
+
 def test_spatial_metrics_are_zero(canonical_plan):
     """The plan's own audit reports zero collisions of every class.
 
-    These are the numbers the manifest publishes; they come from
-    re-checking the final plan against full occupancy, not from trusting
-    the generator.
+    These are the numbers the manifest publishes; they come from re-checking
+    the final plan against full occupancy, not from trusting the generator.
+
+    Every published key is gated to zero EXCEPT the handful the validator
+    itself exempts, and the gated set is derived from the audit rather than
+    listed here. That is the point: a future audit that starts reporting a
+    new collision class is gated the moment it exists, instead of being
+    silently unwatched until somebody remembers to extend a list. That is
+    exactly what happened to the plinth-versus-carriageway guard -- it landed
+    reporting zero, and a hardcoded list would never have looked at it.
     """
     spatial = canonical_plan["spatial"]
-    for key in (
-        "building_road_collisions",
-        "tree_road_collisions",
-        "tree_building_collisions",
-        "building_building_overlaps",
-        "wall_clearance_violations",
-        "founding_object_violations",
-        "water_violations",
-        "junction_violations",
-        "plaza_violations",
-    ):
+    gated = sorted(set(spatial) - set(PUBLISHED_NOT_GATED))
+    assert gated, "the audit published nothing it is willing to be judged on"
+    for key in gated:
         assert spatial[key] == 0, f"{key} = {spatial[key]}"
+    assert "plinth_carriageway_collisions" in gated, (
+        "the plinth-versus-carriageway guard is no longer being gated"
+    )
     assert spatial["audited_objects"] > 0
     assert spatial["rejected_candidates"] > 0, (
         "a plan that never refused anything never tested its rules"
+    )
+
+
+def test_the_published_pad_laps_are_a_measurement_not_a_silence(canonical_plan):
+    """The one spatial number the composition accepts above zero, pinned.
+
+    A plinth lapping a junction apron is reported rather than refused, and a
+    reported number that nobody checks is the same as no number at all. Both
+    the count and the worst depth are frozen here so the accepted trade stays
+    the size it was argued for.
+    """
+    spatial = canonical_plan["spatial"]
+    assert spatial["plinth_pad_laps"] == PUBLISHED_PAD_LAPS, (
+        f"the composition accepts {spatial['plinth_pad_laps']} pad laps, "
+        f"the argued trade was {PUBLISHED_PAD_LAPS}"
+    )
+    assert abs(spatial["worst_plinth_pad_lap"] - WORST_PAD_LAP) < 1.0e-4, (
+        f"the worst pad lap is {spatial['worst_plinth_pad_lap']}, pinned at {WORST_PAD_LAP}"
+    )
+    assert spatial["worst_plinth_pad_lap"] > 0.0, (
+        "a lap of exactly zero would mean the measurement stopped measuring"
     )
 
 
@@ -390,3 +443,50 @@ def test_foreign_ownership_is_detected(
         tampered, master_document, production_document, canonical_graph
     )
     assert errors, "a teleported lot must violate at least one rule"
+
+
+FOUNDING_BLOCKED = (
+    "LD_BLDG__district_a__000",
+    "LD_BLDG__district_a__001",
+    "LD_BLDG__district_a__002",
+    "LD_BLDG__district_c__000",
+    "LD_BLDG__district_c__001",
+)
+"""The founding buildings that stand in legal carriageway space and keep it.
+
+The residual of the road-encroachment remediation, accepted as a permanent
+compatibility exception. FOUR of the five are irreducible: an exhaustive
+census of each one's own plate found no legal alternative position within
+the authorized correction envelope. The fifth, ``LD_BLDG__district_a__002``,
+DID have a legal relocation -- found off the placement ladder during the
+exhaustive investigation, and reachable only by extending that ladder's
+radial span and giving it a rotation axis it does not have. It would have
+left roughly 15 mm of clearance on a collector, so the Director declined
+it: a fragile special case for no visible benefit. It is therefore retained
+as the fifth accepted residual, not as an unsolved one.
+
+Either way the city keeps the building and the road layer stops drawing
+through it.
+
+Pinned by NAME rather than by count, because the count alone cannot tell a
+building that was freed from a different one that became blocked. The module
+publishing this says the point outright -- a residual nobody counts is a
+residual that grows -- and until now nothing counted it.
+"""
+
+
+def test_the_founding_blocked_residual_is_pinned(canonical_plan):
+    """The five buildings that keep their founding ground, named and counted.
+
+    A sixth appearing means the composition has pushed more architecture
+    into carriageway space; one disappearing means a building was freed and
+    the trim that avoids it is now dead weight. Either is a real change and
+    has to be argued for rather than absorbed.
+    """
+    blocked = tuple(sorted(canonical_plan["founding_blocked"]))
+    assert blocked == FOUNDING_BLOCKED, (
+        f"the blocked residual is {list(blocked)}, pinned at {list(FOUNDING_BLOCKED)}"
+    )
+    assert canonical_plan["summary"]["founding_blocked_buildings"] == len(FOUNDING_BLOCKED), (
+        "the summary count disagrees with the published set"
+    )

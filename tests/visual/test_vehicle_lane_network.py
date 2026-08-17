@@ -13,6 +13,7 @@ and two routes must be separated by geometry rather than by a schedule.
 
 import importlib
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -232,11 +233,81 @@ def test_the_corner_radius_ladder_runs_from_target_to_floor(spec: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_network_offers_only_paved_ring_runs(lanes: dict) -> None:
-    """A buried ring sector is not a road, and driving it would be underground."""
+BURIED_REFUSAL = "buried by the final composition"
+FOUNDING_REFUSAL = "passes through founding architecture"
+
+REFUSALS_BY_CATEGORY = {BURIED_REFUSAL: 4, FOUNDING_REFUSAL: 10}
+"""How many runs the canonical world refuses, and for which of the two reasons.
+
+Pinned per CATEGORY rather than as one total, because the two say different
+things about the city and a change in the mix is the interesting event. A
+count that moved from buried to founding, or the reverse, would leave a bare
+total of fourteen untouched while the network had started refusing a
+completely different set of streets.
+"""
+
+
+def test_the_network_refuses_runs_only_for_a_reason_it_can_name(lanes: dict) -> None:
+    """Every refusal is one of two understood kinds, and neither is a shrug.
+
+    A buried ring sector is not a road, and driving it would be underground.
+    A run whose carriageway passes through founding architecture is refused by
+    the lane network's own guard -- the placement contract is supposed to make
+    that impossible, and the guard exists because the network declines to
+    TRUST that it did.
+
+    The point of enumerating both is that an unrecognised refusal fails here.
+    A third category arriving unannounced -- a lane policy that refuses a
+    carriageway as too narrow, say -- would silently cost streets their
+    traffic, and the city would get quieter with nothing to point at.
+    """
     refused = lanes["network"]["refused"]
-    assert refused
-    assert all("buried" in reason for reason in refused.values())
+    assert refused, "a network that refused nothing has not been asked anything"
+    counted = {reason: 0 for reason in REFUSALS_BY_CATEGORY}
+    for run, reason in sorted(refused.items()):
+        matched = [known for known in REFUSALS_BY_CATEGORY if known in reason]
+        assert len(matched) == 1, f"{run} was refused for an unrecognised reason: {reason!r}"
+        counted[matched[0]] += 1
+    assert counted == REFUSALS_BY_CATEGORY, (
+        f"the canonical world refuses {counted}, the pinned mix is {REFUSALS_BY_CATEGORY}"
+    )
+    assert sum(counted.values()) == lanes["network"]["summary"]["runs_refused"]
+
+
+def test_every_founding_refusal_names_the_building_it_hit(lanes: dict) -> None:
+    """A guard that refuses a street has to say which building it saved.
+
+    The reason carries the offending object's own name, so a reviewer can go
+    and look at it. A guard that reported only that SOMETHING was in the way
+    would be untriageable: there would be no way to tell a real placement
+    regression from a guard that had started firing on its own shadow.
+    """
+    refused = lanes["network"]["refused"]
+    named = [reason for reason in refused.values() if FOUNDING_REFUSAL in reason]
+    assert len(named) == REFUSALS_BY_CATEGORY[FOUNDING_REFUSAL]
+    for reason in named:
+        assert re.search(r"\(LD_BLDG__\S+\)", reason), (
+            f"a founding refusal names no building: {reason!r}"
+        )
+
+
+def test_the_offered_and_refused_runs_account_for_every_run(lanes: dict) -> None:
+    """Fifty-five offered and fourteen refused, with nothing falling between.
+
+    A run is offered or it is refused with a reason; there is no third outcome
+    in which it quietly disappears. Pinned as counts so a change in what the
+    city can carry has to be argued for rather than absorbed.
+    """
+    network = lanes["network"]
+    assert network["summary"]["runs_offered"] == len(network["runs"]) == 55, (
+        f"the network offers {len(network['runs'])} runs and summarises "
+        f"{network['summary']['runs_offered']}; the canonical world carries 55"
+    )
+    assert network["summary"]["runs_refused"] == len(network["refused"]) == 14, (
+        f"the network refuses {len(network['refused'])} runs and summarises "
+        f"{network['summary']['runs_refused']}; the canonical world refuses 14"
+    )
+    assert not set(network["runs"]) & set(network["refused"]), "a run is both offered and refused"
 
 
 def test_every_offered_run_belongs_to_a_real_street(lanes: dict, world: dict) -> None:
@@ -379,3 +450,35 @@ def test_an_unknown_ring_district_is_refused(world: dict) -> None:
         vln.road_surface_level(
             {"segment": "ring_district_z", "class": "collector"}, world["master"]
         )
+
+
+def test_every_building_that_blocks_a_run_is_a_published_residual(lanes: dict, world: dict) -> None:
+    """The road layer and the fabric plan name the same obstructions.
+
+    ``urban_fabric`` publishes ``founding_blocked`` -- founding architecture
+    that stands in legal carriageway space and keeps its Phase 15 ground.
+    Four of the five are irreducible, an exhaustive census of each one's own
+    plate having found no legal alternative position; the fifth,
+    ``LD_BLDG__district_a__002``, had one off the placement ladder and the
+    Director declined it, the relocation being worth about 15 mm of
+    collector clearance. The lane network independently names the building
+    each refused run actually hit.
+    Neither consults the other, so their agreement is a real cross-check:
+    a building that costs a street its traffic but never appears in the
+    published residual is an obstruction nobody is counting, and the
+    residual's whole purpose is that it cannot grow unnoticed.
+
+    Containment rather than equality, deliberately. A refused run reports
+    only the FIRST obstruction it meets, so a building standing behind
+    another on the same run is genuinely blocked and correctly absent from
+    the refusal text.
+    """
+    named: set[str] = set()
+    for reason in lanes["network"]["refused"].values():
+        named |= set(re.findall(r"LD_BLDG__\S+?(?=\))", reason))
+    assert named, "no refusal named a building, so there is nothing to cross-check"
+    blocked = set(world["fabric"]["founding_blocked"])
+    assert named <= blocked, (
+        f"the lane network refuses runs for building(s) the fabric plan does not publish as "
+        f"blocked: {sorted(named - blocked)}"
+    )

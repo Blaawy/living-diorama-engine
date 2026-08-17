@@ -48,7 +48,8 @@ import math
 
 from mobility_spec import vehicle_route_length_bounds
 from road_graph import ROAD_CLASS_WIDTHS, junction_pads
-from spatial_occupancy import rect, shape_gap
+from spatial_occupancy import capsule as capsule_shape
+from spatial_occupancy import founding_building_footprints, rect, shape_gap
 from urban_fabric import ring_occupancy_paths
 
 
@@ -547,6 +548,24 @@ def build_runs(master_spec: dict, graph: dict, ground: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+def _founding_obstruction(run: dict, footprints: list[dict]) -> str | None:
+    """The founding building a run's carriageway passes through, if any.
+
+    The test is the replayed FOOTPRINT rectangles against the run's own
+    carriageway capsule -- the same authoritative shapes the Phase 15
+    sampler is held to -- rather than the conservative obstacle discs of
+    ``founding_building_lots``, which over-cover by design and would
+    condemn runs whose pavement never touches a wall.
+    """
+    half = carriageway_half_width(run["class"])
+    for lot in footprints:
+        for entry in lot["parts"]:
+            for a, b in zip(run["path"], run["path"][1:], strict=False):
+                if shape_gap(entry["shape"], capsule_shape(a[0], a[1], b[0], b[1], half)) <= 0.0:
+                    return lot["name"]
+    return None
+
+
 def build_lane_network(
     master_spec: dict, graph: dict, ground: dict, mobility_spec: dict, vehicle_half_width: float
 ) -> dict:
@@ -556,13 +575,26 @@ def build_lane_network(
     surviving run carries its policy, its lane offset, and the two junction
     nodes it connects; every refusal carries the reason it was refused, so a
     street that cannot take traffic says why rather than quietly vanishing.
+
+    A run whose carriageway passes through founding architecture is refused
+    outright. The placement contract is supposed to make that impossible;
+    this guard is the lane network refusing to TRUST that it did, so a
+    regression in the Phase 15 sampler can cost a street its traffic but
+    can never route a vehicle through a building.
     """
     refused: dict[str, str] = {}
     lanes: dict[str, dict] = {}
+    footprints = founding_building_footprints(master_spec)
     for run in build_runs(master_spec, graph, ground):
         if not run["paved"]:
             refused[run["run"]] = (
                 "the founding ring sector here was buried by the final composition"
+            )
+            continue
+        obstruction = _founding_obstruction(run, footprints)
+        if obstruction is not None:
+            refused[run["run"]] = (
+                f"the carriageway here passes through founding architecture ({obstruction})"
             )
             continue
         policy = lane_policy(run["class"], mobility_spec, vehicle_half_width)

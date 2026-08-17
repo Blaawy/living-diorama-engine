@@ -121,6 +121,31 @@ caught it rounding an eye that stands nine millimetres proud of the cheek down
 to one -- the bevel was quietly re-burying the feature the last correction
 dug out. Edge softening must not be able to erase a face."""
 
+PROXY_BEVEL_LIMIT = "NONE"
+"""How a body's bevel chooses its edges, and the one place that differs.
+
+Everything else this project builds stands still, so an angle threshold is the
+right way to pick edges: only the sharp ones get softened. A body does not
+stand still. Its limbs articulate, an angle threshold is a question about
+geometry, and a joint sweeping its dihedral past the threshold gains or loses
+the vertices a bevel would have inserted -- so the evaluated mesh changes
+length between one frame of the gait and the next, and reading it by frame
+zero's indices runs off the end.
+
+Measured rather than assumed: swept over the walking vocabulary -- every age,
+build, stature and pose, through every phase of the gait -- a figure's own
+edges visit every angle from near zero to a hundred and twenty-eight degrees
+with no gap anywhere in between, so no threshold exists that some edge does not
+cross. Retreating to a higher number does not work; declining to ask the
+question does. Beveling every edge makes the selected set a property of the
+identity, which is the only thing a shared mesh may depend on.
+
+It softens more edges than a threshold would, which on a body is the flattering
+direction: the extra ones are the facet seams running down a limb, and rounding
+them by two millimetres reads as a limb rather than as a prism. The cost is
+paid in evaluated geometry at render time, never in the mesh datablock, so the
+per-figure and per-layer triangle budgets are untouched."""
+
 DUPLICATE_SUFFIX = re.compile(r"\.\d{3}$")
 """Blender's collision rename. Finding one anywhere in the layer is a defect,
 not a cosmetic detail: it means a rebuild grew the scene instead of replacing
@@ -248,7 +273,7 @@ def build_figure_object(
     for material in materials:
         obj.data.materials.append(material)
     if bevel > 0.0:
-        add_bevel(obj, width=bevel)
+        add_bevel(obj, width=bevel, limit_method=PROXY_BEVEL_LIMIT)
     link_only(obj, collection)
     return obj
 
@@ -306,7 +331,7 @@ def apply_population_presence(plan: dict, presence_spec: dict) -> dict:
             obj = bpy.data.objects.new(name, template)
             obj.location = location
             obj.rotation_euler = (0.0, 0.0, heading)
-            add_bevel(obj, width=PROXY_BEVEL)
+            add_bevel(obj, width=PROXY_BEVEL, limit_method=PROXY_BEVEL_LIMIT)
             link_only(obj, collection)
             reused += 1
         built += 1

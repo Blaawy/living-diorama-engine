@@ -9,11 +9,27 @@ Phases 15 to 18 each own their own boundaries; these tests own Phase 19's:
 * the Blender runtime never learns what a simulation is;
 * the runtime consumes the pure plan rather than deciding anything itself;
 * the gate orchestrates subprocesses and never imports ``bpy``;
-* the Phase 19 structural runner executes the LOCKED Phase 15, 16, 17 and 18
-  suites before its own, so mobility can never be made to pass by weakening
-  anything that came before it;
-* Phase 19 never writes to the engine or to the locked visual layers;
+* the Phase 19 structural runner executes the Phase 15, 16, 17 and 18 suites
+  before its own, so mobility can never be made to pass by weakening anything
+  that came before it;
+* Phase 19 never writes to the engine or reaches past a prior phase's contract;
 * and Phase 19 declares none of the scope it was explicitly told not to build.
+
+WHAT "PRIOR PHASE" MEANS HERE, AND WHAT IT DOES NOT
+---------------------------------------------------
+These guards used to call the earlier modules LOCKED, and that word has
+stopped being true: ``figure_kit``, ``urban_fabric`` and ``spatial_occupancy``
+were all legitimately modified under the Director's remediation exception. A
+guard that describes them as unmodifiable is asserting something the project
+has already, deliberately, done otherwise -- and a false claim in a test is
+worse than no claim, because the next reader believes it.
+
+What these guards actually enforce is narrower and still entirely true: Phase
+19 consumes earlier phases through their PUBLIC surface. It does not import
+their private names, it does not monkey-patch them, and it does not extend
+Phase 17's animation channels. Those rules hold however much a prior module is
+edited BY ITS OWN OWNER, because they are about who may reach in from outside,
+not about whether the file may change.
 
 The scope guard reads CODE, not prose. Phase 19 is allowed to say "route",
 "gait" and "lane" -- those are its subject. What it may not do is IMPLEMENT an
@@ -47,13 +63,24 @@ BLENDER_MODULES = (
     "produce_vehicle_style_plate.py",
 )
 
-LOCKED_PHASE18_FILES = (
+PHASE18_MODULES = (
     "figure_kit.py",
     "population_presence_spec.py",
     "pedestrian_topology.py",
     "population_presence_plan.py",
     "apply_population_presence.py",
 )
+"""The Phase 18 modules Phase 19 builds on top of.
+
+Phase 19 may import their PUBLIC names freely -- it is supposed to; a walker
+is a Phase 18 proxy and its body comes from ``figure_kit``. What it may not do
+is import a private name or assign into one of these modules, which is the
+difference between consuming a contract and reaching past it.
+
+Not a claim that these files are frozen. ``figure_kit`` in particular has been
+substantially rewritten under the remediation, and that is its owner's
+business; these guards care only about how Phase 19 reaches it.
+"""
 
 
 def imported_roots(path: Path) -> set[str]:
@@ -109,11 +136,28 @@ def test_the_runtime_imports_the_pure_plan_rather_than_planning() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Locked-layer protection
+# Prior-phase boundary protection
 # ---------------------------------------------------------------------------
 
+PRIOR_PHASE_MODULES = {module.removesuffix(".py") for module in PHASE18_MODULES} | {
+    "road_graph",
+    "urban_fabric",
+    "city_ground",
+    "production_spec",
+    "scene_spec",
+    "spatial_occupancy",
+    "motion_time_spec",
+    "motion_plan",
+}
+"""Every earlier-phase module Phase 19 consumes, by import name.
 
-def test_phase19_never_imports_a_phase18_private_name() -> None:
+The monkey-patch guard's subject. Assigning an attribute onto any of these
+from Phase 19 would change another phase's behaviour from the outside, at
+import time, with nothing in that phase's own tests able to see it.
+"""
+
+
+def test_phase19_never_imports_a_prior_phase_private_name() -> None:
     """Reaching into another phase's privates is reaching past its contract."""
     for name in PURE_MODULES + BLENDER_MODULES:
         path = SCRIPTS / name
@@ -121,24 +165,21 @@ def test_phase19_never_imports_a_phase18_private_name() -> None:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module in {
-                module.removesuffix(".py") for module in LOCKED_PHASE18_FILES
+                module.removesuffix(".py") for module in PHASE18_MODULES
             }:
                 for alias in node.names:
                     assert not alias.name.startswith("_"), f"{name} imports {alias.name}"
 
 
-def test_phase19_never_assigns_into_a_locked_module() -> None:
-    """Monkey-patching a locked module would reopen it without changing it."""
-    locked = {module.removesuffix(".py") for module in LOCKED_PHASE18_FILES} | {
-        "road_graph",
-        "urban_fabric",
-        "city_ground",
-        "production_spec",
-        "scene_spec",
-        "spatial_occupancy",
-        "motion_time_spec",
-        "motion_plan",
-    }
+def test_phase19_never_assigns_into_a_prior_phase_module() -> None:
+    """Monkey-patching an earlier phase edits it from outside its own tests.
+
+    The objection is not that the module is unchangeable -- several have been
+    changed, by their owners, under the remediation. It is that a
+    module-level assignment from HERE changes behaviour that the owning
+    phase's own suite would never see, so the two phases stop agreeing about
+    what the earlier one does.
+    """
     for name in PURE_MODULES + BLENDER_MODULES:
         path = SCRIPTS / name
         assert path.exists(), f"{name} is guarded but missing"
@@ -148,8 +189,8 @@ def test_phase19_never_assigns_into_a_locked_module() -> None:
                 continue
             for target in node.targets:
                 if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name):
-                    assert target.value.id not in locked, (
-                        f"{name} assigns into locked module {target.value.id}"
+                    assert target.value.id not in PRIOR_PHASE_MODULES, (
+                        f"{name} assigns into prior-phase module {target.value.id}"
                     )
 
 
@@ -162,8 +203,13 @@ def test_phase19_declares_no_phase17_motion_channel() -> None:
         assert "SUPPORTED_CHANNELS" not in source, f"{name} touches the Phase 17 channel list"
 
 
-def test_the_phase19_runner_runs_every_locked_suite_first() -> None:
-    """Mobility cannot be made to pass by weakening what came before it."""
+def test_the_phase19_runner_runs_every_earlier_suite_first() -> None:
+    """Mobility cannot be made to pass by weakening what came before it.
+
+    Ordering, not immutability: the earlier suites grow as their own phases
+    are corrected, and that is fine. What must never happen is Phase 19
+    reporting green having skipped them.
+    """
     source = RUNNER.read_text(encoding="utf-8")
     order = [
         source.index('"phase15"'),

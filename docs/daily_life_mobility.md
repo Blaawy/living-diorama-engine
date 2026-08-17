@@ -106,10 +106,24 @@ so a walker whose feet cycled faster than it travelled is not a bug that can be
 introduced — it is a number the arithmetic refuses to produce. Arms swing in
 antiphase to the leg on the same side.
 
-The body is the **locked Phase 18 body**, articulated: limb rings are rigidly
-rotated about real joints, so segment lengths are preserved and no seam opens.
-The whole figure is then lifted so its lowest foot vertex rests exactly on the
+The body is the **Phase 18 body**, articulated: limb rings are rigidly rotated
+about real joints, so segment lengths are preserved and no seam opens. The
+whole figure is then lifted so its lowest foot vertex rests exactly on the
 ground, which is what produces the vertical bob a viewer reads as weight.
+
+What a limb is made of is no longer this file's opinion. `body_chains` reads
+`figure_kit.CHAIN_SPEC` — the kit's own published description of which
+primitives form each chain, how many rings each holds, which articulation
+level every ring rides at, and which member's ring each joint is measured
+from — and recovers the four chains from the built vertices against it. That
+is what let the figure kit's visual rebuild grow a five-ring leg with a calf,
+split the arm into a socket-shouldered upper arm, a forearm and a hand, and
+hang the hand off the wrist, without one line of walking code changing. A body
+whose primitives do not match the published spec is refused, never repaired.
+
+The rebuild left the walking arithmetic alone on purpose: the kit's published
+HEIGHTS are bit-frozen, so every speed, every route length and the whole
+population layout are exactly what they were.
 
 ## Vehicles
 
@@ -123,6 +137,56 @@ what makes vehicles and pedestrians structurally separate.
 | `dual` | the carriageway holds two lanes plus margins; right-hand traffic puts each on its own side |
 | `single` | it holds one centred lane; the run is claimed by exactly one route in one direction |
 | `refused` | not even one lane fits |
+
+### Which runs the network will not offer at all
+
+A run is one stretch of carriageway the network could put a lane on. The
+canonical world offers **55** of them and refuses **14**, and every refusal
+carries the reason it was refused, so a street that cannot take traffic says why
+rather than quietly vanishing. Three reasons exist, and the canonical mix is
+pinned per reason:
+
+| Refusal | Why | Canonical |
+| --- | --- | --- |
+| buried | the founding ring sector here was buried by the final composition, so a vehicle driving it would drive through the ground | 4 |
+| founding architecture | the carriageway here passes through a founding building, which the reason names | 10 |
+| no lane fits | the carriageway half cannot hold one lane of the declared envelope, so `lane_policy` returns `refused` | 0 |
+
+The first is geometric and pre-existing. The second is new, and it is the lane
+network declining to TRUST the placement contract. Five founding buildings still
+stand in carriageway plan-space, and the Director has formally accepted that as a
+**permanent compatibility exception** rather than an open defect: four of them
+have no legal position anywhere on their own plate, and the relocation the fifth
+could have taken was declined (`docs/production_world.md`). Rather than let
+that become a van driving through a podium, `_founding_obstruction` sweeps each
+run's carriageway as a capsule against those buildings' real footprint
+rectangles — the same rectangles the drawn road is trimmed against, so the
+picture and the traffic cannot disagree about where a building stands — and
+refuses the whole run. Ten runs are lost that way. **No vehicle is ever routed
+through founding architecture, including where the geometry still overlaps.**
+
+Because the overlap is permanent, so is the refusal. These ten runs are not held
+back pending a relocation that will eventually free them; there is no such
+relocation, and the guard is the accepted term on which the exception stands.
+
+Four of the five buildings are named in refusal texts —
+`LD_BLDG__district_a__000`, `LD_BLDG__district_a__002`,
+`LD_BLDG__district_c__000` and `LD_BLDG__district_c__001`. The fifth,
+`LD_BLDG__district_a__001`, stands on `ring_district_a#2`, a run already refused
+for a building the sweep met first. That is why the cross-check below is
+containment rather than equality, and no circuit in the canonical plan uses any
+refused run.
+
+Pinning the mix per reason rather than as a bare total is deliberate: the two say
+different things about the city, and a count that moved from buried to founding,
+or the reverse, would leave fourteen untouched while the network had started
+refusing a completely different set of streets. Each founding refusal must also
+name the building it hit, and every name it gives must be one of the five the
+fabric plan publishes as blocked — so a refusal can never point at a building
+nobody has admitted to.
+
+Refusals are published, not merely counted: `refused_runs` carries the id and the
+reason for each, beside the `runs_offered` and `runs_refused` totals.
 
 Two route families are offered. **Circuits** come from the network's own cycles.
 **Out-and-back** routes run between two declared terminations and turn round in
@@ -281,6 +345,13 @@ so the structural suite checks the cameras against the built scene:
   which segments carry traffic and which do not, and for every region that
   offered a route but could not use one, the geometric reason. The proof frames
   deliberately show the whole diorama, including the quiet quarters.
+* Ten runs are quiet because founding architecture stands in their carriageway.
+  The five buildings responsible are not deleted to make the streets work: four
+  have no legal position anywhere on their own plate, the fifth had one and it
+  was declined, and the Director has accepted the whole set as a permanent
+  compatibility exception. This is a permanent, named and published cost, not a
+  defect awaiting a fix. What the phase guarantees is the part that shows: no
+  vehicle is routed through a building.
 * Junction fillet radii are small by real-car standards. On a 5.2 m collector
   meeting another at a sharp angle the geometry leaves no room for a realistic
   turning circle, so the declared floor is generous rather than strict, and

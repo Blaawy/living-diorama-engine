@@ -21,8 +21,12 @@ algorithm (same seed, same draw order), so the pure plan knows precisely
 where every founding tree stands without Blender.
 """
 
+import copy
+import json
 import math
 
+from production_spec import FOUNDING_RING_FACTOR
+from road_graph import ROAD_CLASS_WIDTHS
 from scene_spec import stable_rng
 
 CATEGORIES = (
@@ -344,6 +348,56 @@ def shape_gap(first: dict, second: dict) -> float:
     raise ValueError(f"unsupported shape pair: {kinds}")
 
 
+def signed_gap(shape: dict, envelope: dict) -> float:
+    """Clearance from a rectangle to an envelope, NEGATIVE when it overlaps.
+
+    :func:`shape_gap` clamps at zero because the placement policy only ever
+    asks whether a required gap is met, and a refusal is a refusal however
+    deep. A clearance REPORT needs the sign: without it, a slab resting
+    against a junction pad and a slab buried half a metre into one are the
+    same number, and the check that tells them apart has to be a positive
+    margin -- which condemns the innocent one. Supports the rectangle
+    against a capsule or a circle, which is every driveable surface.
+    """
+    if envelope["kind"] == "capsule":
+        distance = _rect_segment_distance(
+            shape, envelope["ax"], envelope["ay"], envelope["bx"], envelope["by"]
+        )
+    elif envelope["kind"] == "circle":
+        distance = _rect_point_distance(shape, envelope["x"], envelope["y"])
+    else:
+        raise ValueError(f"unsupported envelope kind {envelope['kind']!r}")
+    return distance - envelope["r"]
+
+
+def convex_polygons_intersect(
+    first: list[tuple[float, float]], second: list[tuple[float, float]]
+) -> bool:
+    """True when two convex polygons share any area (touching counts).
+
+    Separating-axis theorem over both polygons' edge normals. The drawn
+    road surfaces are strips and wedges rather than the oriented
+    rectangles the placement contract works in, and a face either lies
+    over a building or it does not -- there is no clearance to measure,
+    so this answers the only question a mesh trim asks.
+    """
+    for polygon in (first, second):
+        count = len(polygon)
+        for index in range(count):
+            x0, y0 = polygon[index]
+            x1, y1 = polygon[(index + 1) % count]
+            axis = (-(y1 - y0), x1 - x0)
+            if abs(axis[0]) < 1.0e-12 and abs(axis[1]) < 1.0e-12:
+                continue
+            first_lo = min(x * axis[0] + y * axis[1] for x, y in first)
+            first_hi = max(x * axis[0] + y * axis[1] for x, y in first)
+            second_lo = min(x * axis[0] + y * axis[1] for x, y in second)
+            second_hi = max(x * axis[0] + y * axis[1] for x, y in second)
+            if first_hi < second_lo or second_hi < first_lo:
+                return False
+    return True
+
+
 def _shape_bounds(shape: dict) -> tuple[float, float, float, float]:
     """A loose AABB for fast rejection."""
     if shape["kind"] == "circle":
@@ -616,23 +670,505 @@ residential block plus its two wings, and the terrace slab's full stepped
 run. Over-covering is the safe direction for an obstacle.
 """
 
+FOUNDING_CARRIAGEWAY_CLEARANCE = 0.6
+"""Open ground required between founding architecture and every declared
+carriageway edge.
 
-def founding_building_lots(master_spec: dict) -> list[dict]:
-    """Every founding building lot, re-derived purely from the locked rules.
+This is the production masses' own standard (the tightest legally placed
+production mass clears its street by 0.615); history is held to the same
+bar, measured against the real replayed footprint rather than the lot
+origin. The original Phase 15 sampler accepted lots by ORIGIN distance
+alone while a civic podium reaches 8.53 from its origin, which is how
+seven founding footprint rectangles came to stand inside legal driving
+space.
+
+The clearance is measured to CARRIAGEWAYS -- the avenues, spurs, and
+plate rings the master spec itself implies. Junction pads belong to the
+production design: a production street that lands on a ring or meets an
+avenue endpoint brings its pad to ground history already holds, and the
+clearance suite measures those pads directly rather than this sampler
+reserving every angle a future landing might take."""
+
+FOUNDING_MUTUAL_CLEARANCE = 0.3
+FOUNDING_PLAZA_CLEARANCE = 0.05
+FOUNDING_DEPOT_CLEARANCE = 0.3
+"""What a RELOCATED founding building keeps clear of, beyond the roads.
+
+These are prudence rules, not mandates (see
+:func:`_founding_position_is_legal`): a building standing on its original
+Phase 15 ground keeps whatever plaza, mast, wall, depot or neighbour
+contact the locked build gave it, because none of those is the road
+encroachment this contract exists to correct. They bind only where the
+ladder is already moving a building for a road reason, so a relocation
+cannot swap one defect for another -- the gap rule in particular exists
+solely to stop a relocation landing inside a neighbour, never to start
+one."""
+
+SEAL_MAST_FACTOR = 1.32
+SEAL_MAST_ENVELOPE = 0.26
+"""The Seal's four corner masts stand at ``1.32 * seal radius`` on the
+diagonals of the gnomon frame; 0.26 covers a mast cap's half-diagonal.
+Replicated from the locked ``build_golden_seal`` builder."""
+
+FOUNDING_WALL_SCAR_LENGTH = 30.0
+FOUNDING_WALL_SCAR_CORRIDOR = 6.0
+FOUNDING_WALL_STATION_CORRIDOR = 2.5
+"""Wall-station respect, mirrored from the production planning constants
+(:mod:`urban_fabric` and :mod:`city_ground` carry the same three numbers):
+a station at least 30.0 long is the scar and keeps its 6.0 corridor; the
+short reserved alignments keep 2.5. Walls are episode state -- an export
+may raise one on any boundary -- so the alignments stay buildable even
+though the canonical export builds none."""
+
+_FOUNDING_LADDER_RADIAL = tuple(step * 0.5 for step in range(-12, 13))
+_FOUNDING_LADDER_ANGULAR = tuple(math.radians(step * 3.0) for step in range(-59, 61))
+"""The deterministic relocation ladder: every candidate offset a founding
+lot may try, radially in half-metre steps to +/-6.0 and angularly in
+three-degree steps around the whole plate. Rungs are tried in order of
+real ground displacement, so a lot moves exactly as far as legality
+demands and not a step further."""
+
+FOUNDING_LADDER_ROUNDS = 3
+"""How many relaxation rounds the lots get to settle together.
+
+One round is not enough for a crowded plate: a lot can be boxed in by a
+neighbour that itself has to move, and only the neighbour's departure
+frees the ground. Each round re-ladders exactly the lots still standing
+illegally, so the pass is a fixpoint iteration that stops early the
+moment a round changes nothing."""
+
+
+def _ring_path(center: tuple[float, float], radius: float) -> list[tuple[float, float]]:
+    """The 64-gon ring polyline exactly as the road graph declares it."""
+    path = [
+        (
+            center[0] + radius * math.cos(2.0 * math.pi * index / 64),
+            center[1] + radius * math.sin(2.0 * math.pi * index / 64),
+        )
+        for index in range(64)
+    ]
+    path.append(path[0])
+    return path
+
+
+def founding_carriageways(master_spec: dict) -> list[dict]:
+    """Every founding carriageway, purely from the master spec.
+
+    Avenues are arterial along their boundary paths; plate rings are
+    collector circles at ``FOUNDING_RING_FACTOR * radius``; spurs are
+    collector connectors from each ring to the nearest avenue endpoint --
+    the same segments, classes, and 64-gon ring geometry
+    :func:`road_graph._import_founding_network` declares, re-derived here
+    so the Phase 15 sampler needs no production input to know where legal
+    driving space is.
+
+    Returns ``[{"id", "path", "half", "ring"}]``; ``ring`` marks the plate
+    rings, whose circular geometry earns them an analytic distance
+    shortcut in the ladder's fast path.
+    """
+    arterial = ROAD_CLASS_WIDTHS["arterial"] / 2.0
+    collector = ROAD_CLASS_WIDTHS["collector"] / 2.0
+    ways: list[dict] = []
+    for boundary_id, boundary in sorted(master_spec["boundaries"].items()):
+        path = [tuple(point) for point in boundary["path"]]
+        ways.append({"id": f"avenue_{boundary_id}", "path": path, "half": arterial, "ring": False})
+    for district_id, district in sorted(master_spec["districts"].items()):
+        center = (float(district["center"][0]), float(district["center"][1]))
+        ring_radius = FOUNDING_RING_FACTOR * float(district["radius"])
+        ways.append(
+            {
+                "id": f"ring_{district_id}",
+                "path": _ring_path(center, ring_radius),
+                "half": collector,
+                "ring": True,
+                "center": center,
+                "radius": ring_radius,
+            }
+        )
+    for boundary_id, boundary in sorted(master_spec["boundaries"].items()):
+        path = [tuple(point) for point in boundary["path"]]
+        endpoints = {"a": path[0], "b": path[-1]}
+        for district_id in boundary["districts"]:
+            district = master_spec["districts"][district_id]
+            center = district["center"]
+            _which, best = min(
+                endpoints.items(),
+                key=lambda item: math.hypot(item[1][0] - center[0], item[1][1] - center[1]),
+            )
+            dx, dy = best[0] - center[0], best[1] - center[1]
+            length = math.hypot(dx, dy) or 1.0
+            ring_radius = FOUNDING_RING_FACTOR * float(district["radius"])
+            ring_point = (
+                center[0] + dx / length * ring_radius,
+                center[1] + dy / length * ring_radius,
+            )
+            ways.append(
+                {
+                    "id": f"spur_{boundary_id}_{district_id}",
+                    "path": [ring_point, tuple(best)],
+                    "half": collector,
+                    "ring": False,
+                }
+            )
+    return ways
+
+
+def _founding_wall_lines(master_spec: dict) -> list[tuple[tuple, tuple, float]]:
+    """Every wall-station line with the corridor founding lots respect."""
+    lines = []
+    for _boundary_id, boundary in sorted(master_spec["boundaries"].items()):
+        station = boundary["wall_station"]
+        x, y = station["center"]
+        dx, dy = station["direction"]
+        length = math.hypot(dx, dy) or 1.0
+        half = float(station["length"]) / 2.0
+        ux, uy = dx / length, dy / length
+        corridor = (
+            FOUNDING_WALL_SCAR_CORRIDOR
+            if float(station["length"]) >= FOUNDING_WALL_SCAR_LENGTH
+            else FOUNDING_WALL_STATION_CORRIDOR
+        )
+        lines.append(((x - ux * half, y - uy * half), (x + ux * half, y + uy * half), corridor))
+    return lines
+
+
+def _founding_depot_pads(master_spec: dict) -> list[dict]:
+    """Every district depot pad as the axis-aligned rectangle it is built as."""
+    pads = []
+    for _district_id, district in sorted(master_spec["districts"].items()):
+        center_x, center_y = district["center"]
+        length = math.hypot(center_x, center_y) or 1.0
+        radius = float(district["radius"])
+        pads.append(
+            rect(
+                center_x + (center_x / length) * radius * 0.62,
+                center_y + (center_y / length) * radius * 0.62,
+                6.5,
+                8.5,
+                0.0,
+            )
+        )
+    return pads
+
+
+def _archetype_plan(character: str, rng) -> dict:
+    """The footprint-defining draws of one locked archetype, burned once.
+
+    Consumes exactly the leading draws each Phase 15 builder makes before
+    its footprint is fixed -- including the draws that shape nothing on the
+    ground (heights, rooftop clutter) but keep the stream aligned -- so the
+    plan's rectangles are bit-identical to the meshes the builder emits.
+    """
+    if character == "civic":
+        width = rng.uniform(9.0, 12.0)
+        depth = rng.uniform(9.0, 12.0)
+        rotation = rng.uniform(-0.10, 0.10)
+        return {"w": width, "d": depth, "rot": rotation}
+    if character == "port":
+        width = rng.uniform(13.0, 17.0)
+        depth = rng.uniform(8.0, 11.0)
+        rng.uniform(6.9, 8.3)
+        rotation = rng.uniform(-0.35, 0.35)
+        return {"w": width, "d": depth, "rot": rotation}
+    if character == "residential":
+        width = rng.uniform(10.0, 13.5)
+        depth = rng.uniform(5.5, 6.5)
+        rng.uniform(9.5, 15.5)
+        rotation = rng.uniform(-0.3, 0.3)
+        for _unit in range(rng.randint(2, 4)):
+            for _draw in range(5):
+                rng.uniform(0.0, 1.0)
+        rng.uniform(-width * 0.2, width * 0.2)
+        wing_depth = rng.uniform(5.0, 7.0)
+        return {"w": width, "d": depth, "rot": rotation, "wing": wing_depth}
+    width = rng.uniform(11.0, 15.0)
+    depth = rng.uniform(6.5, 8.0)
+    rotation = rng.uniform(-0.2, 0.2)
+    rng.uniform(5.6, 8.6)
+    steps = rng.randint(2, 3)
+    return {"w": width, "d": depth, "rot": rotation, "steps": steps}
+
+
+def _entrance_facade(x: float, y: float, rotation: float, center: tuple[float, float]) -> int:
+    """Pick the facade (0..3 for +Y/-Y/+X/-X) facing the district center."""
+    target = math.atan2(center[1] - y, center[0] - x)
+    normals = (rotation + math.pi / 2.0, rotation - math.pi / 2.0, rotation, rotation + math.pi)
+    scores = [math.cos(target - normal) for normal in normals]
+    return scores.index(max(scores))
+
+
+def _local_rect(x: float, y: float, rot: float, lx: float, ly: float, hw: float, hd: float) -> dict:
+    """A rectangle at a local offset of a rotated lot frame."""
+    cos_r, sin_r = math.cos(rot), math.sin(rot)
+    return rect(x + lx * cos_r - ly * sin_r, y + lx * sin_r + ly * cos_r, hw, hd, rot)
+
+
+def _archetype_footprint(
+    character: str, plan: dict, x: float, y: float, center: tuple[float, float]
+) -> list[dict]:
+    """Every ground-plan rectangle one archetype stands on at a position.
+
+    The dims come from :func:`_archetype_plan` and never change; the
+    entrance-dependent parts (a civic entry canopy, residential balconies)
+    are re-derived per position exactly as the locked builders derive them,
+    because the entrance follows the district center.
+    """
+    width, depth, rot = plan["w"], plan["d"], plan["rot"]
+    parts: list[dict] = []
+    if character == "civic":
+        entrance = _entrance_facade(x, y, rot, center)
+        parts.append({"part": "podium", "shape": rect(x, y, width / 2.0, depth / 2.0, rot)})
+        nx, ny = ((0.0, 1.0), (0.0, -1.0), (1.0, 0.0), (-1.0, 0.0))[entrance]
+        cw, cd = (3.6, 1.9) if nx == 0.0 else (1.9, 3.6)
+        parts.append(
+            {
+                "part": "entry_canopy",
+                "shape": _local_rect(
+                    x,
+                    y,
+                    rot,
+                    nx * (width / 2.0 + 0.85),
+                    ny * (depth / 2.0 + 0.85),
+                    cw / 2.0,
+                    cd / 2.0,
+                ),
+            }
+        )
+    elif character == "port":
+        parts.append({"part": "shed", "shape": rect(x, y, width / 2.0, depth / 2.0, rot)})
+        parts.append(
+            {
+                "part": "door_trim",
+                "shape": _local_rect(x, y, rot, 0.0, -(depth / 2.0 + 0.205), width / 2.0, 0.205),
+            }
+        )
+    elif character == "residential":
+        entrance = _entrance_facade(x, y, rot, center)
+        parts.append({"part": "block", "shape": rect(x, y, width / 2.0, depth / 2.0, rot)})
+        if entrance in (0, 1):
+            sign = 1.0 if entrance == 0 else -1.0
+            parts.append(
+                {
+                    "part": "balconies",
+                    "shape": _local_rect(
+                        x, y, rot, 0.0, sign * (depth / 2.0 + 0.515), width / 2.0, 0.515
+                    ),
+                }
+            )
+        wing = plan["wing"]
+        for side, label in ((-1.0, "wing_west"), (1.0, "wing_east")):
+            parts.append(
+                {
+                    "part": label,
+                    "shape": _local_rect(
+                        x,
+                        y,
+                        rot,
+                        side * (width / 2.0 - depth / 2.0),
+                        depth / 2.0 + wing / 2.0,
+                        depth / 2.0,
+                        wing / 2.0,
+                    ),
+                }
+            )
+    else:
+        for step in range(plan["steps"]):
+            step_width = width * (1.0 - 0.10 * step)
+            parts.append(
+                {
+                    "part": f"step{step}",
+                    "shape": _local_rect(
+                        x, y, rot, 0.0, step * depth * 0.62, step_width / 2.0, depth / 2.0
+                    ),
+                }
+            )
+    return parts
+
+
+def _footprint_reach(parts: list[dict], x: float, y: float) -> float:
+    """The furthest any part's corner reaches from the lot origin."""
+    return max(
+        math.hypot(entry["shape"]["x"] - x, entry["shape"]["y"] - y)
+        + math.hypot(entry["shape"]["hw"], entry["shape"]["hd"])
+        for entry in parts
+    )
+
+
+def _rect_polyline_distance(shape: dict, path: list[tuple[float, float]], below: float) -> float:
+    """Distance from a rectangle to a polyline, with a fast-fail cutoff.
+
+    The relocation ladder only ever asks "is this rectangle closer than the
+    required clearance"; the walk stops at the first leg that answers yes,
+    which is what keeps an exhaustive ladder search affordable.
+    """
+    best = math.inf
+    for (ax, ay), (bx, by) in zip(path, path[1:], strict=False):
+        best = min(best, _rect_segment_distance(shape, ax, ay, bx, by))
+        if best < below:
+            return best
+    return best
+
+
+def _founding_position_is_legal(
+    character: str,
+    plan: dict,
+    x: float,
+    y: float,
+    center: tuple[float, float],
+    truth: dict,
+    placed: list[dict],
+    moved: bool,
+) -> list[dict] | None:
+    """The footprint at one position, or ``None`` with the position refused.
+
+    Exactly ONE rule is a MANDATE, binding everywhere including original
+    Phase 15 ground: every part clears every carriageway by
+    :data:`FOUNDING_CARRIAGEWAY_CLEARANCE`. That rule, and only that rule,
+    may cause a locked building to be relocated, because the encroachment
+    of founding architecture on legal driving space is the defect this
+    contract was opened to correct.
+
+    Everything else -- the Seal plaza and its compass masts, the wall
+    alignments, the depot pads, and the gap between two founding
+    buildings -- is PRUDENCE, and binds only a position the ladder is
+    MOVING a building to for that authorized road reason. The distinction
+    is deliberate and was learned the hard way: as mandates these rules
+    relitigate pre-existing Phase 15 conditions that are nobody's defect,
+    and one of them dragged a building that already cleared every road by
+    3.57 m down to 0.70 m to satisfy a gap rule nobody had asked for. As
+    prudence they still do the one job worth doing -- a relocation may not
+    CREATE a new conflict -- without ever moving a building on their own.
+    """
+    seal = truth["seal"]
+    parts = _archetype_footprint(character, plan, x, y, center)
+    reach = _footprint_reach(parts, x, y)
+    for way in truth["ways"]:
+        needed = way["half"] + FOUNDING_CARRIAGEWAY_CLEARANCE
+        if way["ring"]:
+            # The 64-gon lies inside its circle by at most the sagitta;
+            # 0.05 over-covers it so the analytic shortcut never skips a
+            # way the polyline test would have failed.
+            origin_gap = (
+                abs(math.hypot(x - way["center"][0], y - way["center"][1]) - way["radius"]) - 0.05
+            )
+        else:
+            origin_gap = _distance_to_polyline(x, y, way["path"])
+        if origin_gap - reach >= needed:
+            continue
+        for entry in parts:
+            if _rect_polyline_distance(entry["shape"], way["path"], needed) < needed:
+                return None
+    if not moved:
+        return parts
+    for entry in parts:
+        shape = entry["shape"]
+        if _rect_point_distance(shape, seal["x"], seal["y"]) - seal["r"] < (
+            FOUNDING_PLAZA_CLEARANCE
+        ):
+            return None
+        for mast_x, mast_y in truth["masts"]:
+            if _rect_point_distance(shape, mast_x, mast_y) - SEAL_MAST_ENVELOPE < (
+                FOUNDING_PLAZA_CLEARANCE
+            ):
+                return None
+        for line_a, line_b, corridor in truth["walls"]:
+            if _rect_segment_distance(shape, line_a[0], line_a[1], line_b[0], line_b[1]) < corridor:
+                return None
+        for pad in truth["depot_pads"]:
+            if shape_gap(shape, pad) < FOUNDING_DEPOT_CLEARANCE:
+                return None
+        for other in placed:
+            if shape_gap(shape, other["shape"]) < FOUNDING_MUTUAL_CLEARANCE:
+                return None
+    return parts
+
+
+def _founding_ladder(radius: float) -> list[tuple[float, float, float]]:
+    """Relocation rungs sorted by true ground displacement, then offsets."""
+    rungs = []
+    for radial in _FOUNDING_LADDER_RADIAL:
+        moved_radius = radius + radial
+        for angular in _FOUNDING_LADDER_ANGULAR:
+            chord = math.sqrt(
+                max(
+                    0.0,
+                    radius * radius
+                    + moved_radius * moved_radius
+                    - 2.0 * radius * moved_radius * math.cos(angular),
+                )
+            )
+            rungs.append((round(chord, 9), radial, angular))
+    rungs.sort()
+    return rungs
+
+
+_FOUNDING_FOOTPRINT_CACHE: dict[str, list[dict]] = {}
+
+
+def founding_building_footprints(master_spec: dict) -> list[dict]:
+    """Every founding building's legal position and real ground plan.
 
     Replays the Phase 15 lot sampler draw for draw -- the same per-district
     generator identity, one ring offset and one jitter per candidate, the
     same depot / plaza / avenue / wall-station rejections in the same
-    order -- so the pure planner knows where the founding architecture
-    stands without Blender.
+    order -- and then makes each ACCEPTED lot street-legal: the archetype
+    the builder will grow at that index is replayed to its footprint
+    rectangles, and if any rectangle stands inside a carriageway, the Seal
+    plaza, a wall corridor, a depot pad, or another founding building, the
+    lot walks a deterministic relocation ladder and stands at the nearest
+    position where nothing does.
 
-    This exists because plate GROUND is open to designed planting while the
-    ARCHITECTURE on it is not: without these envelopes a production tree
-    could stand inside a founding building and no check would notice.
+    The candidate stream and its acceptance gates are untouched, so the
+    lot COUNT and every building's index -- and therefore its seeded
+    dimensions -- are exactly Phase 15's; only positions move, and only as
+    far as legality demands. A lot ladders against the ground every other
+    lot is CURRENTLY standing on, and the pass relaxes for up to
+    :data:`FOUNDING_LADDER_ROUNDS` rounds, so a building never solves its
+    own legality by stealing ground a neighbour holds -- it waits for the
+    neighbour to vacate instead. A lot with no legal position anywhere on
+    its plate keeps its original ground and is returned with ``blocked``
+    True: refusal is recorded, never silently repaired by deletion.
+
+    Returns one record per building: ``{"district", "index", "character",
+    "name", "x", "y", "origin", "moved", "blocked", "parts"}`` with
+    ``parts`` carrying the world-space footprint rectangles.
     """
+    cache_key = json.dumps(
+        [
+            master_spec["visual_seed"],
+            master_spec["districts"],
+            master_spec["boundaries"],
+            master_spec["landmarks"]["golden_seal"],
+        ],
+        sort_keys=True,
+        default=str,
+    )
+    cached = _FOUNDING_FOOTPRINT_CACHE.get(cache_key)
+    if cached is not None:
+        return copy.deepcopy(cached)
+
     seed = master_spec["visual_seed"]
     seal = master_spec["landmarks"]["golden_seal"]
-    lots: list[dict] = []
+    seal_x, seal_y = float(seal["location"][0]), float(seal["location"][1])
+    masts = [
+        (
+            seal_x
+            + math.cos(math.pi / 4.0 + index * math.pi / 2.0) * seal["radius"] * (SEAL_MAST_FACTOR),
+            seal_y
+            + math.sin(math.pi / 4.0 + index * math.pi / 2.0) * seal["radius"] * (SEAL_MAST_FACTOR),
+        )
+        for index in range(4)
+    ]
+    truth = {
+        "ways": founding_carriageways(master_spec),
+        "walls": _founding_wall_lines(master_spec),
+        "depot_pads": _founding_depot_pads(master_spec),
+        "masts": masts,
+        "seal": {"x": seal_x, "y": seal_y, "r": float(seal["radius"])},
+    }
+
+    # Pass one: the locked candidate walk, exactly as Phase 15 accepted it.
+    candidates: list[dict] = []
     for district_id, district in sorted(master_spec["districts"].items()):
         center_x, center_y = district["center"]
         radius = float(district["radius"])
@@ -640,11 +1176,14 @@ def founding_building_lots(master_spec: dict) -> list[dict]:
         rng = stable_rng(seed, district_id, "lots")
         plaza_clearance = float(seal["radius"]) + 3.5 if character == "civic" else 0.0
         length = math.hypot(center_x, center_y) or 1.0
-        depot_x = center_x + (center_x / length) * radius * 0.62
-        depot_y = center_y + (center_y / length) * radius * 0.62
+        depot = (
+            center_x + (center_x / length) * radius * 0.62,
+            center_y + (center_y / length) * radius * 0.62,
+        )
         road_clearance = 8.5 if character == "civic" else 10.0
         ring_step = 8.0 if plaza_clearance else 11.0
         ring_radius = max(9.0, plaza_clearance + 3.5)
+        accepted = 0
         while ring_radius < radius - 3.0:
             count = max(5, int((2.0 * math.pi * ring_radius) / 11.0))
             offset = rng.uniform(0.0, 2.0 * math.pi)
@@ -653,7 +1192,7 @@ def founding_building_lots(master_spec: dict) -> list[dict]:
                 jitter = rng.uniform(-1.2, 1.2)
                 x = center_x + (ring_radius + jitter) * math.cos(angle)
                 y = center_y + (ring_radius + jitter) * math.sin(angle)
-                if math.hypot(x - depot_x, y - depot_y) < 11.0:
+                if math.hypot(x - depot[0], y - depot[1]) < 11.0:
                     continue
                 if plaza_clearance and math.hypot(x - center_x, y - center_y) < plaza_clearance:
                     continue
@@ -669,17 +1208,472 @@ def founding_building_lots(master_spec: dict) -> list[dict]:
                         break
                 if rejected:
                     continue
-                lots.append(
+                lot_index = accepted
+                accepted += 1
+                plan = _archetype_plan(
+                    character, stable_rng(seed, district_id, "building", str(lot_index))
+                )
+                candidates.append(
                     {
                         "district": district_id,
+                        "index": lot_index,
                         "character": character,
+                        "plan": plan,
                         "x": x,
                         "y": y,
-                        "r": FOUNDING_BUILDING_ENVELOPE[character],
+                        "center": (center_x, center_y),
+                        "original": _archetype_footprint(
+                            character, plan, x, y, (center_x, center_y)
+                        ),
                     }
                 )
             ring_radius += ring_step
+
+    # Pass two: make the lots legal together. Each lot whose current ground
+    # is illegal ladders to the nearest position clear of everything else's
+    # CURRENT ground -- other lots' finals where they exist, their original
+    # footprints where they do not -- and the pass repeats until a round
+    # changes nothing, so a lot vacating its ground can free a neighbour
+    # the previous round had nowhere to put. A lot already standing legally
+    # is never re-laddered: placements stay put once they are right.
+    states = [
+        {"x": entry["x"], "y": entry["y"], "parts": entry["original"], "blocked": False}
+        for entry in candidates
+    ]
+    for _round in range(FOUNDING_LADDER_ROUNDS):
+        changed = False
+        for position, candidate in enumerate(candidates):
+            x, y = candidate["x"], candidate["y"]
+            center_x, center_y = candidate["center"]
+            others = [
+                entry
+                for other_position, state in enumerate(states)
+                if other_position != position
+                for entry in state["parts"]
+            ]
+            state = states[position]
+            if (
+                _founding_position_is_legal(
+                    candidate["character"],
+                    candidate["plan"],
+                    state["x"],
+                    state["y"],
+                    (center_x, center_y),
+                    truth,
+                    others,
+                    moved=(state["x"], state["y"]) != (x, y),
+                )
+                is not None
+            ):
+                state["blocked"] = False
+                continue
+            origin_radius = math.hypot(x - center_x, y - center_y)
+            origin_angle = math.atan2(y - center_y, x - center_x)
+            final = None
+            for _chord, radial, angular in _founding_ladder(origin_radius):
+                moved_x = center_x + (origin_radius + radial) * math.cos(origin_angle + angular)
+                moved_y = center_y + (origin_radius + radial) * math.sin(origin_angle + angular)
+                parts = _founding_position_is_legal(
+                    candidate["character"],
+                    candidate["plan"],
+                    moved_x,
+                    moved_y,
+                    (center_x, center_y),
+                    truth,
+                    others,
+                    moved=True,
+                )
+                if parts is not None:
+                    final = (moved_x, moved_y, parts)
+                    break
+            if final is None:
+                if (state["x"], state["y"]) != (x, y):
+                    changed = True
+                states[position] = {
+                    "x": x,
+                    "y": y,
+                    "parts": candidate["original"],
+                    "blocked": True,
+                }
+                continue
+            final_x, final_y, parts = final
+            if (final_x, final_y) != (state["x"], state["y"]):
+                changed = True
+            states[position] = {"x": final_x, "y": final_y, "parts": parts, "blocked": False}
+        if not changed:
+            break
+
+    lots = [
+        {
+            "district": candidate["district"],
+            "index": candidate["index"],
+            "character": candidate["character"],
+            "name": f"LD_BLDG__{candidate['district']}__{candidate['index']:03d}",
+            "x": state["x"],
+            "y": state["y"],
+            "origin": (candidate["x"], candidate["y"]),
+            "moved": round(math.hypot(state["x"] - candidate["x"], state["y"] - candidate["y"]), 6),
+            "blocked": state["blocked"],
+            "parts": state["parts"],
+        }
+        for candidate, state in zip(candidates, states, strict=True)
+    ]
+    _FOUNDING_FOOTPRINT_CACHE[cache_key] = copy.deepcopy(lots)
     return lots
+
+
+def founding_blocked_buildings(master_spec: dict) -> list[str]:
+    """The founding buildings this pass leaves in carriageway plan-space.
+
+    These are the residual of the road-encroachment remediation, and they
+    are named rather than counted so the set cannot quietly change size.
+    Each one stands in legal carriageway space on its original Phase 15
+    ground, and the Director has formally ACCEPTED the whole set as a
+    permanent compatibility exception rather than an open defect.
+
+    Four of them are irreducible: an exhaustive sweep of the whole
+    district plate -- every position, at the archetype's locked
+    dimensions -- found nowhere they could stand instead. The ground that
+    clears every carriageway is already held by Class A history, by the
+    Seal plaza and its masts and a wall corridor on the civic plate, by a
+    depot pad or another founding building on the residential one.
+    Lowering the mandate does not free them either: the same pass run at
+    zero carriageway clearance blocks the identical set.
+
+    The fifth, ``LD_BLDG__district_a__002``, is a DECLINE rather than an
+    impossibility. No rung of this module's ladder reaches a legal
+    position for it, but one exists off the ladder with roughly 15 mm of
+    clearance, and refining the ladder to reach it was refused. Stating
+    that here matters: the set is five, four of which are impossible and
+    one of which is a decision.
+
+    None of the five is moved and none is deleted; the lane network
+    refuses to drive the sectors they occupy
+    (:func:`vehicle_lane_network._founding_obstruction`) and the drawn
+    road surfaces stop short of them, so the overlap survives in plan
+    space and nowhere else. Both guards are permanent, because the
+    residual is. A change in this list means the geometry of the
+    remediation changed and the residual must be re-argued.
+    """
+    return [
+        entry["name"] for entry in founding_building_footprints(master_spec) if entry["blocked"]
+    ]
+
+
+def founding_lot_positions(master_spec: dict, district_id: str) -> list[tuple[float, float]]:
+    """The final lot positions of one district, in building-index order.
+
+    This is what the Blender master-scene builder consumes; the structural
+    suite pins the built meshes against the same replay, so the pure plan
+    and the scene cannot drift apart.
+    """
+    return [
+        (entry["x"], entry["y"])
+        for entry in founding_building_footprints(master_spec)
+        if entry["district"] == district_id
+    ]
+
+
+def founding_building_lots(master_spec: dict) -> list[dict]:
+    """Every founding building lot as an obstacle envelope.
+
+    One conservative disc per building (:data:`FOUNDING_BUILDING_ENVELOPE`)
+    at the building's LEGAL position from
+    :func:`founding_building_footprints`. The envelope is measured from the
+    lot origin and covers the widest reach the archetype can take, so it
+    over-covers the real footprint wherever the building stands.
+
+    This exists because plate GROUND is open to designed planting while the
+    ARCHITECTURE on it is not: without these envelopes a production tree
+    could stand inside a founding building and no check would notice.
+    """
+    return [
+        {
+            "district": entry["district"],
+            "character": entry["character"],
+            "x": entry["x"],
+            "y": entry["y"],
+            "r": FOUNDING_BUILDING_ENVELOPE[entry["character"]],
+        }
+        for entry in founding_building_footprints(master_spec)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# What founding architecture stands over: the drawn-surface trim contract
+# ---------------------------------------------------------------------------
+
+TRIM_SCAN_STEP = 0.2
+TRIM_BISECTION = 1.0e-3
+TRIM_PAD = 0.15
+"""How the trim finds a building's edge along a drawn strip.
+
+The coverage boundary is found by scanning at
+:data:`TRIM_SCAN_STEP` and bisecting to :data:`TRIM_BISECTION`, then the
+covered span is widened by :data:`TRIM_PAD` on each side. Splitting at the
+exact crossing rather than densifying the whole path is what keeps a
+four-point avenue from becoming a hundred-quad ribbon.
+
+The pad is not decoration. Coverage is measured on the WHOLE path's mitre,
+while each surviving span is redrawn with its own end mitre, so the cut
+edge lands a few millimetres off where it was measured; the pad swallows
+that difference and leaves the facade a visible sliver of daylight instead
+of a face grazing it."""
+
+
+def strip_edges(
+    path: list[tuple[float, float]], offset: float, half_width: float
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """The two lateral edges a ribbon builder lays down, vertex by vertex.
+
+    Replicates the MITRE of the locked ribbon builder exactly: interior
+    vertices take a central difference of their neighbours, ends take a
+    one-sided one. Testing coverage against a per-leg perpendicular
+    instead silently misses a building sitting in the wedge on the outside
+    of a bend -- which is precisely where the founding wing on the
+    boundary_cd elbow stands.
+    """
+    left: list[tuple[float, float]] = []
+    right: list[tuple[float, float]] = []
+    for index, (x, y) in enumerate(path):
+        if index == 0:
+            dx, dy = path[1][0] - x, path[1][1] - y
+        elif index == len(path) - 1:
+            dx, dy = x - path[index - 1][0], y - path[index - 1][1]
+        else:
+            dx = path[index + 1][0] - path[index - 1][0]
+            dy = path[index + 1][1] - path[index - 1][1]
+        length = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / length, dx / length
+        cx, cy = x + nx * offset, y + ny * offset
+        left.append((cx + nx * half_width, cy + ny * half_width))
+        right.append((cx - nx * half_width, cy - ny * half_width))
+    return left, right
+
+
+def _strip_cross_section(
+    path: list[tuple[float, float]],
+    stations: list[float],
+    left: list[tuple[float, float]],
+    right: list[tuple[float, float]],
+    along: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """The drawn strip's two edges at one arc length, on the mitred surface."""
+    for index in range(len(path) - 1):
+        low, high = stations[index], stations[index + 1]
+        if along <= high or index == len(path) - 2:
+            span = high - low
+            t = 0.0 if span <= 0.0 else min(1.0, max(0.0, (along - low) / span))
+            return (
+                (
+                    left[index][0] + (left[index + 1][0] - left[index][0]) * t,
+                    left[index][1] + (left[index + 1][1] - left[index][1]) * t,
+                ),
+                (
+                    right[index][0] + (right[index + 1][0] - right[index][0]) * t,
+                    right[index][1] + (right[index + 1][1] - right[index][1]) * t,
+                ),
+            )
+    return (left[-1], right[-1])
+
+
+def _path_stations(path: list[tuple[float, float]]) -> list[float]:
+    """Cumulative arc length at each vertex of a polyline."""
+    stations = [0.0]
+    for (x0, y0), (x1, y1) in zip(path, path[1:], strict=False):
+        stations.append(stations[-1] + math.hypot(x1 - x0, y1 - y0))
+    return stations
+
+
+def _point_at(path: list[tuple[float, float]], along: float) -> tuple[float, float]:
+    """The point at one arc length along a polyline."""
+    travelled = 0.0
+    for (x0, y0), (x1, y1) in zip(path, path[1:], strict=False):
+        length = math.hypot(x1 - x0, y1 - y0)
+        if length <= 0.0:
+            continue
+        if travelled + length >= along:
+            t = (along - travelled) / length
+            return (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+        travelled += length
+    return path[-1]
+
+
+def founding_clear_spans(
+    path: list[tuple[float, float]],
+    footprints: list[dict],
+    *,
+    offset: float = 0.0,
+    half_width: float = 0.0,
+) -> list[list[tuple[float, float]]]:
+    """The sub-paths of one drawn strip that no founding building stands on.
+
+    A strip is the surface a ribbon builder lays down: the polyline pushed
+    sideways by ``offset`` and widened by ``half_width`` on each side --
+    carriageway, sidewalk, curb, or marking alike. This returns the
+    maximal runs of that strip which are clear of every founding
+    footprint, as sub-paths that keep the ORIGINAL vertices and add points
+    only at the crossings, so a trimmed ribbon costs a handful of extra
+    faces rather than a densified one.
+
+    When nothing covers the strip the result is exactly ``[list(path)]``,
+    which lets a caller delegate to the untrimmed builder and leave
+    unaffected roads byte-identical.
+
+    The footprints are :func:`founding_building_footprints` records -- the
+    same source :mod:`vehicle_lane_network` refuses runs from -- so the
+    drawn mesh and the lane guard cannot disagree about where a building
+    stands.
+    """
+    parts = [entry["shape"] for lot in footprints for entry in lot["parts"]]
+    if not parts or len(path) < 2:
+        return [list(path)]
+    stations = _path_stations(path)
+    total = stations[-1]
+    if total <= 0.0:
+        return [list(path)]
+    left, right = strip_edges(path, offset, half_width)
+
+    def covered(along: float) -> bool:
+        low, high = _strip_cross_section(path, stations, left, right, along)
+        return any(
+            _rect_segment_distance(shape, low[0], low[1], high[0], high[1]) <= 0.0
+            for shape in parts
+        )
+
+    samples: list[tuple[float, bool]] = []
+    steps = max(1, int(math.ceil(total / TRIM_SCAN_STEP)))
+    for index in range(steps + 1):
+        along = min(total, index * total / steps)
+        samples.append((along, covered(along)))
+    if not any(hit for _along, hit in samples):
+        return [list(path)]
+
+    def boundary(low: float, high: float) -> float:
+        """Where coverage flips between two samples, to the declared precision."""
+        low_state = covered(low)
+        while high - low > TRIM_BISECTION:
+            middle = (low + high) / 2.0
+            if covered(middle) == low_state:
+                low = middle
+            else:
+                high = middle
+        return (low + high) / 2.0
+
+    intervals: list[list[float]] = []
+    for (a_along, a_hit), (b_along, b_hit) in zip(samples, samples[1:], strict=False):
+        if a_hit and not intervals:
+            intervals.append([a_along, a_along])
+        if a_hit != b_hit:
+            crossing = boundary(a_along, b_along)
+            if b_hit:
+                intervals.append([crossing, crossing])
+            else:
+                intervals[-1][1] = crossing
+        elif a_hit and intervals:
+            intervals[-1][1] = b_along
+    if intervals and samples[-1][1]:
+        intervals[-1][1] = total
+
+    merged: list[list[float]] = []
+    for start, end in intervals:
+        start = max(0.0, start - TRIM_PAD)
+        end = min(total, end + TRIM_PAD)
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+
+    spans: list[list[tuple[float, float]]] = []
+    cursor = 0.0
+    for start, end in [*merged, [total, total]]:
+        if start - cursor > TRIM_PAD:
+            piece = [_point_at(path, cursor)]
+            piece.extend(
+                point
+                for point, station in zip(path, stations, strict=True)
+                if cursor < station < start
+            )
+            piece.append(_point_at(path, start))
+            cleaned = [piece[0]]
+            for point in piece[1:]:
+                if math.hypot(point[0] - cleaned[-1][0], point[1] - cleaned[-1][1]) > 1.0e-9:
+                    cleaned.append(point)
+            if len(cleaned) >= 2:
+                spans.append(cleaned)
+        cursor = max(cursor, end)
+    return spans
+
+
+def founding_point_is_covered(
+    x: float, y: float, footprints: list[dict], *, margin: float = 0.0
+) -> bool:
+    """True when a point stands inside (or within ``margin`` of) a building.
+
+    Used for the scattered furniture a ribbon trim cannot express -- the
+    centre-line dashes, which are individual boxes rather than a strip.
+    """
+    return any(
+        _rect_point_distance(entry["shape"], x, y) <= margin
+        for lot in footprints
+        for entry in lot["parts"]
+    )
+
+
+def founding_ring_shadow(
+    master_spec: dict,
+    district_id: str,
+    footprints: list[dict],
+    *,
+    segments: int,
+    disc_radius: float,
+) -> set[int]:
+    """Which sectors of one district's ring disc stand under architecture.
+
+    The disc is drawn as a fan of ``segments`` wedges; a wedge is omitted
+    when it meets a founding footprint that ALSO occupies that ring's
+    carriageway. The second condition is the point: it is the exact test
+    :func:`vehicle_lane_network._founding_obstruction` applies to refuse a
+    run, so the sectors that stop being drawn are precisely the sectors
+    that stopped carrying traffic. A district whose architecture never
+    reaches its carriageway keeps its disc whole.
+    """
+    ring = next(
+        (way for way in founding_carriageways(master_spec) if way["id"] == f"ring_{district_id}"),
+        None,
+    )
+    if ring is None:
+        return set()
+    shadowing = [
+        entry["shape"]
+        for lot in footprints
+        for entry in lot["parts"]
+        if any(
+            _rect_segment_distance(entry["shape"], a[0], a[1], b[0], b[1]) <= ring["half"]
+            for a, b in zip(ring["path"], ring["path"][1:], strict=False)
+        )
+    ]
+    if not shadowing:
+        return set()
+    center = (
+        float(master_spec["districts"][district_id]["center"][0]),
+        float(master_spec["districts"][district_id]["center"][1]),
+    )
+    omit: set[int] = set()
+    for index in range(segments):
+        first = 2.0 * math.pi * index / segments
+        second = 2.0 * math.pi * (index + 1) / segments
+        wedge = [
+            center,
+            (center[0] + disc_radius * math.cos(first), center[1] + disc_radius * math.sin(first)),
+            (
+                center[0] + disc_radius * math.cos(second),
+                center[1] + disc_radius * math.sin(second),
+            ),
+        ]
+        if any(convex_polygons_intersect(wedge, _rect_corners(shape)) for shape in shadowing):
+            omit.add(index)
+    return omit
 
 
 def founding_grove_clusters(master_spec: dict) -> dict[int, list[dict]]:

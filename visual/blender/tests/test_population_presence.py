@@ -57,21 +57,76 @@ Furniture above this cannot meet anybody, so the mast replicas are pinned
 against the vertices inside it rather than against a lamp head five metres up
 that no proxy could ever touch."""
 
-MAX_FIGURE_TRIANGLES = 430
-MAX_LAYER_TRIANGLES = 30000
+MAX_FIGURE_TRIANGLES = 950
+MAX_LAYER_TRIANGLES = 68000
 """The declared geometry budget for the population layer.
 
-No single body above 430 triangles, no more than 30,000 for the whole layer.
-The layer ceiling is the number the correction directive approved; the
-per-body figure is what the vocabulary's heaviest combination actually costs.
+No single body above 950 triangles, no more than 68,000 for the whole layer.
+Both ceilings are the remediation's, raised from 430 and 30,000 when Visual
+DNA v2 was authorised, and they must stay equal to the pins the pure suites
+carry in ``test_figure_kit.py`` and ``test_population_presence_plan.py``.
 
-The canonical city now spends 372 triangles a person and 29,728 in total,
-against 205 and 16,392 for the cuboid bodies these replaced. The whole of that
-increase bought anatomy: eight facets around every skull, four cross-sections
-through every torso, three through every limb, two feet, and face features
-that follow the curve of the head instead of a flat plane. The torso and the
-hair were cut to six facets to keep the layer under the ceiling, which is the
-honest reason those two are not eight."""
+The raise bought resolution where the first rebuild was visibly coarse:
+twelve facets around every skull with five rings and two poles through it, an
+eight-sided six-section torso, five-ring legs with a real calf, three-member
+arms ending in hands, socket rings closing the armpits, ears, and a shaped
+28-triangle brim on the cap. Measured against the FINAL kit on 2026-08-16,
+the heaviest body the vocabulary can build costs 902 -- a child with tied
+hair, a beard and formal clothing -- none of the 6,912 primitive-changing
+combinations exceeds the 950 ceiling, and the canonical eighty cost 66,300
+of the 68,000 layer ceiling with a heaviest fielded body of 902 and a
+lightest of 668. The per-body ceiling still has room; the LAYER ceiling has
+1,700 triangles left, two and a half per cent, and eighty of the heaviest
+body would come to 72,160. Check the layer before adding geometry rather
+than assuming there is room.
+
+The figure bevel is worth recording here, because this suite counts the
+triangles it produces. ``blender_runtime.add_bevel`` gained an optional
+``limit_method`` DEFAULTING to the existing angle/40-degree behaviour, so
+vehicles, buildings and every other caller are byte-identical; only
+``apply_population_presence`` passes ``"NONE"``, at both figure call sites.
+An angle threshold cannot work for a walking figure: the swept dihedrals
+form one continuous block from 0.001 to 128.55 degrees with no gap in it, so
+75 degrees still left 841 crossings and the first angle that crosses nothing
+bevels nothing at all. ``"NONE"`` makes bevel selection a function of
+TOPOLOGY -- and therefore of identity -- rather than of pose, which is what
+holds the evaluated vertex count still across a stride.
+
+THE CEILINGS ABOVE NO LONGER BOUND THE EVALUATED COST, and a reviewer needs
+to know it. ``MAX_FIGURE_TRIANGLES`` and ``MAX_LAYER_TRIANGLES`` are counted
+on the DATABLOCK -- the mesh as authored, before modifiers. Bevelling with
+no angle limit touches every edge rather than the few that cross a
+threshold, which the gate measured at 8.25x the datablock count and 2.34x
+the previous angle behaviour: roughly 536,000 evaluated triangles for the
+eighty figures against about 229,000 before. The datablock still fits
+64,748 of 68,000, and that is a true statement about a number which is no
+longer the whole cost.
+
+The trade was accepted for this candidate because the alternatives were a
+broken gait proof or a flat leg. ``limit_method="WEIGHT"`` is the cheaper
+long-term answer -- it bevels an explicitly marked edge set, so it is
+pose-independent like ``"NONE"`` without paying for every edge -- and it is
+the direction a future pass should take rather than raising these ceilings.
+
+    THE GEOMETRY NOW DEPENDS ON THAT BEVEL METHOD. DO NOT REVERT ONE
+    WITHOUT THE OTHER.
+
+The arm once carried a fourth ring (a collar) and the leg a sixth (a
+kneecap). Neither was anatomy: both existed solely to hold a hinge's rest
+dihedral under the 40-degree angle limit, and both were removed once the
+bevel stopped consulting angles -- the collar because it was also causing a
+reported shoulder pad, a 51.8-degree convex ridge at full shoulder width
+with a 28mm overhanging wall beneath it.
+
+Removing them made the dihedral picture WORSE, which is exactly the point:
+crossings at 40 degrees went from 243 to 702, and at 50 degrees from 751 to
+1193, with 402 still crossing at 60. Under ``"NONE"`` none of that matters,
+because nothing is ever compared against an angle. Restore an angle limit
+over this geometry and the evaluated vertex count becomes unstable across a
+stride again -- worse than it was before the rings were ever added, and the
+gait proof that depends on a stable count breaks with it.
+
+Those figures are evidence; the two ceilings above are the contract."""
 
 MAX_FOOT_DROP = 0.16
 """How far above the built floor a body's feet may sit.
@@ -920,32 +975,110 @@ def test_both_eyes_and_the_nose_are_visible_from_the_front(context) -> None:
         _clear_face_probes()
 
 
+EYE_RAY_INSET = 0.85
+"""How far a corner sample is pulled back towards the eye's own centre.
+
+Rays are fired at the eye's centre AND at its four corners, because hair
+that clips only an outer corner is invisible to a centre-only probe -- a
+narrow tab over one corner measures 11.2mm of occlusion at the corners and
+a clean -0.029mm at the centre. The corners are pulled fifteen per cent
+inward so a ray lands solidly on the plate rather than grazing its rim and
+striking the cheek beside it, which would be the test's fault rather than
+the geometry's.
+"""
+
+EYE_OCCLUSION_TOLERANCE = 0.001
+"""How far in front of an eye another surface may sit, in metres.
+
+One millimetre, against a measured worst of 0.029mm across the whole probe
+vocabulary -- so this is thirty-odd times the float and sampling noise, and
+far under the millimetres any real strand of hair would stand proud by.
+"""
+
+
+def _eye_ray_samples(primitive) -> list:
+    """The points on one eye's outward face that a ray is aimed at.
+
+    The plate records WHICH of its vertices form its front face, so the
+    samples come from the surface a viewer actually sees rather than from a
+    bounding box around it. A conforming eye is strongly slanted -- its front
+    face sweeps almost 30mm through x across 22mm of y as it follows the
+    cheek -- which is precisely why a box around it describes something the
+    figure does not contain.
+    """
+    indices = primitive.get("front")
+    corners = (
+        [primitive["vertices"][index] for index in indices]
+        if indices
+        else list(primitive["vertices"])
+    )
+    centre = Vector(
+        (
+            sum(corner[0] for corner in corners) / len(corners),
+            sum(corner[1] for corner in corners) / len(corners),
+            sum(corner[2] for corner in corners) / len(corners),
+        )
+    )
+    return [centre] + [centre + (Vector(corner) - centre) * EYE_RAY_INSET for corner in corners]
+
+
 def test_no_hair_variant_hides_an_eye_on_a_built_figure(context) -> None:
-    """Hair may frame a face; it may never be the first thing a ray meets."""
+    """Hair may frame a face; it may never be the first thing a ray meets.
+
+    A RAY, because that is what the sentence above says and what a camera
+    does. This test used to say it and then measure something else: it
+    compared the axis-aligned bounding box of each hair piece against the box
+    of each eye, and an AABB is not the shape of either.
+
+    The box version failed the final gate on teen/feminine/long, and the
+    geometry was innocent. The offender was ``hair_crown_nape``, the
+    back-of-head band: its box necessarily spans the full head width, 0.248m
+    in y, so it reaches forward in the box while the mesh sits entirely
+    BEHIND the skull. The giveaway was the asymmetry -- it overlapped the
+    left eye by 0.00324m and cleared the right by 0.01953m, and a real
+    fringe does not fall on one eye by three millimetres. ``hair_crown``,
+    the volume that art round actually raised, cleared both eyes outright
+    with a negative z overlap of -0.0067. Meanwhile the genuine raycast in
+    :func:`test_both_eyes_and_the_nose_are_visible_from_the_front` passed on
+    that same identity, against the welded mesh with hair bound.
+
+    This exact false-positive class had already been retired once in this
+    file -- a sibling carries a comment about the flat-box assumption it
+    replaced -- and this test was simply never brought along.
+
+    So the guard is kept and the METHOD is corrected. Rays are cast along the
+    head's own forward axis at each eye's centre and corners; nothing may sit
+    more than :data:`EYE_OCCLUSION_TOLERANCE` in front of the eye's own
+    outward face. That is strictly stronger than the box it replaces, which
+    could not see a corner clipped at all.
+
+    Do not "simplify" this back to comparing bounds. It will start failing on
+    hair that is nowhere near an eye.
+    """
     _apply(context)
     _sync()
     _clear_face_probes()
     try:
         for index, identity in enumerate(FACE_PROBE_COMBINATIONS):
-            _face_probe_object(identity, index)
+            obj = _face_probe_object(identity, index)
             _sync()
+            frame, _features = figure_kit.head_probe(identity)
+            forward = Vector(figure_kit.head_forward(frame))
             placed = figure_kit.placed_head_features(identity)
-            hair = [
-                figure_kit.feature_bounds(box)
-                for name, box in placed.items()
-                if name.startswith("hair_")
-            ]
             for eye in ("left_eye", "right_eye"):
-                bounds = figure_kit.feature_bounds(placed[eye])
-                for cover in hair:
-                    hides = (
-                        cover["x"][1] > bounds["x"][1]
-                        and cover["y"][0] < bounds["y"][1]
-                        and bounds["y"][0] < cover["y"][1]
-                        and cover["z"][0] < bounds["z"][1]
-                        and bounds["z"][0] < cover["z"][1]
+                for sample in _eye_ray_samples(placed[eye]):
+                    hit, location, _normal, _face = obj.ray_cast(
+                        sample + forward * 0.30, -forward, distance=0.60
                     )
-                    assert not hides, f"{identity['hair']} hair hides the {eye}"
+                    assert hit, (
+                        f"{identity['age_presentation']}/{identity['hair']} hit nothing at "
+                        f"all aiming at the {eye}"
+                    )
+                    proud = (location - sample).dot(forward)
+                    assert proud <= EYE_OCCLUSION_TOLERANCE, (
+                        f"{identity['age_presentation']}/{identity['hair']} hair stands "
+                        f"{round(proud * 1000, 2)}mm in front of the {eye}"
+                    )
     finally:
         _clear_face_probes()
 
@@ -1174,6 +1307,11 @@ def test_every_built_body_tapers_at_the_waist(context) -> None:
     Measured on the TORSO's own vertices. A slice through the whole body at
     chest height also cuts both arms, and would report a waist wider than a hip
     for no better reason than that the arms hang beside it.
+
+    The v2 hull authors its waist ring at 0.38 of the torso span and its chest
+    ring at 0.72, so each sampling band STRADDLES its ring rather than ending
+    on it: a band edge exactly on a ring's height asks a float32-stored vertex
+    to round the right way, and this suite must not own a coin toss.
     """
     _apply(context)
     _sync()
@@ -1187,10 +1325,10 @@ def test_every_built_body_tapers_at_the_waist(context) -> None:
             span = size["torso_top"] - size["leg_top"]
             hip = _width_between(torso, size["leg_top"] - span * 0.12, size["leg_top"] + 1.0e-6)
             waist = _width_between(
-                torso, size["leg_top"] + span * 0.30, size["leg_top"] + span * 0.38
+                torso, size["leg_top"] + span * 0.34, size["leg_top"] + span * 0.42
             )
             chest = _width_between(
-                torso, size["leg_top"] + span * 0.66, size["leg_top"] + span * 0.74
+                torso, size["leg_top"] + span * 0.68, size["leg_top"] + span * 0.76
             )
             assert 0.0 < waist < hip, (
                 f"{identity['age_presentation']}/{identity['build']} waist {waist} vs hip {hip}"
@@ -1206,9 +1344,29 @@ def test_every_built_body_has_elbows_knees_and_feet(context) -> None:
     """Segmented limbs and real feet, read back off the welded mesh.
 
     Each limb's own vertices are sliced out and measured at every height it
-    was built at. A rectangular stick arm and a rectangular column leg measure
-    the same at both ends, which is exactly what this rejects; a foot is proved
-    by reaching forward of the ankle it hangs from.
+    was built at, against the shapes ``figure_kit.CHAIN_SPEC`` declares.
+
+    A leg is FIVE cross-sections -- hip, thigh, knee, calf, ankle -- and its
+    taper is asserted at the JOINTS only, because the calf below the knee is
+    deliberately fuller than the knee's own pinch and a monotonic check would
+    refuse the designed leg.
+
+    An arm is a three-ring upper arm -- socket, deltoid, elbow -- then a
+    two-ring forearm and a FOUR-ring hand of wrist, knuckle, fingers and tip.
+    The socket is the narrow band that tucks into the shoulder; the deltoid
+    is the widest, carrying the silhouette out to full shoulder width. The
+    hand is checked here only for existence: its own shape is measured in
+    the pure suite, which can read the rings without a weld in the way.
+
+    A kneecap ring and an arm collar briefly sat in both chains, purely to
+    hold hinge dihedrals under Blender's bevel angle limit. The figure bevel
+    no longer consults angles, so both were removed -- see the budget
+    docstring above for why that removal depends on the bevel method and must
+    not be undone without it.
+
+    A rectangular column measures the same everywhere, which is exactly what
+    this rejects; a foot is proved by reaching forward of the ankle it hangs
+    from.
     """
     _apply(context)
     _sync()
@@ -1222,21 +1380,39 @@ def test_every_built_body_has_elbows_knees_and_feet(context) -> None:
             for side in ("left", "right"):
                 leg = built[f"{side}_leg"]
                 heights = sorted({round(point.z, 6) for point in leg})
-                assert len(heights) == 3, f"{side} leg has {len(heights)} cross-sections"
-                ankle_w, knee_w, thigh_w = (
+                assert len(heights) == 5, f"{side} leg has {len(heights)} cross-sections"
+                ankle_w, calf_w, knee_w, thigh_w, hip_w = (
                     _width_between(leg, height - 1.0e-4, height + 1.0e-4) for height in heights
                 )
-                assert thigh_w > knee_w * 1.15, f"{side} thigh is not thicker than its knee"
+                assert hip_w > knee_w * 1.15, f"{side} thigh is not thicker than its knee"
                 assert knee_w > ankle_w * 1.15, f"{side} shin does not narrow to an ankle"
+                assert calf_w > knee_w, f"{side} calf does not swell below its knee"
 
-                arm_name = f"{side}_arm" if f"{side}_arm" in built else f"{side}_upper_arm"
-                arm = built[arm_name]
-                arm_heights = sorted({round(point.z, 6) for point in arm})
-                arm_widths = [
-                    _width_between(arm, height - 1.0e-4, height + 1.0e-4) for height in arm_heights
-                ]
-                assert arm_widths[-1] > arm_widths[0] * 1.10, f"{side} arm does not taper"
-                assert thigh_w > arm_widths[-1], f"{side} thigh must beat its upper arm"
+                upper = built[f"{side}_upper_arm"]
+                forearm = built[f"{side}_forearm"]
+                assert f"{side}_hand" in built, f"{side} arm carries no hand"
+                upper_heights = sorted({round(point.z, 6) for point in upper})
+                forearm_heights = sorted({round(point.z, 6) for point in forearm})
+                # Three rings up here, lowest first: elbow, deltoid, socket.
+                # The taper is read from the deltoid down, and the SOCKET is
+                # the narrow band that tucks up into the shoulder.
+                assert len(upper_heights) == 3, f"{side} upper arm is not a three-ring member"
+                assert len(forearm_heights) == 2, f"{side} forearm is not a two-ring member"
+                elbow_w, deltoid_w, socket_w = (
+                    _width_between(upper, height - 1.0e-4, height + 1.0e-4)
+                    for height in upper_heights
+                )
+                wrist_w = _width_between(
+                    forearm, forearm_heights[0] - 1.0e-4, forearm_heights[0] + 1.0e-4
+                )
+                assert socket_w < deltoid_w, f"{side} socket is not tucked inside its deltoid"
+                assert deltoid_w > elbow_w * 1.10, f"{side} upper arm does not taper"
+                assert elbow_w > wrist_w * 1.10, f"{side} forearm does not taper"
+                # The LEG's widest against the ARM's widest, which is the
+                # deltoid: it is the junction that reaches full shoulder
+                # width. Comparing against the socket instead would compare a
+                # hip to the narrowest ring in the arm and pass on anything.
+                assert hip_w > deltoid_w, f"{side} leg must be a thicker limb than its arm"
 
                 foot = built[f"{side}_foot"]
                 ankle_ring = [point for point in leg if round(point.z, 6) == heights[0]]
@@ -1274,8 +1450,7 @@ def test_shoulders_emerge_from_the_torso_rather_than_sitting_on_it(context) -> N
                 _width_between(built["torso"], size["leg_top"] + span * 0.66, size["torso_top"])
                 / 2.0
             )
-            arm_name = "left_arm" if "left_arm" in built else "left_upper_arm"
-            arm = built[arm_name]
+            arm = built["left_upper_arm"]
             assert max(point.y for point in arm) > chest, (
                 "the arm does not reach past the torso at chest height"
             )

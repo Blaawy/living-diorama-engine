@@ -65,6 +65,67 @@ apply, and never touch geography. Districts, buildings, seal, avenues, and
 cameras are proven byte-identical between before/after states by the
 structural tests.
 
+## Roads stop at the architecture standing on them
+
+The road drawing is no longer unconditional. The founding lot sampler
+accepted a building by the distance from its ORIGIN to a road, while a
+civic podium and its entry canopy reach 8.53 m from that origin, so seven
+founding footprint rectangles came to stand in legal driving space — and
+on the avenues and spurs, whose decks are drawn above the founding bases,
+the slab passed clean through the podium.
+
+`_trimmed_ribbon` cuts a strip into the maximal spans clear of the real
+founding footprints (`spatial_occupancy.founding_clear_spans`, which
+mitres the strip edges exactly as the ribbon builder does, so a building
+sitting in the wedge on the outside of a bend is not missed) and welds
+the survivors into ONE mesh with gaps, never into numbered siblings.
+Every co-located layer of an avenue goes through it at its own lateral
+offset — carriageway, both sidewalks, both curbs, both edge markings —
+and so does every spur. The centre dashes are individual boxes rather
+than a strip, so they are filtered box by box on
+`founding_point_is_covered` instead.
+
+`_ring_disc` and `trim_ring_disc` do the same job for a plate's
+seventy-two-wedge ring disc, omitting the wedges a tower stands on and
+capping the ends that omission exposes. The helpers live here because the
+disc does, but the founding build still draws every disc whole: a plate's
+ring is only trimmed when Phase 16 keeps it, which is
+`build_production_world`'s call to make and `docs/production_world.md`'s
+to state.
+
+A road object may therefore legitimately draw NOTHING.
+`LD_SPUR__boundary_cd__district_c` runs 5.65 m and every metre of it lies
+inside `LD_BLDG__district_c__001`, so the object is built, named,
+materialled and linked with an empty mesh. An empty object is honest
+about a road the city cannot show, and nothing that looks the name up is
+left holding a reference to something that vanished — which a deletion
+would have arranged.
+
+Ten drawn faces stood inside founding architecture before the trim and
+none does after; the same ten carried 52.4261 m2 of built road surface
+standing on architecture, and after the trim that is zero.
+`tests/visual/test_road_trim.py` reconstructs the faces
+the builders emit, from the same helpers and the same call-site
+constants, and proves the count in both directions: bypassing the trim
+and feeding it no footprints each put all ten overlaps back, so a guard
+that had quietly stopped guarding fails loudly rather than printing a
+pass. The Blender suite then measures the built meshes themselves, since
+the dash filter tests a centre point while the box has width.
+
+What the trim does not do is move a building. Five founding buildings
+still stand in carriageway plan-space, and the Director has formally
+accepted that as a PERMANENT COMPATIBILITY EXCEPTION: four of them have
+no legal position anywhere on their own plate, and the relocation the
+fifth could have taken was declined. That residual is measured, named and
+published by the production layer, and `docs/production_world.md` states
+it in full.
+
+The trim is therefore permanent too. It is not a stopgap holding the
+picture together until the buildings move, because the buildings are
+never going to move; it is the standing arrangement that keeps an
+accepted plan-space overlap from becoming a visible one. Deleting it
+would put road surface back inside a podium the same day.
+
 ## Directory structure
 
     visual/blender/
@@ -88,6 +149,8 @@ structural tests.
     tests/visual/
       test_blender_locator.py         gate executable resolution (pure)
       test_visual_runtime_boundary.py AST import/ownership guards (pure)
+      test_road_trim.py               drawn road surface vs founding
+                                      architecture (pure)
 
 ## Naming contract
 

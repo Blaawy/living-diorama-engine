@@ -954,7 +954,7 @@ def validate_mobility_plan(plan: dict, presence_plan: dict, mobility_spec: dict)
         errors.append(f"the plan walks slot(s) Phase 18 never placed: {invented}")
     if set(pedestrians["moving_slots"]) & set(pedestrians["stationary_slots"]):
         errors.append("a slot is recorded as both moving and stationary")
-    if len(pedestrians["moving_slots"]) + len(pedestrians["stationary_slots"]) != len(known):
+    if sorted([*pedestrians["moving_slots"], *pedestrians["stationary_slots"]]) != sorted(known):
         errors.append("the moving and stationary slots do not account for every proxy")
     wanted = walking.walker_count(len(known), mobility_spec)
     if pedestrians["moving"] != wanted:

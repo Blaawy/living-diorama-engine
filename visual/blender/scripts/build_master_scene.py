@@ -54,10 +54,201 @@ from blender_runtime import (  # noqa: E402
     wipe_ld_collections,
 )
 from scene_spec import load_master_scene_spec  # noqa: E402
+from spatial_occupancy import (  # noqa: E402
+    founding_building_footprints,
+    founding_clear_spans,
+    founding_lot_positions,
+    founding_point_is_covered,
+    founding_ring_shadow,
+)
 from style_profiles import resolve_style  # noqa: E402
 
 ROAD_LEVEL = 0.86
 """The shared avenue deck height every road-related element keys from."""
+
+RING_DISC_SEGMENTS = 72
+"""Fan resolution of a district plate's ring-road disc."""
+
+
+def _trimmed_ribbon(
+    name: str,
+    path: list[tuple[float, float]],
+    width: float,
+    height: float,
+    elevation: float,
+    collection,
+    material,
+    footprints: list[dict],
+    *,
+    offset: float = 0.0,
+):
+    """A road strip that stops at the founding architecture standing on it.
+
+    Phase 15 laid its avenues, sidewalks, curbs and markings as unbroken
+    ribbons, and seven founding footprint rectangles ended up standing in
+    carriageway space: on the plate rings the buildings merely sit on the
+    asphalt, but the avenue and spur decks are drawn ABOVE the founding
+    building bases, so their slabs pass clean through the podiums. The lane
+    network already refuses to drive those sectors; this stops drawing them,
+    from the same footprints, so the picture and the traffic agree.
+
+    One object either way -- the spans are welded into a single mesh with
+    gaps, never split into numbered siblings -- and a strip nothing covers
+    is handed to the untrimmed builder so unaffected roads stay exactly as
+    Phase 15 drew them.
+    """
+    spans = founding_clear_spans(path, footprints, offset=offset, half_width=width / 2.0)
+    if spans == [list(path)]:
+        return make_ribbon(
+            name, path, width, height, elevation, collection, material, offset=offset
+        )
+    replace_object(name)
+    mesh = bpy.data.meshes.new(name)
+    if not spans:
+        # A strip a building swallows whole draws nothing, but it keeps its
+        # name and its place in the scene: an empty object is honest about
+        # a road the city cannot show, and nothing that looks the name up
+        # is left holding a reference to something that vanished.
+        obj = bpy.data.objects.new(name, mesh)
+        obj.data.materials.append(material)
+        link_only(obj, collection)
+        return obj
+    builder = bmesh.new()
+    for span in spans:
+        lower: list[bmesh.types.BMVert] = []
+        upper: list[bmesh.types.BMVert] = []
+        for index, (x, y) in enumerate(span):
+            if index == 0:
+                dx, dy = span[1][0] - x, span[1][1] - y
+            elif index == len(span) - 1:
+                dx, dy = x - span[index - 1][0], y - span[index - 1][1]
+            else:
+                dx = span[index + 1][0] - span[index - 1][0]
+                dy = span[index + 1][1] - span[index - 1][1]
+            length = math.hypot(dx, dy) or 1.0
+            nx, ny = -dy / length, dx / length
+            cx, cy = x + nx * offset, y + ny * offset
+            half = width / 2.0
+            lower.append(builder.verts.new(Vector((cx + nx * half, cy + ny * half, elevation))))
+            upper.append(builder.verts.new(Vector((cx - nx * half, cy - ny * half, elevation))))
+        for index in range(len(span) - 1):
+            builder.faces.new((lower[index], lower[index + 1], upper[index + 1], upper[index]))
+    result = bmesh.ops.extrude_face_region(builder, geom=list(builder.faces))
+    extruded = [item for item in result["geom"] if isinstance(item, bmesh.types.BMVert)]
+    bmesh.ops.translate(builder, verts=extruded, vec=(0.0, 0.0, height))
+    bmesh.ops.recalc_face_normals(builder, faces=list(builder.faces))
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    obj.data.materials.append(material)
+    link_only(obj, collection)
+    return obj
+
+
+def trim_ring_disc(spec: dict, district_id: str, collection, material) -> int:
+    """Redraw one kept ring disc without the wedges its towers stand on.
+
+    Called by the production build, not by Phase 15, because WHICH founding
+    rings survive is a composition decision: a district whose circle the
+    final ground plan buries hands its whole disc to Phase 16 and is not
+    reshaped here. For the rings the city keeps, the sectors that stopped
+    carrying traffic stop being drawn, under the SAME object name -- the
+    composition still asks a ``full`` ring for its founding disc.
+
+    Returns the number of sectors omitted (0 leaves the disc untouched).
+    """
+    district = spec["districts"][district_id]
+    radius = float(district["radius"]) * 0.985
+    omit = founding_ring_shadow(
+        spec,
+        district_id,
+        founding_building_footprints(spec),
+        segments=RING_DISC_SEGMENTS,
+        disc_radius=radius,
+    )
+    if not omit:
+        return 0
+    _ring_disc(
+        f"LD_DISTRICT__{district_id}__ring_road",
+        (float(district["center"][0]), float(district["center"][1])),
+        radius,
+        0.06,
+        float(district["elevation"]) + 0.55,
+        collection,
+        material,
+        omit,
+    )
+    return len(omit)
+
+
+def _ring_disc(
+    name: str,
+    center: tuple[float, float],
+    radius: float,
+    depth: float,
+    base_z: float,
+    collection,
+    material,
+    omit: set[int],
+):
+    """A plate's ring-road disc, minus the wedges its towers stand on.
+
+    Kept as a DISC under its own name -- the composition still asks a
+    ``full`` ring for its founding disc, and the core pavement still sits
+    on top -- but the sectors under founding architecture are simply not
+    built, so the asphalt reads as a forecourt around the tower instead of
+    running underneath it. A ring nothing shadows is handed to the plain
+    cylinder builder unchanged.
+    """
+    if not omit:
+        return make_cylinder(
+            name,
+            radius,
+            depth,
+            (center[0], center[1], base_z),
+            collection,
+            material,
+            segments=RING_DISC_SEGMENTS,
+            bevel=0.0,
+        )
+    replace_object(name)
+    mesh = bpy.data.meshes.new(name)
+    builder = bmesh.new()
+    center_low = builder.verts.new(Vector((0.0, 0.0, 0.0)))
+    center_high = builder.verts.new(Vector((0.0, 0.0, depth)))
+    rim: dict[int, tuple] = {}
+
+    def rim_pair(index: int) -> tuple:
+        wrapped = index % RING_DISC_SEGMENTS
+        if wrapped not in rim:
+            angle = 2.0 * math.pi * wrapped / RING_DISC_SEGMENTS
+            x, y = radius * math.cos(angle), radius * math.sin(angle)
+            rim[wrapped] = (
+                builder.verts.new(Vector((x, y, 0.0))),
+                builder.verts.new(Vector((x, y, depth))),
+            )
+        return rim[wrapped]
+
+    for index in range(RING_DISC_SEGMENTS):
+        if index in omit:
+            continue
+        low_a, high_a = rim_pair(index)
+        low_b, high_b = rim_pair(index + 1)
+        builder.faces.new((center_high, high_a, high_b))
+        builder.faces.new((center_low, low_b, low_a))
+        builder.faces.new((low_a, low_b, high_b, high_a))
+        if (index - 1) % RING_DISC_SEGMENTS in omit:
+            builder.faces.new((center_low, low_a, high_a, center_high))
+        if (index + 1) % RING_DISC_SEGMENTS in omit:
+            builder.faces.new((center_low, center_high, high_b, low_b))
+    bmesh.ops.recalc_face_normals(builder, faces=list(builder.faces))
+    builder.to_mesh(mesh)
+    builder.free()
+    obj = bpy.data.objects.new(name, mesh)
+    obj.location = (center[0], center[1], base_z)
+    obj.data.materials.append(material)
+    link_only(obj, collection)
+    return obj
 
 
 def build_platform(spec: dict, collections: dict, materials: dict) -> None:
@@ -222,52 +413,20 @@ def _lot_positions(
 ) -> list[tuple[float, float]]:
     """Deterministic building lots: rings inside the district footprint.
 
-    Lots too close to avenues, the depot pad, the Golden Seal plaza, or the
-    wall station corridor are skipped, so the persistent city always leaves
-    room for the world's own geography.
+    The sampling itself lives in :func:`spatial_occupancy.founding_lot_positions`
+    -- one implementation the builder and the pure planner both consume, so
+    the scene and the occupancy contract cannot drift apart. Candidates too
+    close to avenues, the depot pad, the Golden Seal plaza, or the wall
+    station corridor are skipped, and each accepted lot is then made
+    STREET-LEGAL: its archetype's real footprint must clear every founding
+    carriageway, the plaza, the wall alignments, the depot pads, and every
+    building already standing, or the lot steps deterministically to the
+    nearest position where it does. A lot with no legal ground anywhere
+    keeps its original position and is reported by the pure plan as
+    blocked rather than silently deleted.
     """
-    center_x, center_y = district["center"]
-    radius = district["radius"]
-    rng = stable_rng(seed, district_id, "lots")
-    plaza_clearance = 0.0
-    seal = spec["landmarks"]["golden_seal"]
-    if district["character"] == "civic":
-        plaza_clearance = seal["radius"] + 3.5
-
-    depot_x, depot_y = _depot_location(district)
-    positions: list[tuple[float, float]] = []
-    road_clearance = 8.5 if district["character"] == "civic" else 10.0
-    ring_step = 8.0 if plaza_clearance else 11.0
-    ring_radius = max(9.0, plaza_clearance + 3.5)
-    while ring_radius < radius - 3.0:
-        count = max(5, int((2.0 * math.pi * ring_radius) / 11.0))
-        offset = rng.uniform(0.0, 2.0 * math.pi)
-        for index in range(count):
-            angle = offset + (2.0 * math.pi * index) / count
-            jitter = rng.uniform(-1.2, 1.2)
-            x = center_x + (ring_radius + jitter) * math.cos(angle)
-            y = center_y + (ring_radius + jitter) * math.sin(angle)
-            if math.hypot(x - depot_x, y - depot_y) < 11.0:
-                continue
-            if plaza_clearance and math.hypot(x - center_x, y - center_y) < plaza_clearance:
-                continue
-            too_close = False
-            for boundary in spec["boundaries"].values():
-                if (
-                    distance_to_polyline(x, y, [tuple(p) for p in boundary["path"]])
-                    < road_clearance
-                ):
-                    too_close = True
-                    break
-                station = boundary["wall_station"]
-                if math.hypot(x - station["center"][0], y - station["center"][1]) < 13.0:
-                    too_close = True
-                    break
-            if too_close:
-                continue
-            positions.append((x, y))
-        ring_radius += ring_step
-    return positions
+    del district, seed  # both are derived from the spec the shared sampler consumes
+    return founding_lot_positions(spec, district_id)
 
 
 def _depot_location(district: dict) -> tuple[float, float]:
@@ -670,7 +829,7 @@ def build_districts(spec: dict, collections: dict, materials: dict) -> None:
             (center_x, center_y, elevation + 0.55),
             collection,
             materials["asphalt"],
-            segments=72,
+            segments=RING_DISC_SEGMENTS,
             bevel=0.0,
         )
         make_cylinder(
@@ -816,13 +975,21 @@ def build_vegetation(spec: dict, collections: dict, materials: dict) -> None:
 def build_avenues(spec: dict, collections: dict, materials: dict) -> None:
     """Boundary corridors: avenues, sidewalks, curbs, markings, lights."""
     collection = collections["LD_BOUNDARIES"]
+    footprints = founding_building_footprints(spec)
     for boundary_id, boundary in spec["boundaries"].items():
         path = [tuple(point) for point in boundary["path"]]
-        make_ribbon(
-            f"LD_ROAD__{boundary_id}", path, 7.0, 0.12, ROAD_LEVEL, collection, materials["asphalt"]
+        _trimmed_ribbon(
+            f"LD_ROAD__{boundary_id}",
+            path,
+            7.0,
+            0.12,
+            ROAD_LEVEL,
+            collection,
+            materials["asphalt"],
+            footprints,
         )
         for side, label in ((4.7, "north"), (-4.7, "south")):
-            make_ribbon(
+            _trimmed_ribbon(
                 f"LD_SIDEWALK__{boundary_id}__{label}",
                 path,
                 2.0,
@@ -830,9 +997,10 @@ def build_avenues(spec: dict, collections: dict, materials: dict) -> None:
                 ROAD_LEVEL,
                 collection,
                 materials["pavement"],
+                footprints,
                 offset=side,
             )
-            make_ribbon(
+            _trimmed_ribbon(
                 f"LD_CURB__{boundary_id}__{label}",
                 path,
                 0.4,
@@ -840,10 +1008,11 @@ def build_avenues(spec: dict, collections: dict, materials: dict) -> None:
                 ROAD_LEVEL,
                 collection,
                 materials["curb"],
+                footprints,
                 offset=side * 0.775,
             )
         for offset, label in ((3.1, "edge_n"), (-3.1, "edge_s")):
-            make_ribbon(
+            _trimmed_ribbon(
                 f"LD_MARKING__{boundary_id}__{label}",
                 path,
                 0.14,
@@ -851,10 +1020,13 @@ def build_avenues(spec: dict, collections: dict, materials: dict) -> None:
                 ROAD_LEVEL + 0.121,
                 collection,
                 materials["road_marking"],
+                footprints,
                 offset=offset,
             )
         dashes = []
         for x, y, _heading in polyline_stations(path, 4.2):
+            if founding_point_is_covered(x, y, footprints):
+                continue
             dashes.append(((1.7, 0.15, 0.01), (x, y, 0.0), 0))
         first_x, first_y, _ = polyline_stations(path, 4.2)[0]
         marking = make_detail_mesh(
@@ -908,6 +1080,7 @@ def build_avenues(spec: dict, collections: dict, materials: dict) -> None:
 def build_spurs(spec: dict, collections: dict, materials: dict) -> None:
     """Connector roads tying each district plate onto its avenues."""
     collection = collections["LD_BOUNDARIES"]
+    footprints = founding_building_footprints(spec)
     for boundary_id, boundary in spec["boundaries"].items():
         path = [tuple(point) for point in boundary["path"]]
         endpoints = (path[0], path[-1])
@@ -924,7 +1097,7 @@ def build_spurs(spec: dict, collections: dict, materials: dict) -> None:
                 center[0] + dx / distance * district["radius"] * 0.55,
                 center[1] + dy / distance * district["radius"] * 0.55,
             )
-            make_ribbon(
+            _trimmed_ribbon(
                 f"LD_SPUR__{boundary_id}__{district_id}",
                 [edge, best],
                 5.0,
@@ -932,6 +1105,7 @@ def build_spurs(spec: dict, collections: dict, materials: dict) -> None:
                 ROAD_LEVEL - 0.01,
                 collection,
                 materials["asphalt"],
+                footprints,
             )
 
 

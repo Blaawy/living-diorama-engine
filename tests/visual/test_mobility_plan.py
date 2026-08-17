@@ -34,6 +34,7 @@ def _load(name: str):
 
 
 mp = _load("mobility_plan")
+walking = _load("pedestrian_mobility")
 mobility_spec = _load("mobility_spec")
 motion_time_spec = _load("motion_time_spec")
 scene_spec = _load("scene_spec")
@@ -257,6 +258,60 @@ def test_every_gait_matches_its_travel(built: dict) -> None:
         assert gait["effective_stride"] * gait["cycles"] == pytest.approx(
             walker["route_length"], abs=1.0e-3
         )
+
+
+def test_every_walker_wears_its_own_legs(built: dict) -> None:
+    """The leg the gait arithmetic swings is the leg the slot's body owns.
+
+    Each walker record carries the whole Phase 18 visual identity, so the leg
+    is re-measured here from the geometry that identity builds and compared
+    with the ``leg_length`` the plan published. A mismatch would mean a stride
+    solved for one body and performed by another -- a walker skating on
+    borrowed legs, which no per-walker consistency check above can see because
+    every equation would still balance against the wrong length.
+    """
+    for walker in built["plan"]["pedestrians"]["walkers"]:
+        remeasured = walking.leg_length(walker)
+        assert walker["gait"]["leg_length"] == pytest.approx(remeasured, abs=1.0e-5), (
+            f"{walker['slot']} publishes a {walker['gait']['leg_length']}m leg, its own "
+            f"body measures {remeasured:.6f}m"
+        )
+
+
+def test_the_walker_records_are_exactly_the_moving_slots(built: dict) -> None:
+    """One walker per moving slot, in slot order, with no slot named twice.
+
+    The partition audit compares slot LISTS, so the walker records have to be
+    the same census: a duplicated walker would double a body in the scene
+    while every count still summed, and a walker missing from the list would
+    be a moving slot nobody animates.
+    """
+    pedestrians = built["plan"]["pedestrians"]
+    slots = [walker["slot"] for walker in pedestrians["walkers"]]
+    assert slots == pedestrians["moving_slots"], (
+        f"the plan animates {sorted(set(slots))} and calls "
+        f"{sorted(set(pedestrians['moving_slots']))} moving"
+    )
+    assert len(set(slots)) == len(slots), "a walker slot appears twice"
+
+
+def test_a_duplicated_walker_slot_cannot_mask_a_missing_proxy(built: dict) -> None:
+    """The partition audit compares the slots themselves, not their lengths.
+
+    The tampering this refuses: one stationary slot is dropped and a moving
+    slot is listed twice, so the two lists still SUM to the city's eighty and
+    a length check waves the plan through with a proxy unaccounted for. The
+    validator must compare the combined slot multiset against the presence
+    plan's own census, where both the duplicate and the hole are visible.
+    """
+    plan = copy.deepcopy(built["plan"])
+    pedestrians = plan["pedestrians"]
+    pedestrians["stationary_slots"] = pedestrians["stationary_slots"][:-1]
+    pedestrians["moving_slots"] = sorted(
+        [*pedestrians["moving_slots"], pedestrians["moving_slots"][0]]
+    )
+    errors = mp.validate_mobility_plan(plan, built["presence"], built["spec"])
+    assert any("account for every proxy" in error for error in errors)
 
 
 def test_the_moving_fraction_is_honoured(built: dict) -> None:

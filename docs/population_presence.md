@@ -284,7 +284,7 @@ transform**. There is exactly one face-forward convention and nothing infers it
 from a pose or a primitive's orientation.
 
 Each feature is placed by its **front surface**, standing proud of the skull:
-brow 9.5 mm, eyes 9 mm, nose 16.5 mm, mouth 6.5 mm. Placing by the front rather
+brow 7.2 mm, eyes 9 mm, nose 16.5 mm, mouth 5 mm. Placing by the front rather
 than the centre is what makes burying a feature impossible however the head's
 depth changes.
 
@@ -305,8 +305,7 @@ rather than against the single point directly beneath it.
 `figure_kit.plate_clearance` walks the plate's **real ruled front surface**
 (the quad between each pair of adjacent columns, sampled in both directions)
 and reports the smallest gap to the skull under that exact point. The contract
-is that this minimum is positive; on the shipped vocabulary it is 3.6 mm at
-worst, on the mouth.
+is that this minimum is positive, on every combination the vocabulary permits.
 
 Both halves of that were got wrong first, and the wrong version *passed*:
 placing columns point-wise buried the eyes 0.9 mm, the brow 2.9 mm and the
@@ -316,12 +315,29 @@ guard that cannot fail is not a guard.
 
 | Level (fraction of head height) | Feature |
 | --- | --- |
-| 0.780+ | hairline — no hair may reach below this |
+| 0.800+ | hairline — no hair may reach below this |
 | 0.735 | brow |
-| 0.620 | **eyes** — always a mirrored pair |
+| 0.600 | **eyes** — always a mirrored pair |
 | 0.440 | **nose** — on the centreline, between the eyes |
-| 0.305 | moustache |
-| 0.220 | mouth |
+| 0.300 | moustache |
+| 0.215 | mouth |
+
+Visual DNA v2 pulled the eyes **down** and the brow **up**, and that is a
+geometry decision rather than a spacing preference. The render review found
+the brow plate and the eye plates, both dark and nearly touching, fusing into
+wraparound sunglasses on every figure. A colour would not have fixed it; what
+fixes it is a band of bare complexion between them, so `BROW_EYE_GAP` (0.06 of
+head height) is enforced on the built plates. The shipped levels leave 0.075 —
+a quarter over the floor — and the kit measures it from the emitted geometry
+rather than from that arithmetic. The brow also had to come down from 0.750 to
+leave a forehead once the hairline rose to 0.800.
+
+Ears arrived with v2, because a bald or short-haired skull without them reads
+as an egg. They are two eight-triangle complexion wedges, and they are built
+only for the haircuts that leave them visible (`bald`, `short`, `tied`,
+`medium`): long hair and the high-volume mass cover them and a cap's shell
+sits over them, so building them there would spend triangles inside other
+geometry.
 
 Both defects that shipped in the first candidate are now impossible and both
 are pinned by tests: the eyes and brow were authored 3 mm *behind* the head's
@@ -347,19 +363,77 @@ box kind left to fall back to:
 
 | Primitive | What it builds |
 | --- | --- |
-| `faceted_head` | the skull: 8 facets around, 4 rings plus a chin pole and a crown pole |
-| `torso_hull` | one lofted body through hip, waist, chest and shoulder cross-sections |
-| `tapered_segment` | a limb chain — shoulder→elbow→wrist, hip→knee→ankle — and the neck |
-| `foot_wedge` | a foot with a heel behind the ankle and a toe in front |
-| `hair_shell` | a covering that follows the round skull, plus rear volumes |
+| `faceted_head` | the skull: 12 facets around, 5 rings plus a chin pole and a crown pole |
+| `torso_hull` | one lofted body through seat, pelvis, waist, chest, clavicle and shoulder cross-sections |
+| `tapered_segment` | a limb chain threaded along real joints — hip, thigh, knee, calf, ankle; socket, deltoid, elbow, wrist, hand — and the neck |
+| `foot_wedge` | a foot with a heel, an instep and a toe box, in footwear |
+| `hair_shell` | one faceted covering that follows the round skull, cut with a skirt |
 | `face_feature` | a plate that conforms to the curve of the face beneath it |
 | `accessory` | garment geometry that sits on a valid body |
 
 The waist is pinched **by construction** rather than by tuning: it is a
-fraction of whichever of the hip and the chest is already narrower, and the
-largest product of a build waist factor and a presentation waist factor is
-`1.02 × 1.02 = 1.0404`, which times `0.84` is `0.874`. Under one for every
-combination in the vocabulary, so no figure can be built barrel-sided.
+fraction of whichever of the hip and the chest is already narrower, and that
+fraction is clamped to the 0.62–0.92 band whatever the build and presentation
+factors multiply out to. No figure can be built barrel-sided, and no tuning
+pass can accidentally make one.
+
+**Visual DNA v2.** The first rebuild removed the boxes; the render review then
+showed what the un-boxed bodies still got wrong, and each of those findings is
+now a design decision rather than a tuning accident:
+
+- **A leg is not a table leg.** Five rings instead of three, with a real knee
+  pinch and a calf that swells below it and sits back. The pinch is also what
+  makes a walking leg read as bending — a straight taper hides its own knee.
+- **An arm is three members, not one.** A `socket` ring tucked up inside the
+  torso hull closes the armpit that used to stand open to the background, a
+  `deltoid` flared 1.22× carries the silhouette out to the published shoulder
+  width, and the outer surface falls 42° from socket to deltoid. At 25° that
+  run is a shelf, and a shelf on a jacket is a shoulder pad. The hand is a
+  flat paddle riding the wrist — thin across the palm, long through the
+  fingers.
+- **Hair connects to the head it grew from.** Every treatment is now ONE
+  skirted shell and nothing else: the buns, tails, falls, parts and brims that
+  used to hang off the side at ear height are gone. A skirt descends in stages
+  whose count is derived from how far it falls, because every straight band
+  across a curved skull is a chord and a long enough chord sags inside the
+  occiput — which is bare scalp. A deep side drop is all a bob is, so a
+  jaw-length fall costs no second primitive to detach from the first. Six hair
+  values remain, each with two sub-silhouettes keyed by the face axis, for
+  eleven treatments at no new axis values.
+- **Feet are footwear.** Accent-dark shoes for every silhouette but the dress,
+  whose lighter palette-toned treatment reads as part of the garment. A
+  coat-wearing elder in beige slippers is a costume error, not a person.
+
+The published `figure_dimensions` **heights are bit-frozen** across the
+rebuild, deliberately. Height reaches the published plan, buckets
+`silhouette_signature`, and drives every Phase 19 walking speed and route
+length, so moving it would reshuffle who stands where and how fast they walk.
+`shoulder_width`, `head_height` and `hip_width` did change with the v2 design;
+they are measurements a plan may display, and the precondition audit proved
+nothing derives a position or a route from them.
+
+#### The articulation contract
+
+Phase 19 owns how a body walks; this kit owns how a body IS. The border
+between them is `figure_kit.CHAIN_SPEC`, and it is published here so that only
+one module ever describes a limb's structure. For each chain it declares the
+facet count, every primitive the chain is drawn from in emission order, the
+articulation LEVEL of each of that primitive's lofted rings, which member's
+ring each of the three joints is measured from, and the solid that rides the
+tip.
+
+`pedestrian_mobility.body_chains` reads that table against the built vertices
+instead of holding its own opinion about limb structure. A joint is the
+centroid of a built ring, never a number from a table; seam rings are built
+COINCIDENT, so the sleeve's elbow and the forearm's elbow are the same circle
+of vertices and no articulation can open a seam; and chain members are
+pole-less lofts whose vertex counts are exact multiples of their side count,
+root ring first, so mobility can cut them back into the rings they were built
+from without guessing. A body whose primitives do not match the published spec
+is refused, never repaired.
+
+That is what let the kit grow a five-ring leg with a calf and hang a hand off
+the wrist without the walking code changing at all.
 
 Build drives real shape at a fixed stature: athletic has the hardest
 shoulder-to-waist taper, broad the least and the greatest depth, slim the
@@ -375,18 +449,30 @@ column leg or a missing foot would each be plainly visible.
 
 #### Geometry budget
 
-| | Cuboid bodies | Now |
-| --- | --- | --- |
-| Triangles per person (canonical 80) | 205 | 372 |
-| Population layer total | 16,392 | **29,728** |
-| Ceiling | 30,000 | 30,000 |
+| | Cuboid bodies | v1 | Visual DNA v2 |
+| --- | --- | --- | --- |
+| Triangles per person (canonical 80) | 205 | 372 | 769 |
+| Population layer total | 16,392 | 29,728 | **61,548** |
+| Ceiling per figure | — | 430 | **950** |
+| Ceiling for the layer | 30,000 | 30,000 | **68,000** |
 
-The whole increase bought anatomy. The head keeps eight facets because the head
-is what gets inspected; the torso and the hair were cut to six to stay under
-the ceiling, which is invisible at diorama distance and is the honest reason
-those two are not eight -- though the hair SHELLS are, because a shell with
-fewer facets than the skull cannot contain it. Eight everywhere was measured
-at 30,908 and did not fit; the remaining headroom is 272 triangles.
+The remediation renegotiated the ceilings, and v2 spent the raise on
+resolution — because v1 was buying anatomy under a budget that could not pay
+for it. The head takes twelve facets rather than eight: at eight the skull's
+silhouette still read as a nut, and the head is what gets inspected. The torso
+takes eight so a lapel and a waist survive a three-quarter view. Legs take
+seven, since odd counts are mirror-symmetric about the centreline for free.
+Hair matches the head exactly, as it must: a shell with fewer facets than the
+skull it covers passes inside the skull's own vertices, which is the bare-crown
+defect the first rebuild shipped.
+
+The heaviest body the vocabulary can build costs 850 against the 950 ceiling,
+and the canonical eighty total 61,548 against the 68,000. That gap is headroom,
+not vagueness: the ceilings are the numbers the directive approved, and the
+pure suite re-measures every combination the vocabulary permits — all 1,728 —
+so a regression spends its budget loudly. The FLEET is bounded separately from
+the vocabulary, because a dressing draw that drifted heavy would blow the layer
+budget without any single body breaking its own.
 
 Four poses, all **standing** attitudes. Phase 18 ships no walk cycle and no
 seating geometry, so a pose is a fixed arrangement of limbs and nothing more:
