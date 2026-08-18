@@ -1,0 +1,46 @@
+{
+  "format": "living_diorama_state_response_spec",
+  "schema_version": 1,
+  "statement": "Phase 20 reads authoritative world state and shows it. It never writes world state, and it never invents an individual: a district's air is that district's aggregate condition, and a record stone is one durable fact the engine already decided to remember.",
+  "channels": [
+    {
+      "channel": "district_air",
+      "source_kind": "district_scalar",
+      "source_field": "scarcity",
+      "interpolation": "smoothstep",
+      "strategy": "together",
+      "window": [0.08, 0.92],
+      "samples": 8,
+      "response_minimum": 1.0,
+      "response_maximum": 14.0
+    },
+    {
+      "channel": "memory_record",
+      "source_kind": "memory_fact",
+      "source_field": "fact_type",
+      "interpolation": "step",
+      "strategy": "staged",
+      "window": [0.35, 0.95],
+      "member_span": 0.18,
+      "samples": 1
+    }
+  ],
+  "air": {
+    "base_density": 0.0011,
+    "rim_margin_metres": 8.0,
+    "ceiling_metres": 34.0,
+    "floor_density_fraction": 0.12,
+    "anisotropy": 0.42,
+    "tint": [0.74, 0.71, 0.66]
+  },
+  "record": {
+    "origin": [-16.0, 6.0],
+    "arc_radius_metres": 7.4,
+    "arc_start_degrees": 198.0,
+    "arc_step_degrees": 13.0,
+    "capacity": 12,
+    "stone_size_metres": [0.62, 0.28, 0.17],
+    "plaza_level_metres": 0.86,
+    "lift_metres": 0.04
+  }
+}
