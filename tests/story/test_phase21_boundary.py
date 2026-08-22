@@ -57,9 +57,7 @@ validates with the persistence vocabulary, exactly as ``render`` itself does. It
 may not reach past those into live simulation.
 """
 
-FORBIDDEN_ENGINE_ROOTS = frozenset(
-    {"entities", "events", "memory", "simulation", "systems", "cli"}
-)
+FORBIDDEN_ENGINE_ROOTS = frozenset({"entities", "events", "memory", "simulation", "systems", "cli"})
 """Engine subpackages the story layer must never import.
 
 ``memory`` is on the list deliberately: story reads memory *facts as exported*,
@@ -103,8 +101,19 @@ this phase does not do cannot trip the guard.
 """
 
 MUTATORS = frozenset(
-    {"append", "clear", "extend", "insert", "pop", "popitem", "remove", "setdefault",
-     "update", "sort", "reverse"}
+    {
+        "append",
+        "clear",
+        "extend",
+        "insert",
+        "pop",
+        "popitem",
+        "remove",
+        "setdefault",
+        "update",
+        "sort",
+        "reverse",
+    }
 )
 PASS_THROUGH_CALLS = frozenset({"enumerate", "iter", "list", "reversed", "sorted", "tuple", "zip"})
 PASS_THROUGH_METHODS = frozenset({"get", "items", "keys", "values"})
@@ -206,9 +215,7 @@ def mutation_sites(tree: ast.Module) -> list[str]:
                     and isinstance(target.value, ast.Name)
                     and target.value.id in tainted
                 ):
-                    writes.append(
-                        f"line {node.lineno}: sets attribute on {target.value.id}"
-                    )
+                    writes.append(f"line {node.lineno}: sets attribute on {target.value.id}")
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -216,9 +223,7 @@ def mutation_sites(tree: ast.Module) -> list[str]:
             and isinstance(node.func.value, ast.Name)
             and node.func.value.id in tainted
         ):
-            writes.append(
-                f"line {node.lineno}: calls {node.func.attr}() on {node.func.value.id}"
-            )
+            writes.append(f"line {node.lineno}: calls {node.func.attr}() on {node.func.value.id}")
     return writes
 
 
@@ -387,8 +392,7 @@ def test_the_simulation_import_guard_catches_an_offender(tmp_path: Path) -> None
     )
     modules = imported_modules(parse(offender))
     assert any(
-        module.split(".")[1] in FORBIDDEN_ENGINE_ROOTS
-        and module not in ALLOWED_ENGINE_MODULES
+        module.split(".")[1] in FORBIDDEN_ENGINE_ROOTS and module not in ALLOWED_ENGINE_MODULES
         for module in modules
     )
 
@@ -419,8 +423,7 @@ def test_the_mutation_guard_catches_a_subscript_write(tmp_path: Path) -> None:
     """The mutation guard catches a subscript write."""
     offender = tmp_path / "offender.py"
     offender.write_text(
-        "def go(export):\n"
-        "    export['world'] = {}\n",
+        "def go(export):\n    export['world'] = {}\n",
         encoding="utf-8",
     )
     assert mutation_sites(parse(offender))
@@ -430,9 +433,7 @@ def test_the_mutation_guard_catches_a_mutator_call(tmp_path: Path) -> None:
     """The mutation guard catches a mutator call."""
     offender = tmp_path / "offender.py"
     offender.write_text(
-        "def go(export):\n"
-        "    events = export['events']\n"
-        "    events.sort()\n",
+        "def go(export):\n    events = export['events']\n    events.sort()\n",
         encoding="utf-8",
     )
     assert mutation_sites(parse(offender))

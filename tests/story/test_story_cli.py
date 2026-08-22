@@ -201,8 +201,10 @@ def test_the_document_digest_is_the_digest_of_the_source_file_bytes(
         ]
     )
     plan = json.loads(output.read_text(encoding="utf-8"))
-    for role, name in (("current", "render_export_ep2.json"),
-                       ("previous", "render_export_ep1.json")):
+    for role, name in (
+        ("current", "render_export_ep2.json"),
+        ("previous", "render_export_ep1.json"),
+    ):
         on_disk = hashlib.sha256((workspace / name).read_bytes()).hexdigest()
         assert plan["source"][role]["document_sha256"] == on_disk
 
@@ -213,9 +215,7 @@ def test_a_pretty_printed_export_is_refused(workspace: Path) -> None:
     document = json.loads(target.read_text(encoding="utf-8"))
     target.write_text(json.dumps(document, indent=2), encoding="utf-8")
     output = workspace / "plan.json"
-    code = build_story_plan.main(
-        ["--current", str(target), "--output", str(output)]
-    )
+    code = build_story_plan.main(["--current", str(target), "--output", str(output)])
     assert code == 1
     assert not output.exists()
 
@@ -226,13 +226,10 @@ def test_a_reordered_key_export_is_refused(workspace: Path) -> None:
     document = json.loads(target.read_text(encoding="utf-8"))
     reordered = {key: document[key] for key in sorted(document, reverse=True)}
     target.write_bytes(
-        json.dumps(reordered, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        + b"\n"
+        json.dumps(reordered, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n"
     )
     output = workspace / "plan.json"
-    code = build_story_plan.main(
-        ["--current", str(target), "--output", str(output)]
-    )
+    code = build_story_plan.main(["--current", str(target), "--output", str(output)])
     assert code == 1
     assert not output.exists()
 
@@ -242,9 +239,7 @@ def test_an_export_missing_its_trailing_newline_is_refused(workspace: Path) -> N
     target = workspace / "render_export_ep0.json"
     target.write_bytes(target.read_bytes().rstrip(b"\n"))
     output = workspace / "plan.json"
-    code = build_story_plan.main(
-        ["--current", str(target), "--output", str(output)]
-    )
+    code = build_story_plan.main(["--current", str(target), "--output", str(output)])
     assert code == 1
 
 

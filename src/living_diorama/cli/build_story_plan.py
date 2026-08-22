@@ -60,8 +60,7 @@ def build(current_path: Path, previous_path: Path | None, output_path: Path) -> 
     """Write the plan for the given exports and return its byte length."""
     if output_path.exists():
         raise FileExistsError(
-            f"story plan destination {output_path} already exists; "
-            "plans are never overwritten"
+            f"story plan destination {output_path} already exists; plans are never overwritten"
         )
     current = _read_document(current_path, "current render export")
     previous = (

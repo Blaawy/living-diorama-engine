@@ -23,9 +23,7 @@ def strip_beat_worthy_events(export: dict[str, Any]) -> dict[str, Any]:
     """
     trimmed = copy.deepcopy(export)
     trimmed["events"] = [
-        event
-        for event in trimmed["events"]
-        if event["type"] not in story_spec.EVENT_BEAT_RULES
+        event for event in trimmed["events"] if event["type"] not in story_spec.EVENT_BEAT_RULES
     ]
     trimmed["source"]["event_count"] = len(trimmed["events"])
     return trimmed

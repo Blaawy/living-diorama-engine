@@ -144,9 +144,7 @@ def _order_key(beat: dict[str, JsonValue]) -> tuple[int, int, int, str, str]:
     emphasis = EMPHASIS_ORDER[cast(str, beat["emphasis"])]
     evidence = cast(list[dict[str, JsonValue]], beat["evidence"])
     ticks = [cast(int, entry["tick"]) for entry in evidence]
-    indices = [
-        cast(int, entry["index"]) for entry in evidence if entry["kind"] == EVIDENCE_EVENT
-    ]
+    indices = [cast(int, entry["index"]) for entry in evidence if entry["kind"] == EVIDENCE_EVENT]
     subjects = cast(list[str], beat["subject_ids"])
     return (
         emphasis,
@@ -338,9 +336,7 @@ def build_episode_story_plan_document(
                 "current": cast(JsonValue, _export_binding(current)),
                 "mode": mode,
                 "previous": (
-                    cast(JsonValue, _export_binding(previous))
-                    if previous is not None
-                    else None
+                    cast(JsonValue, _export_binding(previous)) if previous is not None else None
                 ),
                 "render_schema_version": RENDER_SCHEMA_VERSION,
             },

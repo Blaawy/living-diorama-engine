@@ -137,8 +137,7 @@ def test_an_unknown_event_type_degrades_neutrally_rather_than_being_guessed() ->
     """The one property that keeps a future event type from being misread."""
     assert story_spec.classify_event("CITIZEN_MARRIED") is None
     assert (
-        story_spec.event_exclusion_reason("CITIZEN_MARRIED")
-        == story_spec.REASON_UNKNOWN_EVENT_TYPE
+        story_spec.event_exclusion_reason("CITIZEN_MARRIED") == story_spec.REASON_UNKNOWN_EVENT_TYPE
     )
 
 

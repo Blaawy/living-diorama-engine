@@ -48,9 +48,7 @@ from living_diorama.story.story_spec import (
 BEAT_ID_FORM: Final = "beat_%04d"
 """A beat identifier is positional and nothing else, so it is derivable."""
 
-type JsonValue = (
-    None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
-)
+type JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 """The JSON value shape this contract works in.
 
 Declared here rather than imported from ``living_diorama.events``: the story
@@ -147,9 +145,7 @@ def _require_list(value: object, description: str) -> list[JsonValue]:
 def _require_member(value: object, allowed: tuple[str, ...], description: str) -> str:
     text = require_text(value, description)
     if text not in allowed:
-        raise ValueError(
-            f"{description} is {text!r}; expected one of {list(allowed)}"
-        )
+        raise ValueError(f"{description} is {text!r}; expected one of {list(allowed)}")
     return text
 
 
@@ -209,12 +205,8 @@ def _validate_beat(
             "is positional, not a free label"
         )
     kind = _require_member(beat.get("kind"), BEAT_KINDS, f"{description} kind")
-    emphasis = _require_member(
-        beat.get("emphasis"), EMPHASIS_LEVELS, f"{description} emphasis"
-    )
-    reason = _require_member(
-        beat.get("reason_code"), REASON_CODES, f"{description} reason_code"
-    )
+    emphasis = _require_member(beat.get("emphasis"), EMPHASIS_LEVELS, f"{description} emphasis")
+    reason = _require_member(beat.get("reason_code"), REASON_CODES, f"{description} reason_code")
     permitted_reasons = BEAT_REASON_CODES[kind]
     if reason not in permitted_reasons:
         raise ValueError(
@@ -363,9 +355,7 @@ def _validate_unclassified(value: object, description: str) -> None:
         entry.get("kind"), (UNCLASSIFIED_EVENT, UNCLASSIFIED_FACT), f"{description} kind"
     )
     require_text(entry.get("type"), f"{description} type")
-    reason = _require_member(
-        entry.get("reason_code"), REASON_CODES, f"{description} reason_code"
-    )
+    reason = _require_member(entry.get("reason_code"), REASON_CODES, f"{description} reason_code")
     expected = UNCLASSIFIED_REASONS[kind]
     if reason != expected:
         raise ValueError(
@@ -413,9 +403,7 @@ def validate_episode_story_plan(value: object) -> dict[str, JsonValue]:
             f"episode story plan declares format {tag!r}; "
             f"this build reads {STORY_PLAN_FORMAT!r} only"
         )
-    version = require_exact_int(
-        document.get("schema_version"), "episode story plan schema_version"
-    )
+    version = require_exact_int(document.get("schema_version"), "episode story plan schema_version")
     if version != STORY_SCHEMA_VERSION:
         raise ValueError(
             f"episode story plan declares unsupported schema version {version}; "
@@ -440,9 +428,7 @@ def validate_episode_story_plan(value: object) -> dict[str, JsonValue]:
     previous = source.get("previous")
     if mode == MODE_BASELINE:
         if previous is not None:
-            raise ValueError(
-                "episode story plan is baseline mode but binds a previous export"
-            )
+            raise ValueError("episode story plan is baseline mode but binds a previous export")
         if current_binding["episode"] != 0:
             raise ValueError(
                 f"episode story plan is baseline mode but describes episode "
@@ -450,9 +436,7 @@ def validate_episode_story_plan(value: object) -> dict[str, JsonValue]:
             )
     else:
         if previous is None:
-            raise ValueError(
-                "episode story plan is transition mode but binds no previous export"
-            )
+            raise ValueError("episode story plan is transition mode but binds no previous export")
         _validate_export_binding(previous, "episode story plan source previous")
         previous_binding = cast(dict[str, JsonValue], previous)
         previous_episode = cast(int, previous_binding["episode"])
@@ -529,22 +513,22 @@ def validate_episode_story_plan(value: object) -> dict[str, JsonValue]:
                 f"{label} count is {count}; an excluded type is recorded only "
                 "when it actually occurred"
             )
-        reason = _require_member(
-            tally.get("reason_code"), REASON_CODES, f"{label} reason_code"
-        )
+        reason = _require_member(tally.get("reason_code"), REASON_CODES, f"{label} reason_code")
         permitted = allowed_exclusion_reasons(key)
         if reason not in permitted:
             raise ValueError(
                 f"{label} gives reason {reason!r}, which this policy cannot give "
                 f"for {key!r}"
-                + (f"; only {sorted(permitted)}" if permitted else "; that type is "
-                   "not one this build has an opinion about, so it belongs in "
-                   "unclassified rather than excluded")
+                + (
+                    f"; only {sorted(permitted)}"
+                    if permitted
+                    else "; that type is "
+                    "not one this build has an opinion about, so it belongs in "
+                    "unclassified rather than excluded"
+                )
             )
 
-    unclassified = _require_list(
-        document.get("unclassified"), "episode story plan unclassified"
-    )
+    unclassified = _require_list(document.get("unclassified"), "episode story plan unclassified")
     for position, entry in enumerate(unclassified):
         _validate_unclassified(entry, f"episode story plan unclassified[{position}]")
 

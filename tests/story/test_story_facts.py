@@ -51,9 +51,7 @@ def test_the_local_source_event_map_agrees_with_the_engine() -> None:
 # ------------------------------------------------------------------- positive
 
 
-def test_a_genuine_reference_resolves(
-    fact: dict[str, Any], events: list[dict[str, Any]]
-) -> None:
+def test_a_genuine_reference_resolves(fact: dict[str, Any], events: list[dict[str, Any]]) -> None:
     """A genuine reference resolves."""
     resolved = resolve_source_event(fact, events, "fact")
     assert resolved is not None
@@ -84,18 +82,14 @@ def test_a_carried_fact_presented_as_new_is_refused(
 # ------------------------------------------------------------------- negative
 
 
-def test_a_negative_index_is_refused(
-    fact: dict[str, Any], events: list[dict[str, Any]]
-) -> None:
+def test_a_negative_index_is_refused(fact: dict[str, Any], events: list[dict[str, Any]]) -> None:
     """A negative index is refused."""
     fact["source_event_index"] = -1
     with pytest.raises(ValueError):
         require_fact_shape(fact, "fact")
 
 
-def test_a_bool_index_is_refused(
-    fact: dict[str, Any], events: list[dict[str, Any]]
-) -> None:
+def test_a_bool_index_is_refused(fact: dict[str, Any], events: list[dict[str, Any]]) -> None:
     """``True`` is an int in Python, and would silently mean index 1."""
     fact["source_event_index"] = True
     with pytest.raises(TypeError):
@@ -375,9 +369,7 @@ def test_an_unknown_fact_claiming_an_earlier_episode_is_refused(
 ) -> None:
     """Reported: fact_type unknown + episode 0 was accepted as unclassified."""
     with pytest.raises(ValueError, match="belongs to the episode that recorded it"):
-        build_episode_story_plan_document(
-            make_unknown(export_ep1, episode=0), export_ep0
-        )
+        build_episode_story_plan_document(make_unknown(export_ep1, episode=0), export_ep0)
 
 
 def test_an_unknown_fact_claiming_a_future_episode_is_refused(
@@ -385,9 +377,7 @@ def test_an_unknown_fact_claiming_a_future_episode_is_refused(
 ) -> None:
     """Reported: fact_type unknown + episode 2 was also accepted."""
     with pytest.raises(ValueError, match="belongs to the episode that recorded it"):
-        build_episode_story_plan_document(
-            make_unknown(export_ep1, episode=2), export_ep0
-        )
+        build_episode_story_plan_document(make_unknown(export_ep1, episode=2), export_ep0)
 
 
 def test_an_unknown_fact_with_a_dangling_index_is_refused(
@@ -425,9 +415,7 @@ def test_an_unknown_fact_with_the_wrong_tick_is_refused(
 ) -> None:
     """An unknown fact with the wrong tick is refused."""
     with pytest.raises(ValueError, match="share a tick"):
-        build_episode_story_plan_document(
-            make_unknown(export_ep2, tick=27), export_ep1
-        )
+        build_episode_story_plan_document(make_unknown(export_ep2, tick=27), export_ep1)
 
 
 def test_an_unknown_fact_with_malformed_subjects_is_refused(

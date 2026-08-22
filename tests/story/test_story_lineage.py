@@ -31,9 +31,7 @@ def test_a_genuine_consecutive_pair_is_accepted(
 # ------------------------------------------------------------------- ordering
 
 
-def test_a_reversed_pair_is_refused(
-    export_ep1: dict[str, Any], export_ep2: dict[str, Any]
-) -> None:
+def test_a_reversed_pair_is_refused(export_ep1: dict[str, Any], export_ep2: dict[str, Any]) -> None:
     """Argument order is not evidence; the provenance is."""
     with pytest.raises(ValueError, match="not consecutive"):
         require_consecutive_exports(export_ep2, export_ep1)
@@ -96,9 +94,7 @@ def test_a_changed_district_set_is_refused(
 ) -> None:
     """Two exports of different worlds are not a transition."""
     export_ep2["world"]["districts"] = export_ep2["world"]["districts"][:-1]
-    export_ep2["source"]["entity_counts"]["districts"] = len(
-        export_ep2["world"]["districts"]
-    )
+    export_ep2["source"]["entity_counts"]["districts"] = len(export_ep2["world"]["districts"])
     with pytest.raises(ValueError, match="world identity changed"):
         require_consecutive_exports(export_ep1, export_ep2)
 
@@ -131,9 +127,7 @@ def test_memory_that_shrank_is_refused(
 ) -> None:
     """A world that forgot is not two consecutive states of one world."""
     with pytest.raises(ValueError, match="shrank"):
-        require_memory_progression(
-            export_ep2["memory"]["facts"], export_ep1["memory"]["facts"]
-        )
+        require_memory_progression(export_ep2["memory"]["facts"], export_ep1["memory"]["facts"])
 
 
 def test_a_disappearing_historical_fact_is_refused(

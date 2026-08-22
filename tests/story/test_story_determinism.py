@@ -69,9 +69,7 @@ def test_two_builds_of_the_same_inputs_are_byte_identical(
 ) -> None:
     """Two builds of the same inputs are byte identical."""
     first = build_episode_story_plan_bytes(export_ep2, export_ep1)
-    second = build_episode_story_plan_bytes(
-        copy.deepcopy(export_ep2), copy.deepcopy(export_ep1)
-    )
+    second = build_episode_story_plan_bytes(copy.deepcopy(export_ep2), copy.deepcopy(export_ep1))
     assert first == second
 
 
@@ -102,9 +100,7 @@ def test_key_insertion_order_in_the_input_does_not_change_the_output(
 # ------------------------------------------------------------ canonical form
 
 
-def test_the_encoding_is_canonical(
-    export_ep1: dict[str, Any], export_ep2: dict[str, Any]
-) -> None:
+def test_the_encoding_is_canonical(export_ep1: dict[str, Any], export_ep2: dict[str, Any]) -> None:
     """Sorted keys, tight separators, one trailing newline, no NaN."""
     payload = build_episode_story_plan_bytes(export_ep2, export_ep1)
     assert payload.endswith(b"\n")
@@ -156,7 +152,5 @@ def test_repeated_subprocess_runs_agree_with_the_in_process_build(
     """Repeated subprocess runs agree with the in process build."""
     import hashlib
 
-    expected = hashlib.sha256(
-        build_episode_story_plan_bytes(export_ep2, export_ep1)
-    ).hexdigest()
+    expected = hashlib.sha256(build_episode_story_plan_bytes(export_ep2, export_ep1)).hexdigest()
     assert _digest_in_subprocess("0") == expected

@@ -185,10 +185,7 @@ def test_high_frequency_telemetry_is_excluded_by_count_and_reason_not_dropped(
     )
     counted = sum(entry["count"] for entry in excluded.values())
     beat_events = sum(
-        1
-        for beat in plan["beats"]
-        for entry in beat["evidence"]
-        if entry["kind"] == "event"
+        1 for beat in plan["beats"] for entry in beat["evidence"] if entry["kind"] == "event"
     )
     assert counted + beat_events == len(export_ep1["events"])
 
@@ -229,7 +226,6 @@ def test_only_memory_facts_new_in_this_episode_earn_beats(
     assert len(beats_of(plan, story_spec.BEAT_CONSEQUENCE_PERSISTED)) == 1
 
 
-
 # ------------------------------------------------------------------ ordering
 
 
@@ -238,13 +234,9 @@ def test_beats_are_ordered_strongest_first_with_agreeing_ranks(
 ) -> None:
     """Beats are ordered strongest first with agreeing ranks."""
     plan = build_episode_story_plan_document(export_ep1, export_ep0)
-    weights = [
-        story_spec.EMPHASIS_ORDER[beat["emphasis"]] for beat in plan["beats"]
-    ]
+    weights = [story_spec.EMPHASIS_ORDER[beat["emphasis"]] for beat in plan["beats"]]
     assert weights == sorted(weights)
-    assert [beat["rank"] for beat in plan["beats"]] == list(
-        range(1, len(plan["beats"]) + 1)
-    )
+    assert [beat["rank"] for beat in plan["beats"]] == list(range(1, len(plan["beats"]) + 1))
     assert [beat["beat_id"] for beat in plan["beats"]] == [
         f"beat_{rank:04d}" for rank in range(1, len(plan["beats"]) + 1)
     ]
@@ -255,9 +247,7 @@ def test_beats_of_equal_emphasis_keep_history_order(
 ) -> None:
     """Beats of equal emphasis keep history order."""
     plan = build_episode_story_plan_document(export_ep1, export_ep0)
-    primary = [
-        beat for beat in plan["beats"] if beat["emphasis"] == story_spec.EMPHASIS_PRIMARY
-    ]
+    primary = [beat for beat in plan["beats"] if beat["emphasis"] == story_spec.EMPHASIS_PRIMARY]
     ticks = [min(entry["tick"] for entry in beat["evidence"]) for beat in primary]
     assert ticks == sorted(ticks)
 
@@ -309,7 +299,6 @@ def test_an_unknown_memory_fact_type_lands_in_unclassified(
     entries = [e for e in plan["unclassified"] if e["type"] == "CITIZEN_REMEMBERED"]
     assert len(entries) == 1
     assert entries[0]["reason_code"] == story_spec.REASON_UNKNOWN_FACT_TYPE
-
 
 
 # ---------------------------------------------------------------- malformed

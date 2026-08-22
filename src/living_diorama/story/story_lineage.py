@@ -56,9 +56,7 @@ def _identifier_set(export: dict[str, JsonValue], array: str, description: str) 
     for position, entry in enumerate(entries):
         record = _document(entry, f"{description} world {array}[{position}]")
         identifiers.append(
-            require_identifier(
-                record.get("id"), f"{description} world {array}[{position}] id"
-            )
+            require_identifier(record.get("id"), f"{description} world {array}[{position}] id")
         )
     if len(set(identifiers)) != len(identifiers):
         repeated = sorted({i for i in identifiers if identifiers.count(i) > 1})
@@ -169,9 +167,7 @@ def require_memory_progression(
             f"durable memory shrank from {len(previous_facts)} facts to "
             f"{len(current_facts)}; remembered history is never removed"
         )
-    for position, (before, after) in enumerate(
-        zip(previous_facts, current_facts, strict=False)
-    ):
+    for position, (before, after) in enumerate(zip(previous_facts, current_facts, strict=False)):
         if dumps_canonical(before, "previous fact") != dumps_canonical(after, "current fact"):
             raise ValueError(
                 f"durable memory fact at position {position} changed between "
@@ -185,8 +181,7 @@ def require_memory_progression(
         identifier = record.get("fact_id")
         if type(identifier) is not str:
             raise TypeError(
-                f"memory fact[{position}] fact_id must be a str, "
-                f"got {type(identifier).__name__}"
+                f"memory fact[{position}] fact_id must be a str, got {type(identifier).__name__}"
             )
         if identifier in seen:
             raise ValueError(f"durable memory repeats fact_id {identifier!r}")

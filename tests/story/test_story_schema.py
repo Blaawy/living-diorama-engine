@@ -249,9 +249,7 @@ def test_an_unknown_evidence_kind_is_refused(plan: dict[str, Any]) -> None:
 
 def test_a_negative_event_index_is_refused(plan: dict[str, Any]) -> None:
     """A negative event index is refused."""
-    entry = next(
-        e for b in plan["beats"] for e in b["evidence"] if e["kind"] == "event"
-    )
+    entry = next(e for b in plan["beats"] for e in b["evidence"] if e["kind"] == "event")
     entry["index"] = -1
     with pytest.raises(ValueError, match="must be >= 0"):
         validate_episode_story_plan(plan)
@@ -261,9 +259,7 @@ def test_an_event_evidence_entry_missing_its_index_is_refused(
     plan: dict[str, Any],
 ) -> None:
     """An event evidence entry missing its index is refused."""
-    entry = next(
-        e for b in plan["beats"] for e in b["evidence"] if e["kind"] == "event"
-    )
+    entry = next(e for b in plan["beats"] for e in b["evidence"] if e["kind"] == "event")
     del entry["index"]
     with pytest.raises(ValueError, match="missing required keys"):
         validate_episode_story_plan(plan)
@@ -273,9 +269,7 @@ def test_a_fact_evidence_entry_missing_its_fact_id_is_refused(
     plan: dict[str, Any],
 ) -> None:
     """A fact evidence entry missing its fact id is refused."""
-    entry = next(
-        e for b in plan["beats"] for e in b["evidence"] if e["kind"] == "memory_fact"
-    )
+    entry = next(e for b in plan["beats"] for e in b["evidence"] if e["kind"] == "memory_fact")
     del entry["fact_id"]
     with pytest.raises(ValueError, match="missing required keys"):
         validate_episode_story_plan(plan)
@@ -302,9 +296,7 @@ def test_an_unclassified_entry_with_an_unknown_reason_is_refused(
     plan: dict[str, Any],
 ) -> None:
     """An unclassified entry with an unknown reason is refused."""
-    plan["unclassified"].append(
-        {"kind": "event", "reason_code": "SEEMED_ODD", "type": "X"}
-    )
+    plan["unclassified"].append({"kind": "event", "reason_code": "SEEMED_ODD", "type": "X"})
     with pytest.raises(ValueError, match="expected one of"):
         validate_episode_story_plan(plan)
 
@@ -321,8 +313,7 @@ def test_importing_the_story_package_does_not_pull_in_blender_or_simulation() ->
     loaded = set(sys.modules)
     assert "bpy" not in loaded
     assert not any(
-        name.startswith("living_diorama.systems")
-        or name.startswith("living_diorama.simulation")
+        name.startswith("living_diorama.systems") or name.startswith("living_diorama.simulation")
         for name in loaded
         # the wider test session may have imported these for other suites
         if name.startswith("living_diorama.story")
@@ -477,9 +468,7 @@ def test_an_unclassified_event_claiming_a_classification_reason_is_refused(
     plan: dict[str, Any],
 ) -> None:
     """Reported: an unclassified event with EVENT_TYPE_RULE was accepted."""
-    plan["unclassified"].append(
-        {"kind": "event", "reason_code": "EVENT_TYPE_RULE", "type": "X"}
-    )
+    plan["unclassified"].append({"kind": "event", "reason_code": "EVENT_TYPE_RULE", "type": "X"})
     with pytest.raises(ValueError, match="it was classified after all"):
         validate_episode_story_plan(plan)
 
@@ -488,9 +477,7 @@ def test_an_unclassified_event_carrying_the_fact_reason_is_refused(
     plan: dict[str, Any],
 ) -> None:
     """An unclassified event carrying the fact reason is refused."""
-    plan["unclassified"].append(
-        {"kind": "event", "reason_code": "UNKNOWN_FACT_TYPE", "type": "X"}
-    )
+    plan["unclassified"].append({"kind": "event", "reason_code": "UNKNOWN_FACT_TYPE", "type": "X"})
     with pytest.raises(ValueError, match="it was classified after all"):
         validate_episode_story_plan(plan)
 
@@ -564,8 +551,9 @@ def test_an_event_beat_citing_only_fact_evidence_is_refused(
     """Reported: a LAW_CHANGE beat with only memory_fact evidence was accepted."""
     persisted = next(b for b in plan["beats"] if b["kind"] == "CONSEQUENCE_PERSISTED")
     beat = next(b for b in plan["beats"] if b["kind"] == "WALL_STATE_CHANGE")
-    beat["evidence"] = [copy.deepcopy(e) for e in persisted["evidence"]
-                        if e["kind"] == "memory_fact"]
+    beat["evidence"] = [
+        copy.deepcopy(e) for e in persisted["evidence"] if e["kind"] == "memory_fact"
+    ]
     with pytest.raises(ValueError, match="exactly one event and nothing else"):
         validate_episode_story_plan(plan)
 
@@ -685,9 +673,7 @@ def test_memory_fact_evidence_is_not_counted_as_an_event(
 ) -> None:
     """The accounting counts events only; a fact citation must not inflate it."""
     validate_episode_story_plan(plan)
-    facts = sum(
-        1 for b in plan["beats"] for e in b["evidence"] if e["kind"] == "memory_fact"
-    )
+    facts = sum(1 for b in plan["beats"] for e in b["evidence"] if e["kind"] == "memory_fact")
     assert facts == 1, "the fixture should carry exactly one fact citation"
 
 
