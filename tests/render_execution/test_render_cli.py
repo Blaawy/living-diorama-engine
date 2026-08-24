@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tests.render_execution.conftest import png_bytes
 
 from living_diorama.cli import build_render_plan, verify_render
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
@@ -24,6 +23,8 @@ from living_diorama.render_execution.frame_image import mean_abs_difference
 from living_diorama.render_execution.render_execution_spec import (
     render_profile_dimensions,
 )
+
+from .conftest import png_bytes
 
 ENVIRONMENT = {"blender_version": "4.5.12", "engine": "CYCLES", "device": "OPTIX"}
 

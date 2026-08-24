@@ -53,6 +53,7 @@ TESTS_RENDER_EXECUTION = REPO_ROOT / "tests" / "render_execution"
 BLENDER_TESTS = REPO_ROOT / "visual" / "blender" / "tests"
 
 PHASE23_TEST_FILES = (
+    TESTS_RENDER_EXECUTION / "__init__.py",
     TESTS_RENDER_EXECUTION / "conftest.py",
     TESTS_RENDER_EXECUTION / "test_frame_image.py",
     TESTS_RENDER_EXECUTION / "test_production_boundary.py",
@@ -544,10 +545,10 @@ def test_the_scan_covers_every_phase_twenty_three_test_file() -> None:
 
 
 def test_every_candidate_file_exists_and_is_counted() -> None:
-    """All twenty-seven files the candidate ships are covered by the scan."""
+    """All twenty-eight files the candidate ships are covered by the scan."""
     for path in PHASE23_FILES:
         assert path.is_file(), path
-    assert len(PHASE23_FILES) == 27, len(PHASE23_FILES)
+    assert len(PHASE23_FILES) == 28, len(PHASE23_FILES)
 
 
 def test_every_guarded_file_exists() -> None:

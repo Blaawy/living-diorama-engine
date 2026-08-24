@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tests.render_execution.conftest import png_bytes
+
+from .conftest import png_bytes
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "visual" / "blender" / "scripts" / "render_episode.py"
