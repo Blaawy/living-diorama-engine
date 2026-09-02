@@ -11,7 +11,8 @@ The layer is deliberately isolated and deliberately REMOVABLE:
 
 * one collection, ``LD_MOBILITY``, under the existing ``LD_WORLD`` root;
 * vehicles named ``LD_VEH__slot_NNN`` with four wheel children each;
-* one path per pedestrian and one per vehicle circuit, ``LD_MOBILITY_PATH__*``;
+* one path per pedestrian, one per vehicle circuit (V1) and one per V2
+  vehicle, ``LD_MOBILITY_PATH__*``;
 * every action named ``LD_MOBILITY__*``, so Phase 17's ``LD_MOTION__`` family is
   untouched and neither can be mistaken for the other;
 * materials under ``LD_VEH_MAT__``, so nothing Phase 15, 16 or 18 counts as its
@@ -35,6 +36,18 @@ travels at a constant speed and arrives back at its own first vertex, with its
 own first heading, on the last frame. Baking the same motion would have cost
 roughly thirty thousand keyframes and still only closed the loop to whatever
 precision the sampler happened to have.
+
+V2 VEHICLES RIDE THEIR OWN ARC, NOT THE SHARED LAP
+--------------------------------------------------
+The shared curve's ``eval_time`` sweeps one full lap, which is exactly the V1
+loop contract and exactly what a V2 bounded arc must NOT do. A V2 vehicle
+therefore rides its OWN curve object -- a real, geometry-identical copy of the
+circuit's cyclic spline (same points, same ``use_cyclic_u``; copying points is
+not inventing a road) -- with ``eval_time`` keyed from its own starting phase
+to ``phase + arc_fraction`` of the loop across the SAME start..end frames. It
+keeps moving continuously and smoothly for the whole clip, covers strictly
+less than a full lap, and never returns to a screen position it already
+occupied. See ``build_vehicle_arc_path`` and ``apply_vehicle_mobility``.
 """
 
 import argparse
@@ -82,7 +95,7 @@ PAINT_COLORS = {
 
 GLASS_COLOR = (0.052, 0.062, 0.072)
 TRIM_COLOR = (0.028, 0.028, 0.030)
-LAMP_COLOR = (0.640, 0.600, 0.520)
+LAMP_COLOR = (0.640, 0.600, 0.580)
 TAIL_COLOR = (0.420, 0.045, 0.040)
 """Rear lights are their own family, not the headlight family tinted. A car
 whose front and rear lights read the same is a car whose direction of travel a
@@ -324,6 +337,73 @@ def build_path(
     return obj
 
 
+def build_vehicle_arc_path(
+    name: str,
+    points: list,
+    timeline: dict,
+    collection: bpy.types.Collection,
+    start_fraction: float,
+    end_fraction: float,
+) -> bpy.types.Object:
+    """One V2 vehicle's OWN cyclic curve, riding a bounded arc of a circuit.
+
+    A V2 vehicle never drives a full lap, so it cannot ride the circuit's
+    shared full-lap ``eval_time`` sweep the way V1 does -- ``eval_time`` is a
+    property of the shared curve datablock, so giving a vehicle its own arc
+    requires giving it its own curve OBJECT. This builds a real,
+    geometry-identical COPY of the circuit's cyclic spline: same points, same
+    ``use_cyclic_u = True`` (the curve is still the circuit's real closed road
+    geometry; copying its points is not inventing a road). ``eval_time`` is
+    keyed from ``start_fraction * frame_span`` to ``end_fraction * frame_span``
+    linearly across the SAME ``start_frame..end_frame`` range, so the vehicle
+    moves continuously and smoothly for the entire clip -- no freeze, no stop,
+    no despawn -- while covering strictly less than one full lap.
+
+    With ``start_fraction`` = the vehicle's slot phase and ``end_fraction`` =
+    phase + arc_fraction (< phase + 1 because arc_fraction < 1), the vehicle
+    starts at its real position on the loop (preserved from V1) and never
+    returns to a position it has already occupied on screen within the clip:
+    the curve's cyclic wrap can only engage past one full loop, which the arc
+    never reaches. The follow-path constraint is attached with a ZERO offset,
+    so the evaluated position is exactly ``eval_time`` -- the same number the
+    plan's collision proof samples (``phase * length + arc_fraction * length *
+    (frame - start) / span``), keeping the two in exact agreement.
+    """
+    replace_object(name)
+    existing = bpy.data.curves.get(name)
+    if existing is not None:
+        bpy.data.curves.remove(existing, do_unlink=True)
+    curve = bpy.data.curves.new(_require_name(name), type="CURVE")
+    curve.dimensions = "3D"
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for point, (x, y, z) in zip(spline.points, points, strict=True):
+        point.co = (float(x), float(y), float(z), 1.0)
+    spline.use_cyclic_u = True
+    curve.use_path = True
+    curve.path_duration = int(timeline["frame_span"])
+    curve.eval_time = 0.0
+    obj = bpy.data.objects.new(name, curve)
+    obj.location = (0.0, 0.0, 0.0)
+    link_only(obj, collection)
+
+    def _set_eval(value: float) -> None:
+        curve.eval_time = value
+
+    span = float(timeline["frame_span"])
+    _key_curve(
+        curve,
+        "eval_time",
+        [
+            (timeline["start_frame"], start_fraction * span),
+            (timeline["end_frame"], end_fraction * span),
+        ],
+        f"path__{name.removeprefix(PATH_PREFIX)}",
+        _set_eval,
+    )
+    return obj
+
+
 def attach_to_path(obj, path_obj, phase: float, timeline: dict, label: str) -> None:
     """Ride one object on one path, oriented by the path's own tangent.
 
@@ -509,25 +589,66 @@ def build_vehicle(vehicle: dict, materials: dict, collection, shared: dict) -> t
 
 
 def apply_vehicle_mobility(plan: dict, materials: dict, collection) -> dict:
-    """Put the city's ambient traffic on its circuits and set it moving."""
+    """Put the city's ambient traffic on its circuits and set it moving.
+
+    V1 vehicles share ONE curve per circuit and ride it at fixed phase offsets,
+    completing exactly one full lap per clip (loop closure by construction). A
+    V2 vehicle (a plan entry carrying ``presentation_arc_fraction``) instead
+    rides its OWN curve object -- a geometry-identical copy of its circuit's
+    cyclic spline -- whose ``eval_time`` sweeps only the vehicle's bounded arc
+    (see ``build_vehicle_arc_path``), so it travels a real, non-repeating
+    slice of the road and ends at a genuinely different place than it started,
+    without ever freezing, stopping or despawning. The wheel keyframing below
+    is shared by both profiles: it reads each vehicle's own ``wheel_turns``,
+    which the V2 plan computes over the arc at the real wheel radius (no
+    rolling-radius solve), so the wheels roll forward at the speed the car is
+    actually doing.
+    """
     timeline = plan["timeline"]
     paths = {}
+    circuit_points = {}
     for circuit in plan["vehicles"]["circuits"]:
         paths[circuit["circuit"]] = build_path(
             f"{PATH_PREFIX}veh__{circuit['circuit']}", circuit["points"], timeline, collection
         )
+        circuit_points[circuit["circuit"]] = circuit["points"]
     triangles = 0
     keyframes = 0
     shared: dict = {}
     for vehicle in sorted(plan["vehicles"]["vehicles"], key=lambda entry: entry["slot"]):
         body, wheels = build_vehicle(vehicle, materials, collection, shared)
-        attach_to_path(body, paths[vehicle["circuit"]], vehicle["phase"], timeline, vehicle["slot"])
+        if "presentation_arc_fraction" in vehicle:
+            phase = float(vehicle["phase"])
+            arc = float(vehicle["presentation_arc_fraction"])
+            if not 0.0 < arc < 1.0:
+                raise MobilityApplyError(
+                    f"{vehicle['slot']} claims an arc fraction {arc} outside (0, 1); a bounded "
+                    "arc must be strictly less than one full lap"
+                )
+            path = build_vehicle_arc_path(
+                f"{PATH_PREFIX}veh2__{vehicle['slot']}",
+                circuit_points[vehicle["circuit"]],
+                timeline,
+                collection,
+                phase,
+                phase + arc,
+            )
+            # Offset zero: the vehicle's own eval_time already encodes its
+            # starting phase, so the evaluated position is exactly eval_time,
+            # the number the collision proof samples. No shared-curve offset.
+            attach_to_path(body, path, 0.0, timeline, vehicle["slot"])
+        else:
+            attach_to_path(
+                body, paths[vehicle["circuit"]], vehicle["phase"], timeline, vehicle["slot"]
+            )
         turn = 2.0 * math.pi * float(vehicle["wheel_turns"])
         # Start each wheel where its own car already is. Keying every wheel from
         # zero makes all seven compacts show the SAME mark at the same angle on
         # every frame, which reads as a fleet of clones; a car a fraction of the
         # loop ahead has rolled that fraction of the loop. Closure is untouched
-        # because only the offset moves and the span is still whole revolutions.
+        # because only the offset moves and the span is still whole revolutions
+        # (V1) -- or, for a V2 arc, the span is simply the arc's own wheel
+        # travel and no closure applies at all.
         start = turn * float(vehicle["phase"])
         for wheel in wheels:
             keyframes += _key_curve(

@@ -74,6 +74,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--story-plan", required=True, help="the Episode Story Plan it was cut from"
     )
     parser.add_argument("--output", required=True, help="where to write the render plan")
+    parser.add_argument(
+        "--camera-profile",
+        choices=("v1", "v2"),
+        default="v1",
+        help=(
+            "the camera profile to derive under; v1 (the default) reproduces today's "
+            "bytes exactly, v2 additionally binds the movement catalogue and derives "
+            "movement camera identities"
+        ),
+    )
     arguments = parser.parse_args(None if argv is None else list(argv))
 
     shot_path = Path(arguments.shot_plan)
@@ -82,7 +92,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         shot_plan = _read_canonical(shot_path, "shot direction plan")
         story_plan = _read_canonical(story_path, "episode story plan")
-        payload = build_episode_render_plan_bytes(shot_plan, story_plan)
+        payload = build_episode_render_plan_bytes(
+            shot_plan, story_plan, camera_profile=arguments.camera_profile
+        )
     except (OSError, TypeError, ValueError) as error:
         print(f"render plan refused: {error}", file=sys.stderr)
         return 1

@@ -3,6 +3,12 @@
 This module owns the assembly-time orchestration only; every filesystem primitive it uses
 is confined to :mod:`media_assembly_staging`. It contains no direct ``open(``,
 ``os.replace``, ``os.fsync``, ``shutil.`` or ``.lstat(`` anywhere.
+
+The render manifest this phase binds is validated under the profile its own source block
+declares -- ``"v2"`` exactly when ``movement_catalogue_sha256`` is present, else the V1
+default -- the same auto-detection idiom the render verifier itself uses. The detected
+profile is threaded into every downstream validator and relationship check below, so a
+genuine V2 render assembles end to end without any caller choosing.
 """
 
 from pathlib import Path
@@ -98,6 +104,10 @@ def publish_episode_media_assembly(
     caught here: it propagates with the staging tree intact, as crash evidence for the next
     reviewed cleanup.
 
+    The render manifest profile is detected here, once, from the raw document's own
+    ``source`` block (``"v2"`` exactly when ``movement_catalogue_sha256`` is present) and
+    threaded into every downstream render-manifest validator and relationship check.
+
     Raises:
         MediaAssemblyRefused: If the geometry is unsound, a source payload is wrong, or the
             assembled artifact fails its own measurement.
@@ -113,6 +123,15 @@ def publish_episode_media_assembly(
     delivery_plan_sha256 = sha256_hex(delivery_plan_bytes)
     shot_plan_sha256 = sha256_hex(shot_plan_bytes)
 
+    # ---- THE ONE PROFILE DETECTION for this assembly: the raw render manifest's own source ----
+    render_manifest_source = render_manifest.get("source")
+    render_camera_profile = (
+        "v2"
+        if isinstance(render_manifest_source, dict)
+        and "movement_catalogue_sha256" in render_manifest_source
+        else "v1"
+    )
+
     require_assembly_sources_join(
         render_manifest,
         presentation_plan,
@@ -123,11 +142,17 @@ def publish_episode_media_assembly(
         audio_composition_manifest_sha256=audio_composition_manifest_sha256,
         delivery_plan_sha256=delivery_plan_sha256,
         shot_plan_sha256=shot_plan_sha256,
+        camera_profile=render_camera_profile,
     )
 
-    clock = require_clock_closure(presentation_plan, render_manifest, audio_composition_manifest)
+    clock = require_clock_closure(
+        presentation_plan,
+        render_manifest,
+        audio_composition_manifest,
+        camera_profile=render_camera_profile,
+    )
     mapping = presentation_frame_map(presentation_plan)
-    lookup = require_playback_lookup(render_manifest)
+    lookup = require_playback_lookup(render_manifest, camera_profile=render_camera_profile)
     require_witness_frame_excluded(mapping, clock)
 
     missing_semantics = sorted(set(mapping) - set(lookup))
@@ -254,6 +279,7 @@ def publish_episode_media_assembly(
             clock=clock,
             frames=tuple(frame_records),
             audio=audio_result,
+            camera_profile=render_camera_profile,
         )
         require_assembly_matches_sources(
             manifest_document,
@@ -261,6 +287,7 @@ def publish_episode_media_assembly(
             presentation_plan,
             audio_composition_manifest,
             delivery_plan,
+            camera_profile=render_camera_profile,
         )
         manifest_bytes = dumps_canonical(manifest_document, "episode media assembly manifest")
         write_atomically(staging_dir / MEDIA_ASSEMBLY_MANIFEST_FILENAME, manifest_bytes)

@@ -7,6 +7,20 @@ sample total, and the semantic/witness frame span -- close on itself.
 
 Nothing here touches the filesystem, decodes an image, or reads a byte of a rendered
 frame. It reasons about integers and validated documents alone.
+
+Two profiles map. A V1 plan expands each held position to the hold's own onset frame
+(the frozen repeat). A V2 plan carries the additive ``motion_windows`` block, and each
+held position expands to the semantic frame that block names -- one already-rendered
+frame per position, in the pure bounce order the presentation layer derived. Both
+profiles expand through the same contiguous, gap-free segment walk; only the
+per-position choice inside a hold differs, and this module's
+:func:`presentation_motion_metrics` measures the visible difference (frozen repeats and
+freeze runs) for either profile.
+
+The render manifest is validated through the same keyword-only ``camera_profile`` the
+render phase itself uses: the caller decides the profile (V1 default, or ``"v2"`` for a
+render produced with ``camera_profile="v2"`` carrying ``movement_catalogue_sha256``) and
+passes it explicitly -- this module never inspects the document to guess.
 """
 
 from typing import Final, cast
@@ -15,7 +29,7 @@ from living_diorama.audio_composition.audio_composition_schema_v1 import (
     validate_episode_audio_composition_manifest,
 )
 from living_diorama.media_assembly.media_assembly_schema_v1 import JsonValue
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.render_execution.render_execution_schema_v1 import (
     validate_episode_render_manifest,
 )
@@ -51,10 +65,13 @@ def presentation_frame_map(presentation_plan: object) -> tuple[int, ...]:
     the same span from the segments alone, belt-and-braces: two independent derivations
     agreeing is this project's own idiom, and a later mapping re-proof (the self-contained
     audit) reuses this exact function against a copied plan with no gate available to lean
-    on.
+    on. Under the V2 profile each held segment expands to its motion window's own semantic
+    frames instead of the repeated onset frame; the V2 validator has already proven that
+    each window carries exactly the segment's dwell of in-slot, in-phase, pure-bounce
+    indices, so the expansion here is a straight positional copy.
 
     Args:
-        presentation_plan: The Episode Presentation Plan V1 document.
+        presentation_plan: The Episode Presentation Plan V1 or V2 document.
 
     Returns:
         One semantic frame per presentation frame, in presentation order.
@@ -62,12 +79,15 @@ def presentation_frame_map(presentation_plan: object) -> tuple[int, ...]:
     Raises:
         TypeError: If a value is of the wrong exact type.
         MediaAssemblyRefused: If the segments are not contiguous, do not close on the
-            plan's own accounting total, or the plan is otherwise malformed in a way its
-            own standalone validator did not already catch.
+            plan's own accounting total, the V2 motion windows do not line up with their
+            held segments, or the plan is otherwise malformed in a way its own standalone
+            validator did not already catch.
     """
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    presentation = validate_presentation_plan(presentation_plan)
     segments = cast(list[dict[str, JsonValue]], presentation["segments"])
     accounting = cast(dict[str, JsonValue], presentation["accounting"])
+    motion_windows = cast(list[dict[str, JsonValue]] | None, presentation.get("motion_windows"))
+    motion_index = 0
 
     mapping: list[int] = []
     presentation_cursor = 1
@@ -85,8 +105,34 @@ def presentation_frame_map(presentation_plan: object) -> tuple[int, ...]:
                 f"{presentation_cursor}; segments must tile the presentation timeline with "
                 "no gap and no overlap"
             )
-        for semantic in range(semantic_start, semantic_end + 1):
-            mapping.extend([semantic] * dwell)
+        if dwell > 1 and motion_windows is not None:
+            if motion_index >= len(motion_windows):
+                raise MediaAssemblyRefused(
+                    f"presentation plan segments[{position - 1}] holds semantic frame "
+                    f"{semantic_start} for {dwell} presentation frames, but the plan's "
+                    "motion_windows list is exhausted; every held segment is named once, "
+                    "in segment order"
+                )
+            motion = motion_windows[motion_index]
+            motion_index += 1
+            frames = cast(list[JsonValue], motion.get("semantic_frames"))
+            if len(frames) != dwell:
+                raise MediaAssemblyRefused(
+                    f"presentation plan motion_windows[{motion_index - 1}] carries "
+                    f"{len(frames)} semantic frame(s), but segments[{position - 1}] dwells "
+                    f"{dwell} presentation frames; one index per held position"
+                )
+            onset = cast(int, motion.get("onset_frame"))
+            if onset != semantic_start:
+                raise MediaAssemblyRefused(
+                    f"presentation plan motion_windows[{motion_index - 1}] declares onset "
+                    f"frame {onset}, but segments[{position - 1}] holds semantic frame "
+                    f"{semantic_start}"
+                )
+            mapping.extend(cast(list[int], frames))
+        else:
+            for semantic in range(semantic_start, semantic_end + 1):
+                mapping.extend([semantic] * dwell)
         presentation_cursor = presentation_end + 1
         if len(mapping) + 1 != presentation_cursor:
             raise MediaAssemblyRefused(
@@ -94,6 +140,13 @@ def presentation_frame_map(presentation_plan: object) -> tuple[int, ...]:
                 f"{presentation_end}, but its expansion produced {len(mapping)} presentation "
                 "frames so far"
             )
+
+    if motion_windows is not None and motion_index != len(motion_windows):
+        raise MediaAssemblyRefused(
+            f"presentation plan carries {len(motion_windows)} motion windows but only "
+            f"{motion_index} held segment(s); a motion window for a segment that does not "
+            "hold is refused"
+        )
 
     expected_total = cast(int, accounting["presentation_frames_total"])
     if len(mapping) != expected_total:
@@ -104,7 +157,57 @@ def presentation_frame_map(presentation_plan: object) -> tuple[int, ...]:
     return tuple(mapping)
 
 
-def require_playback_lookup(render_manifest: object) -> dict[int, dict[str, JsonValue]]:
+def presentation_motion_metrics(presentation_plan: object) -> dict[str, int]:
+    """Return the motion metrics of one presentation plan, V1 or V2.
+
+    Four integers describe how much of the presentation is a visible freeze,
+    measured on the expanded semantic mapping (one PNG per semantic frame):
+
+    * ``total_frames`` -- the plan's own presentation-frame total.
+    * ``frozen_frame_count`` -- positions whose semantic frame equals their
+      immediate predecessor's (their published PNG bytes would be identical).
+      The real EP1 V1 plan scores 528 of 720; a V2 plan scores near 0.
+    * ``longest_freeze_run_frames`` -- the longest run of consecutive frozen
+      positions. 325 for the real EP1 V1 plan (its 326-position hold on frame
+      61); small for V2.
+    * ``distinct_png_count_used`` -- how many distinct semantic frames appear
+      at least once (one PNG per semantic frame).
+
+    The function is pure: it expands the plan and counts integers, reads no
+    filesystem and no PNG bytes.
+
+    Args:
+        presentation_plan: The Episode Presentation Plan V1 or V2 document.
+
+    Returns:
+        The four-key metrics dict.
+
+    Raises:
+        TypeError, MediaAssemblyRefused: As :func:`presentation_frame_map`.
+    """
+    mapping = presentation_frame_map(presentation_plan)
+    frozen = 0
+    longest_run = 0
+    current_run = 0
+    for index in range(1, len(mapping)):
+        if mapping[index] == mapping[index - 1]:
+            frozen += 1
+            current_run += 1
+            if current_run > longest_run:
+                longest_run = current_run
+        else:
+            current_run = 0
+    return {
+        "total_frames": len(mapping),
+        "frozen_frame_count": frozen,
+        "longest_freeze_run_frames": longest_run,
+        "distinct_png_count_used": len(set(mapping)),
+    }
+
+
+def require_playback_lookup(
+    render_manifest: object, *, camera_profile: str = "v1"
+) -> dict[int, dict[str, JsonValue]]:
     """Return ``{semantic_frame: record}`` for the manifest's playback records only.
 
     Witness records -- the terminal boundary frame -- never enter this lookup, because it
@@ -114,6 +217,9 @@ def require_playback_lookup(render_manifest: object) -> dict[int, dict[str, Json
 
     Args:
         render_manifest: The Episode Render Manifest V1 document.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the manifest
+            validator so a V2 manifest carrying movement-camera identities and the
+            movement-catalogue binding validates under the same profile it was built under.
 
     Returns:
         A mapping from semantic frame number to its playback frame record.
@@ -122,7 +228,7 @@ def require_playback_lookup(render_manifest: object) -> dict[int, dict[str, Json
         TypeError: If a value is of the wrong exact type.
         MediaAssemblyRefused: If two playback records name the same semantic frame.
     """
-    manifest = validate_episode_render_manifest(render_manifest)
+    manifest = validate_episode_render_manifest(render_manifest, camera_profile=camera_profile)
     frames = cast(list[dict[str, JsonValue]], manifest["frames"])
 
     lookup: dict[int, dict[str, JsonValue]] = {}
@@ -143,6 +249,8 @@ def require_clock_closure(
     presentation_plan: object,
     render_manifest: object,
     audio_composition_manifest: object,
+    *,
+    camera_profile: str = "v1",
 ) -> dict[str, int]:
     """Prove the presentation, visual and audio clocks close on one another, exactly.
 
@@ -150,9 +258,12 @@ def require_clock_closure(
     anywhere in this function.
 
     Args:
-        presentation_plan: The Episode Presentation Plan V1 document.
+        presentation_plan: The Episode Presentation Plan V1 or V2 document.
         render_manifest: The Episode Render Manifest V1 document.
         audio_composition_manifest: The Episode Audio Composition Manifest V1 document.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the manifest
+            validator so a V2 manifest carrying movement-camera identities and the
+            movement-catalogue binding validates under the same profile it was built under.
 
     Returns:
         The eight-key resolved clock block (``CLOCK_KEYS``).
@@ -161,8 +272,8 @@ def require_clock_closure(
         TypeError: If a value is of the wrong exact type.
         MediaAssemblyRefused: If any clock law does not hold.
     """
-    presentation = validate_episode_presentation_plan(presentation_plan)
-    manifest = validate_episode_render_manifest(render_manifest)
+    presentation = validate_presentation_plan(presentation_plan)
+    manifest = validate_episode_render_manifest(render_manifest, camera_profile=camera_profile)
     composition = validate_episode_audio_composition_manifest(audio_composition_manifest)
 
     timeline = cast(dict[str, JsonValue], presentation["timeline"])
@@ -272,6 +383,7 @@ __all__ = [
     "CLOCK_KEYS",
     "MediaAssemblyRefused",
     "presentation_frame_map",
+    "presentation_motion_metrics",
     "require_clock_closure",
     "require_playback_lookup",
     "require_witness_frame_excluded",

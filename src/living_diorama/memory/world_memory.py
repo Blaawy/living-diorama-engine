@@ -18,7 +18,12 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Final, TypeIs, cast
+from typing import Final, cast
+
+try:  # typing.TypeIs exists only on Python >= 3.13
+    from typing import TypeIs
+except ImportError:  # Python 3.12: typing_extensions provides it
+    from typing_extensions import TypeIs  # noqa: UP035 -- intentional 3.12 fallback
 
 from living_diorama.entities import EntityId
 from living_diorama.events import EventType

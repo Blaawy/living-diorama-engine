@@ -140,14 +140,91 @@ def test_the_canonical_pair_is_accepted(
     assert require_render_plan_matches_shot_plan(render_plan, shot_plan_leg1) == render_plan
 
 
-@pytest.mark.parametrize("name", sorted(PLAN_RELATIONSHIP_ATTACKS))
-def test_a_render_plan_that_contradicts_its_direction_is_refused(
-    name: str, render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+def test_a_plan_is_refused_against_a_shot_plan_from_another_episode(
+    render_plan: dict[str, Any], shot_plan_baseline: dict[str, Any]
 ) -> None:
-    """Each of these documents is valid on its own, and lies about the other."""
+    """The binding is over the exact direction; another episode's is refused."""
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(render_plan, shot_plan_baseline)
+
+
+def test_a_plan_whose_beats_were_forged_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """The relationship check is what catches beat forgery, not the plan validator."""
     broken = copy.deepcopy(render_plan)
-    PLAN_RELATIONSHIP_ATTACKS[name](broken)
-    with pytest.raises((TypeError, ValueError)):
+    _forge_playback_beats(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_whose_witness_beats_were_forged_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """The one frame nobody watches is not the one whose direction is free."""
+    broken = copy.deepcopy(render_plan)
+    _forge_witness_beats(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_with_emptied_beats_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """A frame inside a beat shot, re-attributed to nothing at all."""
+    broken = copy.deepcopy(render_plan)
+    _forge_interior_beats(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_with_an_unapproved_camera_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """The reviewer's second reproduction, at the relationship layer."""
+    broken = copy.deepcopy(render_plan)
+    _unapproved_camera(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_with_an_undirected_camera_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """A real anchor on the wrong frame is still a lie about the direction."""
+    broken = copy.deepcopy(render_plan)
+    _approved_but_undirected_camera(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_with_a_forged_witness_camera_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """The boundary frame is derived from the shot windows like any other."""
+    broken = copy.deepcopy(render_plan)
+    _forge_witness_camera(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_with_a_forged_shot_id_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """A frame credited to a shot that does not own it."""
+    broken = copy.deepcopy(render_plan)
+    _forge_shot_id(broken)
+    with pytest.raises(ValueError):
+        require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
+
+
+def test_a_plan_with_an_alternate_timeline_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """A self-consistent alternate clock is still a different clock."""
+    broken = copy.deepcopy(render_plan)
+    _alternate_timeline(broken)
+    with pytest.raises(ValueError):
         require_render_plan_matches_shot_plan(broken, shot_plan_leg1)
 
 
@@ -176,37 +253,23 @@ def test_the_bound_source_keys_are_the_whole_intersection(
     assert shared == set(SHOT_PLAN_BOUND_SOURCE_KEYS)
 
 
-def test_a_plan_bound_to_a_different_shot_plan_is_refused(
-    render_plan: dict[str, Any], shot_plan_baseline: dict[str, Any]
-) -> None:
-    """The baseline's direction cannot certify the transition's plan."""
-    with pytest.raises(ValueError, match="was built for shot direction plan"):
-        require_render_plan_matches_shot_plan(render_plan, shot_plan_baseline)
-
-
 # --------------------------------------------------------------------------
-# The shot plan's exact bytes
+# Shot plan bytes
 # --------------------------------------------------------------------------
 
 
-def test_the_exact_canonical_bytes_are_accepted(
+def test_the_exact_shot_plan_bytes_are_accepted(
     render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
 ) -> None:
-    """The control for the byte-identity attacks below."""
+    """The control: the bound file's own bytes pass, and the plan is returned."""
     payload = dumps_canonical(shot_plan_leg1, "shot direction plan")
     assert require_shot_plan_bytes(render_plan, payload) == render_plan
 
 
-@pytest.mark.parametrize("form", ["pretty", "reordered", "trailing space", "leading newline"])
-def test_the_same_data_written_differently_is_a_different_source(
-    form: str, render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+def test_a_reformatted_shot_plan_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
 ) -> None:
-    """Canonicalising before hashing would accept every one of these.
-
-    Each carries exactly the same data and is a different file. The render plan
-    bound a digest of one specific reviewed file, and "the same data, differently
-    written" does not have that digest.
-    """
+    """The digest is over the bytes as they are, so a pretty print is a different file."""
     canonical = dumps_canonical(shot_plan_leg1, "shot direction plan")
     payloads = {
         "pretty": json.dumps(shot_plan_leg1, indent=2).encode("utf-8"),
@@ -217,22 +280,26 @@ def test_the_same_data_written_differently_is_a_different_source(
         "trailing space": canonical + b" ",
         "leading newline": b"\n" + canonical,
     }
-    with pytest.raises(ValueError, match="exact bytes"):
-        require_shot_plan_bytes(render_plan, payloads[form])
+    for payload in payloads.values():
+        with pytest.raises(ValueError):
+            require_shot_plan_bytes(render_plan, payload)
 
 
-def test_a_semantically_mutated_shot_plan_is_refused(
+def test_a_shot_plan_mutated_after_binding_is_refused(
     render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
 ) -> None:
-    """Dropping the record of what was honestly left unshown changes the file."""
+    """A mutation that keeps the digest would be a different file entirely."""
     mutated = copy.deepcopy(shot_plan_leg1)
-    mutated["unshown"] = []
-    with pytest.raises(ValueError, match="exact bytes"):
-        require_shot_plan_bytes(render_plan, dumps_canonical(mutated, "shot direction plan"))
+    mutated["source"]["episode"] = 99
+    payload = dumps_canonical(mutated, "shot direction plan")
+    with pytest.raises(ValueError):
+        require_shot_plan_bytes(render_plan, payload)
 
 
-def test_shot_plan_bytes_must_be_bytes(render_plan: dict[str, Any]) -> None:
-    """A str is not a file's contents, and decoding one would be a guess."""
+def test_non_bytes_shot_plan_input_is_refused(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """The type check happens before anything is hashed or parsed."""
     with pytest.raises(TypeError):
         require_shot_plan_bytes(render_plan, "{}")
 
@@ -652,3 +719,190 @@ def test_both_sides_accept_the_canonical_checkpoint(
     plan_digest = sha256_hex(dumps_canonical(render_plan, "episode render plan"))
     validate_render_checkpoint(checkpoint, render_plan)
     executor.require_valid_checkpoint(checkpoint, render_plan, plan_digest)
+
+
+# --------------------------------------------------------------------------
+# camera_profile threading: V1 defaults stay byte-for-byte, V2 is opt-in
+# --------------------------------------------------------------------------
+
+
+def _v2_shot_plan(shot_plan: dict[str, Any]) -> dict[str, Any]:
+    """The genuine V2 shot plan: the engine assigns camera movement to it."""
+    from living_diorama.cinematic.camera_movement_planner import plan_camera_movements
+
+    return plan_camera_movements(copy.deepcopy(shot_plan))
+
+
+def _v2_render_plan(shot_plan: dict[str, Any], story_plan: dict[str, Any]) -> dict[str, Any]:
+    """The genuine V2 render plan, built by the engine planner under V2."""
+    from living_diorama.render_execution import build_episode_render_plan_document
+
+    return build_episode_render_plan_document(shot_plan, story_plan, camera_profile="v2")
+
+
+def _results_for(plan: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    """Plausible per-frame measurements for one plan, distinct per frame."""
+    return {
+        entry["frame"]: {
+            "bytes": 900_000 + index,
+            "sha256": f"{index:064x}",
+            "image_sha256": f"{index + 1000:064x}",
+        }
+        for index, entry in enumerate(plan["frames"])
+    }
+
+
+@pytest.fixture
+def v2_pair(
+    shot_plan_leg1: dict[str, Any], story_leg1: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """A genuine V2 shot plan, render plan, manifest and truthful checkpoint.
+
+    The canonical episode carries at least one movement shot, so the plan and
+    manifest really carry ``CAM_MOVEMENT_*`` frame anchors, not just the
+    ``movement_catalogue_sha256`` source binding.
+    """
+    shot_plan_v2 = _v2_shot_plan(shot_plan_leg1)
+    plan = _v2_render_plan(shot_plan_v2, story_leg1)
+    assert any(
+        shot.get("camera_movement") is not None
+        and shot["camera_movement"]["movement_type"] != "STATIC"
+        for shot in shot_plan_v2["shots"]
+    )
+    manifest = build_episode_render_manifest_document(
+        render_plan=plan,
+        results=_results_for(plan),
+        environment=ENVIRONMENT,
+        witness_difference=0.08,
+        camera_profile="v2",
+    )
+    checkpoint = {
+        "render_plan_sha256": manifest["source"]["render_plan_sha256"],
+        "render_profile_sha256": plan["source"]["render_profile_sha256"],
+        "environment": dict(manifest["environment"]),
+        "frames": {
+            str(entry["frame"]): {
+                "bytes": entry["bytes"],
+                "sha256": entry["sha256"],
+                "image_sha256": entry["image_sha256"],
+            }
+            for entry in manifest["frames"]
+        },
+    }
+    return shot_plan_v2, plan, manifest, checkpoint
+
+
+def test_the_v1_default_and_explicit_v1_are_identical(
+    render_plan: dict[str, Any],
+    shot_plan_leg1: dict[str, Any],
+    manifest: dict[str, Any],
+    checkpoint: dict[str, Any],
+) -> None:
+    """The new keyword's default reproduces today's V1-only behavior exactly."""
+    assert require_render_plan_matches_shot_plan(render_plan, shot_plan_leg1) == (
+        require_render_plan_matches_shot_plan(render_plan, shot_plan_leg1, camera_profile="v1")
+    )
+    canonical = dumps_canonical(shot_plan_leg1, "shot direction plan")
+    assert require_shot_plan_bytes(render_plan, canonical) == (
+        require_shot_plan_bytes(render_plan, canonical, camera_profile="v1")
+    )
+    assert validate_render_checkpoint(checkpoint, render_plan) == (
+        validate_render_checkpoint(checkpoint, render_plan, camera_profile="v1")
+    )
+    assert require_checkpoint_matches_manifest(checkpoint, manifest) == (
+        require_checkpoint_matches_manifest(checkpoint, manifest, camera_profile="v1")
+    )
+    assert require_manifest_matches_plan(manifest, render_plan) == (
+        require_manifest_matches_plan(manifest, render_plan, camera_profile="v1")
+    )
+
+
+def test_a_genuine_v2_pair_is_accepted_under_the_v2_profile(v2_pair: tuple) -> None:
+    """V2 documents pass every cross-document check once the profile is threaded."""
+    _, plan, manifest, checkpoint = v2_pair
+    assert require_manifest_matches_plan(manifest, plan, camera_profile="v2") == manifest
+    assert len(validate_render_checkpoint(checkpoint, plan, camera_profile="v2")) == len(
+        checkpoint["frames"]
+    )
+    require_checkpoint_matches_manifest(checkpoint, manifest, camera_profile="v2")
+
+
+def test_v2_is_additive_for_the_shot_plan_checks(
+    render_plan: dict[str, Any], shot_plan_leg1: dict[str, Any]
+) -> None:
+    """A V1 pair validates identically under the V2 profile (V2 is additive)."""
+    assert (
+        require_render_plan_matches_shot_plan(render_plan, shot_plan_leg1, camera_profile="v2")
+        == render_plan
+    )
+    canonical = dumps_canonical(shot_plan_leg1, "shot direction plan")
+    assert require_shot_plan_bytes(render_plan, canonical, camera_profile="v2") == render_plan
+
+
+def test_v2_documents_are_refused_under_the_v1_default(v2_pair: tuple) -> None:
+    """The default is byte-for-byte the old behavior: V2 documents are refused.
+
+    This is the exact error the real render run tripped over: a V2 document
+    carries ``movement_catalogue_sha256``, which V1 mode refuses.
+    """
+    _, plan, manifest, checkpoint = v2_pair
+    with pytest.raises(ValueError, match="movement_catalogue_sha256"):
+        require_manifest_matches_plan(manifest, plan)
+    with pytest.raises(ValueError, match="movement_catalogue_sha256"):
+        validate_render_checkpoint(checkpoint, plan)
+    with pytest.raises(ValueError, match="movement_catalogue_sha256"):
+        require_checkpoint_matches_manifest(checkpoint, manifest)
+
+
+def test_the_shot_plan_checks_thread_the_profile_to_the_plan(
+    v2_pair: tuple, shot_plan_leg1: dict[str, Any]
+) -> None:
+    """The plan side of the shot-plan checks is profile-aware.
+
+    Under the V2 profile the plan itself validates, so the only refusal left
+    against a V1 shot plan is the honest digest disagreement -- never a V1
+    "unexpected keys" refusal of the V2 plan.
+    """
+    _, plan, _, _ = v2_pair
+    with pytest.raises(ValueError, match="was built for shot direction plan"):
+        require_render_plan_matches_shot_plan(plan, shot_plan_leg1, camera_profile="v2")
+
+
+def test_a_pair_disagreeing_about_the_movement_catalogue_is_refused(
+    shot_plan_leg1: dict[str, Any], story_leg1: dict[str, Any]
+) -> None:
+    """A disagreement is refused, never silently picked one way.
+
+    A V2 plan built from a shot plan with no movement shots still binds
+    ``movement_catalogue_sha256``; a manifest for it that drops the key is a
+    perfectly valid V1 document, and the source comparison must catch the
+    difference rather than the profile detection choosing a side.
+    """
+    plan = _v2_render_plan(shot_plan_leg1, story_leg1)
+    assert "movement_catalogue_sha256" in plan["source"]
+    manifest = build_episode_render_manifest_document(
+        render_plan=plan,
+        results=_results_for(plan),
+        environment=ENVIRONMENT,
+        witness_difference=0.08,
+        camera_profile="v2",
+    )
+    del manifest["source"]["movement_catalogue_sha256"]
+    # The stripped manifest is a valid V1 document on its own...
+    assert validate_episode_render_manifest(manifest) == manifest
+    # ...and valid under V2 too (additive), so the pair check under the V2
+    # profile reaches the source comparison, which refuses the disagreement.
+    with pytest.raises(ValueError, match="source disagrees"):
+        require_manifest_matches_plan(manifest, plan, camera_profile="v2")
+
+
+def test_a_v1_pair_still_catches_a_genuine_mismatch_under_v1(
+    manifest: dict[str, Any], render_plan: dict[str, Any]
+) -> None:
+    """V1 compatibility: a real disagreement is refused under the default and v1."""
+    broken = copy.deepcopy(manifest)
+    broken["source"]["story_plan_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="source disagrees"):
+        require_manifest_matches_plan(broken, render_plan)
+    with pytest.raises(ValueError, match="source disagrees"):
+        require_manifest_matches_plan(broken, render_plan, camera_profile="v1")

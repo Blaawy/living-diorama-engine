@@ -14,6 +14,14 @@ on is proven locally: an evidence entry must match the actual event it points
 at, an entity lookup must resolve exactly once, a wall and its boundary must
 claim each other, and a fact's restated relationships must agree with the
 world's own records. Every disagreement is a refusal, never a repair.
+
+The wording register only ever changes the words, never the proof. Under the
+``v2`` register the wall is labeled with the register's own deictic phrase --
+"the wall between this side and the other side" -- and a district subject is
+labeled "this area", so a district identifier never reaches V2 speech by any
+path. The structural proofs (entity resolution, reciprocal boundary, endpoint
+and tick agreement) run identically under both registers, and the V1 labels
+are byte-identical to today's.
 """
 
 from typing import Final, cast
@@ -27,6 +35,9 @@ from living_diorama.language_realization.realization_spec import (
     FACT_REALIZATION_TEMPLATES,
     REQUIRED_FACT_DETAILS,
     SUBJECT_ENTITY_CLASS_BY_KIND,
+    V2_WALL_LABEL,
+    WORDING_PROFILE_V1,
+    WORDING_PROFILE_V2,
     boundary_phrase,
     district_label,
     law_label,
@@ -207,7 +218,13 @@ def resolve_wall(
 def _boundary_labels(
     export: dict[str, JsonValue], boundary: dict[str, JsonValue], description: str
 ) -> tuple[str, str]:
-    """Return the display labels for a resolved boundary's two endpoints."""
+    """Return the display labels for a resolved boundary's two endpoints.
+
+    This is the V1 label path: it runs :func:`district_label` on both
+    endpoints. The V2 register never calls it -- its wall label is the fixed
+    deictic phrase :data:`V2_WALL_LABEL` -- so a district identifier cannot
+    reach V2 speech.
+    """
     label_a = district_label(cast(str, boundary["district_a_id"]), description)
     label_b = district_label(cast(str, boundary["district_b_id"]), description)
     return label_a, label_b
@@ -297,12 +314,21 @@ def _subject_label(
     subject_id: str,
     export: dict[str, JsonValue],
     description: str,
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
 ) -> str:
     """Return the human-facing label for an event-derived beat's subject.
 
     The beat kind decides the entity class, so the identifier is resolved in
     exactly one world collection and can never be labeled as something it is
-    not.
+    not. Under the V1 register a wall's subject label is the relationship
+    phrase composed from the boundary's own endpoints, and a district's
+    subject label is the reviewed mechanical capitalization. Under the V2
+    register the wall's subject label is the register's own deictic phrase
+    (``V2_WALL_LABEL`` without its leading article, because the V2 wall
+    templates supply their own "The"), and a district's subject label is
+    "this area" -- the register never speaks a district identifier, while the
+    entity is still resolved and proven exactly as under V1.
     """
     entity_class = SUBJECT_ENTITY_CLASS_BY_KIND.get(kind)
     if entity_class is None:
@@ -315,10 +341,14 @@ def _subject_label(
         return law_label(cast(str, law["name"]), description)
     if entity_class == ENTITY_CLASS_WALL:
         _wall, boundary = resolve_wall(export, subject_id, description)
+        if wording_profile == WORDING_PROFILE_V2:
+            return V2_WALL_LABEL[len("the ") :]
         label_a, label_b = _boundary_labels(export, boundary, description)
         return wall_phrase(label_a, label_b)
     if entity_class == ENTITY_CLASS_DISTRICT:
         resolve_district(export, subject_id, description)
+        if wording_profile == WORDING_PROFILE_V2:
+            return "this area"
         return district_label(subject_id, description)
     raise ValueError(
         f"{description} names entity class {entity_class!r}, which this build does not "
@@ -436,8 +466,20 @@ def _wall_built_parameters(
     fact: dict[str, JsonValue],
     export: dict[str, JsonValue],
     description: str,
-) -> tuple[int, str]:
-    """Return the reviewed template parameters for a WALL_BUILT fact."""
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
+) -> tuple[int, str, str]:
+    """Return the reviewed template parameters for a WALL_BUILT fact.
+
+    Returns the built tick, the boundary label the V1 register speaks, and the
+    wall label the register speaks. Under V1 the wall label is composed from
+    the resolved boundary's own endpoint labels; under V2 it is the register's
+    fixed deictic label (:data:`V2_WALL_LABEL`), which never passes through
+    district label capitalization, and the boundary-label slot is left empty
+    because the V2 template speaks the wall alone. The structural proofs --
+    the wall, its boundary, the endpoints and every tick -- run identically
+    under both registers.
+    """
     details = _require_details(fact, FACT_TYPE_WALL_BUILT, description)
     wall_id = require_identifier(details["wall_id"], f"{description} details wall_id")
     boundary_id = require_identifier(details["boundary_id"], f"{description} details boundary_id")
@@ -485,16 +527,30 @@ def _wall_built_parameters(
             f"{boundary['district_a_id']!r} and {boundary['district_b_id']!r}; endpoints "
             "are the world's own and are never swapped or substituted"
         )
+    if wording_profile == WORDING_PROFILE_V2:
+        return built_tick, "", V2_WALL_LABEL
     label_a, label_b = _boundary_labels(export, boundary, description)
-    return built_tick, boundary_phrase(label_a, label_b)
+    return built_tick, boundary_phrase(label_a, label_b), wall_phrase(label_a, label_b)
 
 
 def _law_restored_parameters(
     fact: dict[str, JsonValue],
     export: dict[str, JsonValue],
     description: str,
-) -> tuple[int, str, str, int]:
-    """Return the reviewed template parameters for a LAW_RESTORED_WALL_PERSISTED fact."""
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
+) -> tuple[int, str, str, int, str]:
+    """Return the reviewed template parameters for a LAW_RESTORED_WALL_PERSISTED fact.
+
+    Returns the restored tick, the law label, the boundary label, the wall
+    built tick, and the wall label the register speaks. Under V1 the wall
+    label is composed from the resolved boundary's own endpoint labels; under
+    V2 it is the register's fixed deictic label (:data:`V2_WALL_LABEL`),
+    which never passes through district label capitalization, and the
+    boundary-label slot is left empty because the V2 template speaks the wall
+    alone. The structural proofs -- the law, the wall, the boundary, the
+    endpoints and every tick -- run identically under both registers.
+    """
     details = _require_details(fact, FACT_TYPE_LAW_RESTORED_WALL_PERSISTED, description)
     law_id = require_identifier(details["law_id"], f"{description} details law_id")
     law_name = require_text(details["law_name"], f"{description} details law_name")
@@ -549,12 +605,19 @@ def _law_restored_parameters(
             f"world's wall records tick {world_built}; a realized relation follows the "
             "world's own record"
         )
-    label_a, label_b = _boundary_labels(export, boundary, description)
+    if wording_profile == WORDING_PROFILE_V2:
+        wall_label = V2_WALL_LABEL
+        boundary_label = ""
+    else:
+        label_a, label_b = _boundary_labels(export, boundary, description)
+        wall_label = wall_phrase(label_a, label_b)
+        boundary_label = boundary_phrase(label_a, label_b)
     return (
         restored_tick,
         law_label(law_name, description),
-        boundary_phrase(label_a, label_b),
+        boundary_label,
         wall_built_tick,
+        wall_label,
     )
 
 
@@ -563,13 +626,25 @@ def realized_text_for_beat(
     beat: dict[str, JsonValue],
     export: dict[str, JsonValue],
     description: str,
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
 ) -> str:
     """Return the one realized sentence for a beat, derived from structure alone.
 
+    Args:
+        kind: The beat kind, which decides both the text source and the
+            reviewed template.
+        beat: The story plan's beat being realized.
+        export: The render export every claim and label is proven against.
+        description: What is being realized, for refusal messages.
+        wording_profile: The reviewed register to compose under; ``v1`` by
+            default.
+
     Raises:
         TypeError: If any document has the wrong shape.
-        ValueError: If the kind or fact type has no reviewed realization, or
-            any structural claim behind the sentence fails to prove.
+        ValueError: If the kind or fact type has no reviewed realization, the
+            wording profile is unreviewed, or any structural claim behind the
+            sentence fails to prove.
     """
     source = text_source_for_kind(kind)
     if source == TEXT_SOURCE_MEMORY_FACT_SUMMARY:
@@ -582,13 +657,25 @@ def realized_text_for_beat(
                 "paraphrased"
             )
         if fact_type == FACT_TYPE_WALL_BUILT:
-            built_tick, boundary_label = _wall_built_parameters(fact, export, description)
-            return render_wall_built(built_tick, boundary_label)
-        restored_tick, law_label_text, boundary_label, wall_built_tick = _law_restored_parameters(
-            fact, export, description
+            built_tick, boundary_label, wall_label = _wall_built_parameters(
+                fact, export, description, wording_profile=wording_profile
+            )
+            return render_wall_built(
+                built_tick,
+                boundary_label,
+                wording_profile=wording_profile,
+                wall_label=wall_label,
+            )
+        restored_tick, law_label_text, boundary_label, wall_built_tick, wall_label = (
+            _law_restored_parameters(fact, export, description, wording_profile=wording_profile)
         )
         return render_law_restored_wall_persisted(
-            restored_tick, law_label_text, boundary_label, wall_built_tick
+            restored_tick,
+            law_label_text,
+            boundary_label,
+            wall_built_tick,
+            wording_profile=wording_profile,
+            wall_label=wall_label,
         )
 
     if kind == ABSENCE_KIND:
@@ -597,7 +684,7 @@ def realized_text_for_beat(
                 f"{description} is a {kind} beat whose sentence takes no parameters, but "
                 "it cites evidence; that beat reports an absence and cites nothing"
             )
-        return render_event_realization(kind, None, None)
+        return render_event_realization(kind, None, None, wording_profile=wording_profile)
 
     tick = _event_tick(beat, export, kind, description)
     subjects = cast(list[str], beat["subject_ids"])
@@ -606,5 +693,5 @@ def realized_text_for_beat(
             f"{description} is a {kind} beat naming {len(subjects)} subjects; an "
             "event-derived beat is about exactly one entity"
         )
-    label = _subject_label(kind, subjects[0], export, description)
-    return render_event_realization(kind, label, tick)
+    label = _subject_label(kind, subjects[0], export, description, wording_profile=wording_profile)
+    return render_event_realization(kind, label, tick, wording_profile=wording_profile)

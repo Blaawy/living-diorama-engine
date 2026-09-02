@@ -12,7 +12,15 @@ from typing import Any
 
 import pytest
 
-from living_diorama.cinematic import build_shot_direction_plan_bytes
+from living_diorama.cinematic import (
+    build_shot_direction_plan_bytes,
+    build_shot_direction_plan_v2_bytes,
+    validate_shot_direction_plan_against_story,
+)
+from living_diorama.cinematic.camera_movement_planner import plan_camera_movements
+from living_diorama.cinematic.cinematic_schema_v1 import validate_shot_direction_plan
+from living_diorama.cinematic.cinematic_schema_v2 import validate_shot_direction_plan_v2
+from living_diorama.cinematic.shot_planner import build_shot_direction_plan_document
 from living_diorama.cli import build_shot_plan
 from living_diorama.persistence.json_codec import dumps_canonical
 
@@ -34,6 +42,8 @@ def _run(workspace: Path, output: str = "shots.json", **overrides: str) -> int:
         "--output",
         str(workspace / output),
     ]
+    if "camera_profile" in overrides:
+        args += ["--camera-profile", overrides["camera_profile"]]
     return build_shot_plan.main(args)
 
 
@@ -200,3 +210,74 @@ def test_two_runs_produce_identical_files(workspace: Path) -> None:
     _run(workspace, output="one.json")
     _run(workspace, output="two.json")
     assert (workspace / "one.json").read_bytes() == (workspace / "two.json").read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# camera_profile: V1 stays byte-for-byte historical; V2 is the deterministic
+# edit layer over the same V1 document.
+# ---------------------------------------------------------------------------
+
+
+def test_v1_is_the_default_and_is_byte_for_byte_unchanged(
+    workspace: Path, story_ep0_to_ep1: dict[str, Any], motion_time: bytes
+) -> None:
+    """Omitted and explicit ``--camera-profile v1`` both write today's bytes."""
+    _run(workspace, output="omitted.json")
+    _run(workspace, output="explicit.json", camera_profile="v1")
+    expected = build_shot_direction_plan_bytes(story_ep0_to_ep1, motion_time)
+    assert (workspace / "omitted.json").read_bytes() == expected
+    assert (workspace / "explicit.json").read_bytes() == expected
+
+
+def test_v2_output_is_accepted_by_v2_and_refused_by_v1(workspace: Path) -> None:
+    """Genuine isolation: the V2 plan passes V2 and fails the V1-only validator."""
+    assert _run(workspace, output="v2.json", camera_profile="v2") == 0
+    document = json.loads((workspace / "v2.json").read_text(encoding="utf-8"))
+    assert validate_shot_direction_plan_v2(document) is not None
+    with pytest.raises(ValueError):
+        validate_shot_direction_plan(document)
+
+
+def test_v2_output_pins_the_independent_camera_movement_derivation(
+    workspace: Path, story_ep0_to_ep1: dict[str, Any], motion_time: bytes
+) -> None:
+    """The CLI's V2 bytes equal the independently derived chain, byte for byte.
+
+    The independent chain is the one other V2 lanes already pin:
+    ``plan_camera_movements(build_shot_direction_plan_document(...))``.
+    """
+    assert _run(workspace, output="v2.json", camera_profile="v2") == 0
+    v1_document = build_shot_direction_plan_document(story_ep0_to_ep1, motion_time)
+    independent = plan_camera_movements(v1_document)
+    assert (workspace / "v2.json").read_bytes() == dumps_canonical(
+        independent, "shot direction plan"
+    )
+    moving = [shot for shot in independent["shots"] if shot.get("camera_movement") is not None]
+    assert moving, "the canonical EP1 V2 plan must carry camera_movement blocks"
+    assert (
+        build_shot_direction_plan_v2_bytes(story_ep0_to_ep1, motion_time)
+        == (workspace / "v2.json").read_bytes()
+    )
+
+
+def test_two_v2_runs_produce_identical_bytes(workspace: Path) -> None:
+    """Same story and clock always produce the same V2 bytes."""
+    _run(workspace, output="one.json", camera_profile="v2")
+    _run(workspace, output="two.json", camera_profile="v2")
+    assert (workspace / "one.json").read_bytes() == (workspace / "two.json").read_bytes()
+
+
+def test_the_cross_check_threads_the_v2_profile(
+    workspace: Path, story_ep0_to_ep1: dict[str, Any], motion_time: bytes
+) -> None:
+    """The CLI's own cross-check accepts the V2 plan under v2 and refuses it under v1."""
+    _run(workspace, output="v2.json", camera_profile="v2")
+    document = json.loads((workspace / "v2.json").read_text(encoding="utf-8"))
+    verified = validate_shot_direction_plan_against_story(
+        document, story_ep0_to_ep1, motion_time, camera_profile="v2"
+    )
+    assert verified is not None
+    with pytest.raises(ValueError):
+        validate_shot_direction_plan_against_story(
+            document, story_ep0_to_ep1, motion_time, camera_profile="v1"
+        )

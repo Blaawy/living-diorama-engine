@@ -3,9 +3,13 @@
 A narration delivery plan decides one thing: when each already-written narration
 unit may be delivered, as an inclusive span of playback frames on the locked
 Phase 17 clock. Nothing here reads a sentence, weighs an emphasis, or moves a
-shot. The policy is pure structure -- unit order, visibility, shot spans and the
-clock -- and it carries zero tunable constants, so the whole of it is the small
-set of rules below and the arithmetic they name.
+shot. The v1 policy is pure structure -- unit order, visibility, shot spans and
+the clock -- and it carries zero tunable constants, so the whole of it is the
+small set of rules below and the arithmetic they name. The v4 delivery profile
+adds exactly two reviewed calibration constants (a 24-frame per-line floor and
+6 frames per word) and the proportional partition that weights a shared host
+interval by them; both are stated below and are part of the closed policy
+vocabulary a plan declares.
 
 The policy identifier is part of this contract's schema version exactly as the
 Phase 24 wording table is part of its own: changing how a slot is derived
@@ -21,6 +25,7 @@ whether a synthesized voice fits those frames is a later layer's measured
 question, never this layer's guess.
 """
 
+from collections.abc import Sequence
 from typing import Final
 
 DELIVERY_PLAN_FORMAT: Final = "living_diorama_episode_narration_delivery_plan"
@@ -34,11 +39,19 @@ versions. The allocation policy in this module is part of this version.
 """
 
 DELIVERY_POLICY_V1: Final = "narration_delivery_policy_v1"
-"""The one allocation policy this build derives and validates.
+"""The equal-partition allocation policy this build derives and validates.
 
 Declared in the document rather than merely implied, so a future plan written
 under a revised policy can never be mistaken for this one. The validator
-requires the field to equal this constant exactly.
+requires the field to equal exactly one of the closed policy identifiers.
+"""
+
+DELIVERY_POLICY_V4: Final = "narration_delivery_policy_v4"
+"""The content-proportional allocation policy the v4 delivery profile derives.
+
+A plan cut under the v4 profile declares this identifier, never the v1 one, so
+a proportional plan can never be mistaken for an equal one. The validator
+accepts exactly these two closed identifiers and refuses any other.
 """
 
 PLACEMENT_SHOT_ANCHORED: Final = "SHOT_ANCHORED"
@@ -78,6 +91,55 @@ a speaking-rate opinion into a layer that owns none; whether one frame is
 enough time to say anything is a question for the later voice layer's measured
 fit validation, not for this one's arithmetic.
 """
+
+V4_REQUIRED_FRAMES_BASE: Final = 24
+"""The fixed per-line overhead the v4 profile assumes for any sentence.
+
+Calibrated against real measured speech of the episode 1 lines (see
+``required_frames_for_word_count``): a short utterance costs far more per word
+than a long one because each line carries a fixed lead-in and trail, and the
+least-squares affine fit rounds up to this floor.
+"""
+
+V4_REQUIRED_FRAMES_PER_WORD: Final = 6
+"""The per-word frame cost the v4 profile assumes beyond the fixed overhead.
+
+The affine fit over the real measurements gives 6.06 frames per word; 6 is the
+rounded-down slope that, together with the rounded-up floor, still over-
+estimates every real measurement.
+"""
+
+
+def required_frames_for_word_count(word_count: int) -> int:
+    """Return the v4 profile's estimate of the presentation frames one unit needs.
+
+    The formula is ``V4_REQUIRED_FRAMES_BASE + V4_REQUIRED_FRAMES_PER_WORD * word_count``
+    and it is calibrated against real measured speech of the realized episode 1
+    lines, against the real realized text:
+
+    * 4 words measured 44.4 frames, 15 words 111.0 frames, 10 words 81.6
+    * a pure frames-per-word constant cannot fit both ends, because a short
+      utterance costs far more per word
+    * a least-squares affine fit gives ``frames = 20.4 + 6.06 * words``,
+      predicting 44.6 / 111.3 / 81.0 against the real 44.4 / 111.0 / 81.6
+    * rounding the floor up and the slope down yields 48 / 114 / 84, a
+      deliberate over-estimate of every real measurement (1.03x to 1.08x)
+
+    The estimate must over-estimate: a slot smaller than the real audio would
+    overflow. It is safe to keep the margin modest because the downstream audio
+    track planner independently verifies that real speech fits inside its
+    window and refuses loudly if it does not -- so an under-estimate fails as a
+    loud build error, never as silent corruption.
+
+    Args:
+        word_count: The number of words in the unit's finalized sentence.
+
+    Returns:
+        The estimated presentation frames the unit's speech requires.
+    """
+    if word_count < 0:
+        raise ValueError(f"cannot estimate speech length for {word_count} words")
+    return V4_REQUIRED_FRAMES_BASE + V4_REQUIRED_FRAMES_PER_WORD * word_count
 
 
 def playback_domain(start_frame: int, end_frame: int) -> tuple[int, int]:
@@ -154,6 +216,73 @@ def partition_equally(first: int, last: int, claimants: int) -> list[tuple[int, 
     cursor = first
     for index in range(claimants):
         size = base + (1 if index < extra else 0)
+        slots.append((cursor, cursor + size - 1))
+        cursor += size
+    return slots
+
+
+def partition_proportionally(
+    first: int, last: int, weights: Sequence[int]
+) -> list[tuple[int, int]]:
+    """Split an inclusive frame span into contiguous slots by weight, in order.
+
+    This is the same rounding discipline ``shot_planner._allocate`` uses for
+    shot lengths, restated as this layer's own arithmetic rather than a reach
+    into the shot planner's private helper: every claimant receives the
+    structural floor ``MIN_SLOT_FRAMES`` first, and only the surplus is shared
+    by weight using largest remainder, with the claimant index as the tie-break
+    when two fractional parts are equal. That ordering matters: allocating by
+    weight first and repairing the floor afterwards would make the result
+    depend on which claimant happened to be repaired. The slices tile the span
+    exactly -- no frame is dropped, none is counted twice, and unit order is
+    preserved.
+
+    Args:
+        first: The span's first frame, inclusive.
+        last: The span's final frame, inclusive.
+        weights: One strictly positive weight per claimant, in claimant order.
+
+    Returns:
+        One inclusive ``(start, end)`` pair per claimant, in claimant order.
+
+    Raises:
+        ValueError: If there are no claimants, any weight is not strictly
+            positive, the span is empty or inverted, or the span holds fewer
+            frames than claimants -- a slot below the structural floor is
+            refused, never shrunk to fit.
+    """
+    count = len(weights)
+    length = last - first + 1
+    if count < 1:
+        raise ValueError(f"cannot partition frames [{first}, {last}] among {count} claimants")
+    if length < 1:
+        raise ValueError(
+            f"cannot partition empty frame span [{first}, {last}]; a slot is at least "
+            f"{MIN_SLOT_FRAMES} frame"
+        )
+    if length < count * MIN_SLOT_FRAMES:
+        raise ValueError(
+            f"cannot fit {count} delivery slots of at least {MIN_SLOT_FRAMES} frame "
+            f"into the {length} frames of [{first}, {last}]"
+        )
+    for weight in weights:
+        if weight < 1:
+            raise ValueError(
+                f"cannot partition by a weight of {weight}; every claimant needs a "
+                "strictly positive weight"
+            )
+    surplus = length - count * MIN_SLOT_FRAMES
+    weight_total = sum(weights)
+    exact = [surplus * weight / weight_total for weight in weights]
+    floors = [int(value) for value in exact]
+    remainder = surplus - sum(floors)
+    order = sorted(range(count), key=lambda index: (-(exact[index] - floors[index]), index))
+    for index in order[:remainder]:
+        floors[index] += 1
+    sizes = [MIN_SLOT_FRAMES + extra for extra in floors]
+    slots: list[tuple[int, int]] = []
+    cursor = first
+    for size in sizes:
         slots.append((cursor, cursor + size - 1))
         cursor += size
     return slots

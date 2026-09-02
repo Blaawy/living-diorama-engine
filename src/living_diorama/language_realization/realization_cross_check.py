@@ -16,11 +16,26 @@ realization contract is a deterministic single-output function of its inputs,
 so the one valid plan for a given narration plan, story plan and export is the
 plan the planner derives. Anything else is refused, named check by named check
 first so a failure says which claim stopped being true.
+
+The wording register the plan was written under is read from the plan itself
+-- absent means ``v1`` -- and threaded into every re-derivation, so a V2 plan
+is verified by deriving V2 text against itself, never against a V1 assumption.
+A V2 plan is also verified where a V1 plan cannot be: every record's fact and
+event bindings are resolved against the real sources (an unbound or wrong
+binding is refused), and every viewer guidance entry's grounding is resolved
+against the real world export (an ungrounded entry is refused).
 """
 
 from typing import cast
 
-from living_diorama.language_realization.realization_atoms import realized_text_for_beat
+from living_diorama.language_realization.realization_atoms import (
+    EVIDENCE_EVENT,
+    EVIDENCE_MEMORY_FACT,
+    realized_text_for_beat,
+)
+from living_diorama.language_realization.realization_guidance import (
+    validate_guidance_grounding,
+)
 from living_diorama.language_realization.realization_planner import (
     _require_unit_beat_agreement,
     build_episode_language_realization_plan_bytes,
@@ -28,6 +43,10 @@ from living_diorama.language_realization.realization_planner import (
 from living_diorama.language_realization.realization_schema_v1 import (
     JsonValue,
     validate_episode_language_realization_plan,
+)
+from living_diorama.language_realization.realization_spec import (
+    WORDING_PROFILE_V1,
+    WORDING_PROFILE_V2,
 )
 from living_diorama.narration import validate_episode_narration_plan
 from living_diorama.narration.narration_spec import (
@@ -135,6 +154,52 @@ def _check_bindings(
         )
 
 
+def _check_v2_record_bindings(
+    record: dict[str, JsonValue],
+    beat: dict[str, JsonValue],
+    label: str,
+) -> None:
+    """Verify a V2 record's fact and event bindings against its beat's evidence.
+
+    The atoms derivation proves the beat's evidence resolves against the real
+    export, so the record's bindings must equal the beat's own claims exactly:
+    the event index the beat cites (or ``null`` for an absence beat) and the
+    memory fact the beat cites (or ``null`` for a template-backed beat). A
+    missing or wrong binding means the record was written by something this
+    contract does not describe.
+
+    Raises:
+        ValueError: If the record's bindings disagree with the beat's evidence.
+    """
+    event_entries = [
+        entry
+        for entry in cast(list[dict[str, JsonValue]], beat["evidence"])
+        if entry["kind"] == EVIDENCE_EVENT
+    ]
+    if len(event_entries) > 1:
+        raise ValueError(
+            f"{label} is bound to a beat citing {len(event_entries)} events; a beat "
+            "cites exactly one event or none"
+        )
+    expected_event = event_entries[0]["index"] if event_entries else None
+    if record["event_id"] != expected_event:
+        raise ValueError(
+            f"{label} binds event_id {record['event_id']!r}, but the beat it realizes "
+            f"cites event {expected_event!r}; a record's event binding is the beat's own"
+        )
+    fact_entries = [
+        entry
+        for entry in cast(list[dict[str, JsonValue]], beat["evidence"])
+        if entry["kind"] == EVIDENCE_MEMORY_FACT
+    ]
+    expected_fact = fact_entries[0]["fact_id"] if fact_entries else None
+    if record["fact_id"] != expected_fact:
+        raise ValueError(
+            f"{label} binds fact_id {record['fact_id']!r}, but the beat it realizes "
+            f"cites {expected_fact!r}; a record's fact binding is the beat's own"
+        )
+
+
 def validate_language_realization_plan_against_sources(
     realization_plan: object,
     narration_plan: object,
@@ -163,11 +228,16 @@ def validate_language_realization_plan_against_sources(
     * every unit restates its positional story beat -- identity, kind,
       subjects, emphasis and text-source classification
     * every record's sentence equals the one deterministic derivation from the
-      structural evidence, actual export events and facts, and reviewed labels
+      structural evidence, actual export events and facts, and reviewed labels,
+      under the wording register the plan itself declares (absent means ``v1``)
+    * under ``v2`` only, every record's fact and event bindings equal the beat's
+      own evidence claims, and every viewer guidance entry's grounding resolves
+      against the real world export
     * the accounting block agrees with the sources' own classification
 
-    Finally the plan is re-derived from the three sources and must equal it
-    byte for byte, which closes every remaining degree of freedom.
+    Finally the plan is re-derived from the three sources under that same
+    register and must equal it byte for byte, which closes every remaining
+    degree of freedom.
 
     Returns:
         The verified realization plan.
@@ -181,6 +251,8 @@ def validate_language_realization_plan_against_sources(
     narration = validate_episode_narration_plan(narration_plan)
     story = validate_episode_story_plan(story_plan)
     export = cast(dict[str, JsonValue], validate_render_export(current_export))
+
+    wording_profile = cast(str, plan.get("wording_profile", WORDING_PROFILE_V1))
 
     source = _document(plan["source"], "language realization plan source")
     _check_bindings(source, narration, story, export)
@@ -213,15 +285,23 @@ def validate_language_realization_plan_against_sources(
             )
         kind = _require_unit_beat_agreement(unit, beat, position)
         description = f"episode story plan beats[{position - 1}]"
-        expected = realized_text_for_beat(kind, beat, export, description)
+        expected = realized_text_for_beat(
+            kind, beat, export, description, wording_profile=wording_profile
+        )
         if record["realized_text"] != expected:
             raise ValueError(
                 f"{label} carries wording {record['realized_text']!r}, but the reviewed "
                 f"policy realizes this unit as {expected!r}; realized wording is the "
                 "table's or it was written by something this contract does not describe"
             )
+        if wording_profile == WORDING_PROFILE_V2:
+            _check_v2_record_bindings(record, beat, label)
         if text_source_for_kind(kind) == TEXT_SOURCE_MEMORY_FACT_SUMMARY:
             fact_backed += 1
+
+    if wording_profile == WORDING_PROFILE_V2:
+        for entry in cast(list[dict[str, JsonValue]], plan.get("viewer_guidance", [])):
+            validate_guidance_grounding(cast(dict[str, str], entry), export)
 
     accounting = _document(plan["accounting"], "language realization plan accounting")
     measured = {
@@ -238,7 +318,9 @@ def validate_language_realization_plan_against_sources(
                 "the narration plan's own text sources, never asserted beside them"
             )
 
-    derived = build_episode_language_realization_plan_bytes(narration, story, export)
+    derived = build_episode_language_realization_plan_bytes(
+        narration, story, export, wording_profile=wording_profile
+    )
     offered = dumps_canonical(plan, "language realization plan")
     if offered != derived:
         raise ValueError(

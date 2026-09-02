@@ -14,6 +14,7 @@ depends on how a mapping was built.
 from typing import cast
 
 from living_diorama.cinematic.cinematic_schema_v1 import validate_shot_direction_plan
+from living_diorama.cinematic.cinematic_spec import movement_camera_name, movement_catalogue_sha256
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
 from living_diorama.render_execution.render_execution_schema_v1 import (
@@ -52,8 +53,14 @@ def _shot_at_frame(shots: list[dict[str, JsonValue]], frame: int) -> dict[str, J
     raise ValueError(f"no directed shot covers frame {frame}; Phase 23 renders no undirected frame")
 
 
+def _is_movement_shot(shot: dict[str, JsonValue]) -> bool:
+    """Return whether a shot carries a non-STATIC ``camera_movement`` block."""
+    movement = shot.get("camera_movement")
+    return isinstance(movement, dict) and movement["movement_type"] != "STATIC"
+
+
 def build_episode_render_plan_document(
-    shot_plan: object, story_plan: object
+    shot_plan: object, story_plan: object, *, camera_profile: str = "v1"
 ) -> dict[str, JsonValue]:
     """Return the render plan document for one directed episode.
 
@@ -68,8 +75,15 @@ def build_episode_render_plan_document(
     plan already bound, so the pair cannot be mismatched.
 
     Args:
-        shot_plan: The parsed Shot Direction Plan document.
+        shot_plan: The parsed Shot Direction Plan document. Under
+            ``camera_profile="v2"`` it may carry ``camera_movement`` blocks,
+            which the V2 validator governs; every V2 field this function writes
+            lives inside the ``camera_profile == "v2"`` branch only.
         story_plan: The parsed Episode Story Plan the shot plan was cut from.
+        camera_profile: ``"v1"`` (default) or ``"v2"``. V1 produces exactly the
+            document this module produced before the V2 integration; V2 only
+            additionally emits movement-camera identities on movement shots and
+            binds the movement-catalogue digest.
 
     Returns:
         The complete, self-consistent render plan document.
@@ -79,7 +93,12 @@ def build_episode_render_plan_document(
         ValueError: If either document is invalid, they do not belong together,
             or the timeline does not support a coherent emission contract.
     """
-    validated = validate_shot_direction_plan(shot_plan)
+    if camera_profile == "v2":
+        from living_diorama.cinematic.cinematic_schema_v2 import validate_shot_direction_plan_v2
+
+        validated = validate_shot_direction_plan_v2(shot_plan)
+    else:
+        validated = validate_shot_direction_plan(shot_plan)
     story = validate_episode_story_plan(story_plan)
     story_digest = sha256_hex(dumps_canonical(story, "episode story plan"))
     bound_story = cast(dict[str, JsonValue], validated["source"])["story_plan_sha256"]
@@ -106,6 +125,12 @@ def build_episode_render_plan_document(
     plan_digest = sha256_hex(dumps_canonical(validated, "shot direction plan"))
     previous = shot_source.get("previous_episode")
 
+    movement_binding: dict[str, JsonValue] = {}
+    if camera_profile == "v2":
+        movement_binding = {
+            "movement_catalogue_sha256": movement_catalogue_sha256(validated),
+        }
+
     frames: list[JsonValue] = []
     playback_frames = range(
         cast(int, emission["first_frame"]), cast(int, emission["final_frame"]) + 1
@@ -113,13 +138,16 @@ def build_episode_render_plan_document(
     for frame in (*playback_frames, cast(int, emission["witness_frame"])):
         shot = _shot_at_frame(shots, frame)
         role = ROLE_WITNESS if frame == emission["witness_frame"] else ROLE_PLAYBACK
+        camera_anchor_id: JsonValue = shot["camera_anchor_id"]
+        if camera_profile == "v2" and _is_movement_shot(shot):
+            camera_anchor_id = movement_camera_name(cast(str, shot["shot_id"]))
         frames.append(
             {
                 "frame": frame,
                 "role": role,
                 "file": frame_filename(frame),
                 "shot_id": shot["shot_id"],
-                "camera_anchor_id": shot["camera_anchor_id"],
+                "camera_anchor_id": camera_anchor_id,
                 "source_beat_ids": list(cast(list[JsonValue], shot["source_beat_ids"])),
             }
         )
@@ -140,8 +168,17 @@ def build_episode_render_plan_document(
             "episode": shot_source["episode"],
             "previous_episode": previous,
             "mode": shot_source["mode"],
+            **movement_binding,
         },
-        "composition_sources": cast(dict[str, JsonValue], composition_sources_document()),
+        # The world is composed against the SAME clock the shot plan was cut
+        # against, so a plan can never bind one Motion & Time document through
+        # its direction and a different one through its composition sources.
+        "composition_sources": cast(
+            dict[str, JsonValue],
+            composition_sources_document(
+                motion_time_sha256=cast(str, shot_source["motion_time_sha256"])
+            ),
+        ),
         "timeline": dict(timeline),
         "emission": cast(dict[str, JsonValue], emission),
         "profile": cast(dict[str, JsonValue], render_profile_document()),
@@ -156,17 +193,20 @@ def build_episode_render_plan_document(
         },
         "frames": frames,
     }
-    return validate_episode_render_plan(document)
+    return validate_episode_render_plan(document, camera_profile=camera_profile)
 
 
-def build_episode_render_plan_bytes(shot_plan: object, story_plan: object) -> bytes:
+def build_episode_render_plan_bytes(
+    shot_plan: object, story_plan: object, *, camera_profile: str = "v1"
+) -> bytes:
     """Return the canonical bytes of one episode render plan."""
     return dumps_canonical(
-        build_episode_render_plan_document(shot_plan, story_plan), "episode render plan"
+        build_episode_render_plan_document(shot_plan, story_plan, camera_profile=camera_profile),
+        "episode render plan",
     )
 
 
-def load_episode_render_plan(data: bytes) -> dict[str, JsonValue]:
+def load_episode_render_plan(data: bytes, *, camera_profile: str = "v1") -> dict[str, JsonValue]:
     """Parse and fully validate render plan bytes.
 
     Raises:
@@ -175,4 +215,6 @@ def load_episode_render_plan(data: bytes) -> dict[str, JsonValue]:
     """
     if type(data) is not bytes:
         raise TypeError(f"episode render plan bytes must be bytes, got {type(data).__name__}")
-    return validate_episode_render_plan(loads_canonical(data, "episode render plan"))
+    return validate_episode_render_plan(
+        loads_canonical(data, "episode render plan"), camera_profile=camera_profile
+    )

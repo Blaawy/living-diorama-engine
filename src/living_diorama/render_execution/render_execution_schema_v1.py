@@ -15,6 +15,11 @@ repaired.
 This module imports only the standard library, the ``living_diorama``
 validation vocabulary, and Phase 22's cinematic contract, which it consumes
 read-only. It never imports ``bpy`` and never reaches into live simulation.
+
+V2 mode (``camera_profile="v2"``) is strictly additive and strictly
+conditional. The V1 path -- the default, and the only path the pre-V2 code
+knew -- validates byte-for-byte the same documents it always did: no V2 field
+is ever accepted outside a ``camera_profile == "v2"`` branch.
 """
 
 from collections.abc import Mapping
@@ -30,15 +35,14 @@ from living_diorama.persistence.schema.world_schema_v1 import (
     require_text,
 )
 from living_diorama.render_execution.render_execution_spec import (
-    APPROVED_COMPOSITION_SOURCES,
-    CANONICAL_MOTION_TIME_SHA256,
-    CANONICAL_RESOLVED_TIMELINE,
+    APPROVED_COMPOSITION_SOURCE_SETS,
     COMPOSITION_SOURCE_KEYS,
     FRAME_ROLES,
     RENDER_MANIFEST_FORMAT,
     RENDER_MANIFEST_SCHEMA_VERSION,
     RENDER_PLAN_FORMAT,
     RENDER_PLAN_SCHEMA_VERSION,
+    REVIEWED_CLOCKS,
     ROLE_PLAYBACK,
     ROLE_WITNESS,
     SUPPORTED_SHOT_PLAN_SCHEMA_VERSION,
@@ -97,7 +101,15 @@ The two export digests are what make the chain reach all the way down. A
 render plan alone could otherwise name an episode while the renderer was
 handed the wrong exports to compose, and the frames would be of a different
 world than the direction they claim.
+
+Under V2 only, the source may additionally carry ``movement_catalogue_sha256``,
+the digest of the plan's derived movement-camera catalogue. The key is
+OPTIONAL even in V2 (a plan with no movement shots has no catalogue to bind),
+and it is never accepted in V1 mode.
 """
+
+MOVEMENT_CATALOGUE_SOURCE_KEY: Final = "movement_catalogue_sha256"
+"""The optional V2-only source key binding a plan's movement-camera catalogue."""
 
 TIMELINE_KEYS: Final = frozenset(
     {
@@ -271,7 +283,11 @@ def _validate_episode_identity(source: dict[str, JsonValue], description: str) -
 
 
 def _validate_source(
-    document: dict[str, JsonValue], keys: frozenset[str], description: str
+    document: dict[str, JsonValue],
+    keys: frozenset[str],
+    description: str,
+    *,
+    movement_catalogue_allowed: bool = False,
 ) -> dict[str, JsonValue]:
     """Validate a plan or manifest source block and return it.
 
@@ -281,7 +297,10 @@ def _validate_source(
             one this build renders under.
     """
     source = _require_document(document.get("source"), f"{description} source")
-    require_exact_keys(source, keys, f"{description} source")
+    expected_keys = keys
+    if movement_catalogue_allowed and MOVEMENT_CATALOGUE_SOURCE_KEY in source:
+        expected_keys = keys | {MOVEMENT_CATALOGUE_SOURCE_KEY}
+    require_exact_keys(source, expected_keys, f"{description} source")
 
     shot_format = require_text(source.get("shot_plan_format"), f"{description} shot_plan_format")
     if shot_format != SHOT_PLAN_FORMAT:
@@ -297,7 +316,7 @@ def _validate_source(
             f"{description} names shot plan schema version {shot_version}; this build renders "
             f"version {SUPPORTED_SHOT_PLAN_SCHEMA_VERSION} only"
         )
-    for digest_key in (
+    digest_keys = (
         "shot_plan_sha256",
         "story_plan_sha256",
         "motion_time_sha256",
@@ -305,7 +324,10 @@ def _validate_source(
         "after_export_sha256",
         "render_profile_sha256",
         *(("render_plan_sha256",) if "render_plan_sha256" in keys else ()),
-    ):
+    )
+    if movement_catalogue_allowed and MOVEMENT_CATALOGUE_SOURCE_KEY in source:
+        digest_keys = digest_keys + (MOVEMENT_CATALOGUE_SOURCE_KEY,)
+    for digest_key in digest_keys:
         require_hash_hex(source.get(digest_key), f"{description} {digest_key}")
 
     expected_profile = render_profile_sha256()
@@ -385,6 +407,7 @@ def _validate_frame_records(
     keys: frozenset[str],
     emission: Mapping[str, object],
     description: str,
+    camera_profile: str = "v1",
 ) -> list[dict[str, JsonValue]]:
     """Validate an ordered frame list shared by both documents.
 
@@ -440,10 +463,19 @@ def _validate_frame_records(
         require_text(record.get("shot_id"), f"{where} shot_id")
         anchor = require_text(record.get("camera_anchor_id"), f"{where} camera_anchor_id")
         if anchor not in cinematic_spec.ANCHOR_NAMES:
-            raise ValueError(
-                f"{where} names camera anchor {anchor!r}, which is not an approved anchor; "
-                "Phase 23 renders the cameras Phase 22 selected and knows no others"
+            # V2 only: a frame of a movement shot may carry the derived movement
+            # camera identity, re-derived here from the frame's OWN shot id so a
+            # forged identity that does not match its shot is still refused. The
+            # ANCHOR_NAMES check above is never replaced, only supplemented.
+            movement_identity = (
+                camera_profile == "v2"
+                and anchor == cinematic_spec.movement_camera_name(cast(str, record.get("shot_id")))
             )
+            if not movement_identity:
+                raise ValueError(
+                    f"{where} names camera anchor {anchor!r}, which is not an approved anchor; "
+                    "Phase 23 renders the cameras Phase 22 selected and knows no others"
+                )
         beats = _require_sequence(record.get("source_beat_ids"), f"{where} source_beat_ids")
         seen_beats: set[str] = set()
         for index, beat in enumerate(beats):
@@ -487,10 +519,10 @@ def _validate_composition_sources(
     )
     for key in sorted(COMPOSITION_SOURCE_KEYS):
         require_hash_hex(sources.get(key), f"{description} composition_sources {key}")
-    if dict(sources) != dict(APPROVED_COMPOSITION_SOURCES):
+    if not any(dict(sources) == dict(approved) for approved in APPROVED_COMPOSITION_SOURCE_SETS):
         raise ValueError(
-            f"{description} names composition sources that are not the reviewed locked "
-            "documents; the world a render is built from is pinned, not supplied"
+            f"{description} names composition sources that are not one of the reviewed "
+            "locked bundles; the world a render is built from is pinned, not supplied"
         )
     if sources["motion_time_sha256"] != source["motion_time_sha256"]:
         raise ValueError(
@@ -520,24 +552,32 @@ def _require_canonical_clock(
     Raises:
         ValueError: If the bound clock is canonical but the timeline is not.
     """
-    if source.get("motion_time_sha256") != CANONICAL_MOTION_TIME_SHA256:
+    bound = source.get("motion_time_sha256")
+    reviewed = REVIEWED_CLOCKS.get(cast(str, bound))
+    if reviewed is None:
         return
-    expected = dict(CANONICAL_RESOLVED_TIMELINE)
+    expected = dict(reviewed)
     if timeline != expected:
         raise ValueError(
-            f"{description} binds the canonical Phase 17 Motion & Time Spec "
-            f"{CANONICAL_MOTION_TIME_SHA256}, which resolves to {expected!r}, but restates "
+            f"{description} binds the reviewed Phase 17 Motion & Time Spec "
+            f"{bound}, which resolves to {expected!r}, but restates "
             f"{timeline!r}; a timeline is copied from the clock it names, and a self-consistent "
-            "alternative under the canonical digest is a hand-edited clock rather than a "
+            "alternative under a reviewed digest is a hand-edited clock rather than a "
             "second reading of the same one"
         )
 
 
-def validate_episode_render_plan(document: object) -> dict[str, JsonValue]:
+def validate_episode_render_plan(
+    document: object, *, camera_profile: str = "v1"
+) -> dict[str, JsonValue]:
     """Validate one episode render plan, exactly.
 
     Args:
         document: The parsed plan document.
+        camera_profile: ``"v1"`` (default) or ``"v2"``. V2 only accepts the
+            optional ``movement_catalogue_sha256`` source key and movement
+            camera identities derived from a frame's own shot id; V1 accepts
+            neither.
 
     Returns:
         The same document, once every rule holds.
@@ -562,7 +602,12 @@ def validate_episode_render_plan(document: object) -> dict[str, JsonValue]:
             f"{RENDER_PLAN_SCHEMA_VERSION} only"
         )
 
-    source = _validate_source(plan, PLAN_SOURCE_KEYS, "episode render plan")
+    source = _validate_source(
+        plan,
+        PLAN_SOURCE_KEYS,
+        "episode render plan",
+        movement_catalogue_allowed=camera_profile == "v2",
+    )
     timeline = _validate_timeline(plan, "episode render plan")
     _require_canonical_clock(source, timeline, "episode render plan")
     emission = _validate_emission(plan, timeline, "episode render plan")
@@ -596,12 +641,18 @@ def validate_episode_render_plan(document: object) -> dict[str, JsonValue]:
 
     frames = _require_sequence(plan.get("frames"), "episode render plan frames")
     _validate_frame_records(
-        frames, keys=PLAN_FRAME_KEYS, emission=emission, description="episode render plan"
+        frames,
+        keys=PLAN_FRAME_KEYS,
+        emission=emission,
+        description="episode render plan",
+        camera_profile=camera_profile,
     )
     return plan
 
 
-def validate_episode_render_manifest(document: object) -> dict[str, JsonValue]:
+def validate_episode_render_manifest(
+    document: object, *, camera_profile: str = "v1"
+) -> dict[str, JsonValue]:
     """Validate one episode render manifest, exactly.
 
     A manifest that validates says something strong: every frame the plan
@@ -612,6 +663,8 @@ def validate_episode_render_manifest(document: object) -> dict[str, JsonValue]:
 
     Args:
         document: The parsed manifest document.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded identically to
+            :func:`validate_episode_render_plan`.
 
     Returns:
         The same document, once every rule holds.
@@ -638,7 +691,12 @@ def validate_episode_render_manifest(document: object) -> dict[str, JsonValue]:
             f"version {RENDER_MANIFEST_SCHEMA_VERSION} only"
         )
 
-    manifest_source = _validate_source(manifest, MANIFEST_SOURCE_KEYS, "episode render manifest")
+    manifest_source = _validate_source(
+        manifest,
+        MANIFEST_SOURCE_KEYS,
+        "episode render manifest",
+        movement_catalogue_allowed=camera_profile == "v2",
+    )
     _validate_composition_sources(manifest, manifest_source, "episode render manifest")
 
     emission = _require_document(manifest.get("emission"), "episode render manifest emission")
@@ -683,6 +741,7 @@ def validate_episode_render_manifest(document: object) -> dict[str, JsonValue]:
         keys=MANIFEST_FRAME_KEYS,
         emission=resolved_emission,
         description="episode render manifest",
+        camera_profile=camera_profile,
     )
 
     completeness = _require_document(

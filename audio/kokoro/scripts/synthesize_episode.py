@@ -134,7 +134,7 @@ def _read_canonical(path: Path, description: str) -> object:
 
 
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse the twelve required flags this executor accepts, and nothing else."""
+    """Parse the twelve required flags plus the optional presentation-profile flag."""
     parser = argparse.ArgumentParser(
         prog="python audio/kokoro/scripts/synthesize_episode.py",
         description=(
@@ -174,16 +174,40 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         required=True,
         help="the directory under which one voice execution directory is published",
     )
+    parser.add_argument(
+        "--presentation-profile",
+        choices=("v1", "v2", "v3", "v4"),
+        default=None,
+        help=(
+            "the presentation profile the reused source gate verifies the presentation plan "
+            "under; v1 verifies a plan as V1, v2 verifies the additive motion-window plan, "
+            "v3 verifies the frozen, content-sized plan with no motion windows; when the flag "
+            "is omitted today's exact behavior is preserved"
+        ),
+    )
     return parser.parse_args(None if argv is None else list(argv))
 
 
-def require_engine_versions(voice_block: Mapping[str, object]) -> None:
+def require_engine_versions(
+    voice_block: Mapping[str, object], *, allow_provisional_engine: bool = False
+) -> None:
     """Refuse unless the installed engine and G2P equal the plan's pinned versions.
+
+    The plan pins the Director-reviewed IDEAL narrator request --
+    ``engine_version``/``g2p_version`` 0.9.4, constants owned by Phase 28
+    (:mod:`living_diorama.voice.voice_spec`), which this module never edits.
+    That exact build was never published to PyPI, so a real environment's
+    installed kokoro/misaki are always a substitute build. By default
+    (``allow_provisional_engine=False``) any mismatch is a hard refusal --
+    the reviewed production contract, unchanged. A preview-only caller may
+    pass ``allow_provisional_engine=True`` to accept the substitute build;
+    that path prints an explicit warning to stderr so nothing ever claims
+    the pinned engine ran when it did not.
 
     Raises:
         VoicePlanRefused: If the installed ``kokoro`` or ``misaki`` version
             does not equal the plan's pinned ``engine_version`` or
-            ``g2p_version``.
+            ``g2p_version``, unless ``allow_provisional_engine`` is True.
     """
     import importlib.metadata
 
@@ -191,17 +215,30 @@ def require_engine_versions(voice_block: Mapping[str, object]) -> None:
     g2p_version = cast(str, voice_block["g2p_version"])
 
     installed_engine = importlib.metadata.version("kokoro")
-    if installed_engine != engine_version:
-        raise VoicePlanRefused(
-            f"the plan pins engine_version {engine_version!r}, but the installed kokoro is "
-            f"{installed_engine!r}; this environment cannot satisfy the reviewed request"
-        )
     installed_g2p = importlib.metadata.version("misaki")
-    if installed_g2p != g2p_version:
-        raise VoicePlanRefused(
-            f"the plan pins g2p_version {g2p_version!r}, but the installed misaki is "
-            f"{installed_g2p!r}; this environment cannot satisfy the reviewed request"
-        )
+
+    if installed_engine == engine_version and installed_g2p == g2p_version:
+        return
+
+    if not allow_provisional_engine:
+        if installed_engine != engine_version:
+            raise VoicePlanRefused(
+                f"the plan pins engine_version {engine_version!r}, but the installed kokoro is "
+                f"{installed_engine!r}; this environment cannot satisfy the reviewed request"
+            )
+        if installed_g2p != g2p_version:
+            raise VoicePlanRefused(
+                f"the plan pins g2p_version {g2p_version!r}, but the installed misaki is "
+                f"{installed_g2p!r}; this environment cannot satisfy the reviewed request"
+            )
+
+    print(
+        f"warning: PREVIEW-ONLY provisional engine build. The plan pins engine_version "
+        f"{engine_version!r}/g2p_version {g2p_version!r}, but this environment installed "
+        f"kokoro {installed_engine!r} and misaki {installed_g2p!r}; proceeding with the "
+        "substitute engine build -- no claim is made that the pinned engine executed",
+        file=sys.stderr,
+    )
 
 
 def require_local_g2p_assets() -> None:
@@ -291,44 +328,36 @@ def build_pipeline(
     weights_path: Path,
     config_path: Path,
 ) -> object:
-    """Construct the reviewed pipeline, with its G2P fallback explicitly disabled.
+    """Construct the reviewed pipeline against the real installed kokoro API.
 
-    ``KPipeline.__init__`` for an English ``lang_code`` constructs an
-    ``EspeakFallback`` by default and only leaves it unset when that
-    construction itself raises -- so the reviewed ``fallback = None`` policy
-    is not reachable by argument. It is achieved here by explicit
-    post-construction replacement, which is identical whether or not espeak
-    happens to be installed: no ambient fallback substitution.
+    The real installed build (kokoro 0.9.4, matching the plan's pinned
+    ``engine_version``) separates ``KModel`` from ``KPipeline``: introspecting
+    the installed package shows ``KPipeline.__init__(self, lang_code,
+    repo_id=None, model=True, trf=False, en_callable=None, device=None)`` --
+    no ``config_path``/``model_path`` -- and ``KModel.__init__(self,
+    repo_id=None, config=None, model=None, disable_complex=False)``. A
+    ``KModel`` is built from the two local asset paths and handed to
+    ``KPipeline`` as its ``model``, mirroring this project's own real,
+    proven-working capability probe
+    (``_LIVING_DIORAMA_TOOLS/voice_profile_artifacts/logs/smoke2.py``).
 
-    ``model_repository`` and ``lang_code`` are read from the already
+    ``lang_code`` and ``model_repository`` are read from the already
     gate-verified voice block, never from a second, duplicate literal --
     Phase 28 owns the narrator request.
     """
     import torch
-    from kokoro import KModel, KPipeline
-    from misaki import en as misaki_en
+    from kokoro import KPipeline
+    from kokoro.model import KModel
 
+    lang_code = cast(str, voice_block["lang_code"])
+    repo_id = cast(str, voice_block["model_repository"])
     torch.set_grad_enabled(False)
-
-    model_repository = voice_block["model_repository"]
     model = (
-        KModel(
-            repo_id=cast(str, model_repository),
-            config=str(config_path),
-            model=str(weights_path),
-        )
+        KModel(repo_id=repo_id, config=str(config_path), model=str(weights_path))
         .to(DEVICE_CPU)
         .eval()
     )
-    pipeline = KPipeline(
-        lang_code=cast(str, voice_block["lang_code"]),
-        repo_id=cast(str, model_repository),
-        model=model,
-        device=DEVICE_CPU,
-        trf=False,
-    )
-    pipeline.g2p = misaki_en.G2P(trf=False, british=False, fallback=None, unk="")
-    return pipeline
+    return KPipeline(lang_code=lang_code, repo_id=repo_id, model=model, device=DEVICE_CPU)
 
 
 def unit_texts(realization_plan: Mapping[str, object]) -> list[str]:
@@ -342,49 +371,35 @@ def unit_texts(realization_plan: Mapping[str, object]) -> list[str]:
     return [cast(str, realization["realized_text"]) for realization in realizations]
 
 
-def tensor_to_float_list(audio: object, description: str) -> list[float]:
-    """Validate a synthesized tensor and return its samples as built-in floats.
+def audio_to_float_list(audio: object, description: str) -> list[float]:
+    """Validate a synthesized audio array and return its samples as built-in floats.
 
-    Widening a float32 value into Python's built-in ``float`` (IEEE double)
-    is exact and lossless, so this preserves every source sample's value and
-    the sample count exactly. It does not, and need not, claim that the
-    canonical PCM law reproduces any historical NumPy conversion's bytes --
-    see :mod:`living_diorama.voice_execution.speech_audio` for the law
-    itself, which is the only authority.
+    The real installed pipeline yields each chunk as a plain 3-tuple
+    ``(graphemes, phonemes, audio)`` whose ``audio`` element is a 1-D
+    ``numpy.ndarray`` of dtype ``float32``. Widening a float32 value into
+    Python's built-in ``float`` (IEEE double) is exact and lossless, so this
+    preserves every source sample's value and the sample count exactly. It
+    does not, and need not, claim that the canonical PCM law reproduces any
+    historical NumPy conversion's bytes -- see
+    :mod:`living_diorama.voice_execution.speech_audio` for the law itself,
+    which is the only authority.
 
     Raises:
-        SpeechRefused: If ``audio`` is not a ``torch.Tensor`` of dtype
-            ``float32``, is not one-dimensional, carries no samples, carries
-            a non-finite sample, or its ``tolist()`` disagrees with its own
-            ``numel()`` in count or in element type.
+        SpeechRefused: If ``audio`` is not a 1-D ``numpy.ndarray`` of dtype
+            ``float32``, carries no samples, or carries a non-finite sample.
     """
-    import torch
+    import numpy as np
 
-    if not isinstance(audio, torch.Tensor):
-        raise SpeechRefused(f"{description} is not a torch.Tensor, got {type(audio).__name__}")
-    if audio.dtype is not torch.float32:
-        raise SpeechRefused(f"{description} has dtype {audio.dtype}, expected torch.float32")
-    if audio.ndim != 1:
-        raise SpeechRefused(f"{description} has {audio.ndim} dimensions, expected 1")
-    if audio.numel() < 1:
+    array = np.asarray(audio)
+    if array.dtype != np.float32:
+        raise SpeechRefused(f"{description} has dtype {array.dtype}, expected numpy.float32")
+    if array.ndim != 1:
+        raise SpeechRefused(f"{description} has {array.ndim} dimensions, expected 1")
+    if array.size < 1:
         raise SpeechRefused(f"{description} carries zero samples")
-    if not bool(torch.isfinite(audio).all()):
+    if not bool(np.isfinite(array).all()):
         raise SpeechRefused(f"{description} carries a non-finite sample")
-
-    expected = audio.numel()
-    values = audio.detach().cpu().tolist()
-    if type(values) is not list:
-        raise SpeechRefused(f"{description}.tolist() did not return a list")
-    if len(values) != expected:
-        raise SpeechRefused(
-            f"{description}.tolist() returned {len(values)} values, but the tensor holds {expected}"
-        )
-    for index, value in enumerate(values):
-        if type(value) is not float:
-            raise SpeechRefused(
-                f"{description}[{index}] is not an exact float, got {type(value).__name__}"
-            )
-    return cast(list[float], values)
+    return [float(sample) for sample in array.tolist()]
 
 
 def synthesize_unit(
@@ -404,8 +419,8 @@ def synthesize_unit(
 
     Raises:
         SpeechRefused: If synthesis yields anything other than exactly one
-            output chunk, or the resulting tensor fails
-            :func:`tensor_to_float_list`.
+            output chunk, or the resulting audio fails
+            :func:`audio_to_float_list`.
     """
     import torch
 
@@ -415,7 +430,8 @@ def synthesize_unit(
         raise SpeechRefused(
             f"synthesis produced {len(outputs)} chunks for one unit; exactly one is required"
         )
-    return tensor_to_float_list(outputs[0].audio, "synthesized audio")
+    _graphemes, _phonemes, audio = outputs[0]
+    return audio_to_float_list(audio, "synthesized audio")
 
 
 def _is_path_indirection(path: Path) -> bool:
@@ -713,8 +729,13 @@ def publish_episode(
         raise
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, allow_provisional_engine: bool = False) -> int:
     """Parse arguments, execute the plan, and report what was spoken.
+
+    ``allow_provisional_engine`` is the preview-only opt-in that lets the
+    engine-version gate accept the real installed substitute kokoro/misaki
+    build with an explicit stderr warning. It is never a CLI flag, so the
+    production command line cannot silently downgrade the engine contract.
 
     Returns:
         0 on success, or on a verified no-op re-run of an already-complete
@@ -743,11 +764,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         # their own sources has been verified in full -- and before any
         # preflight or model load.
         validate_episode_voice_plan_against_sources(
-            voice_plan, realization, presentation, delivery, narration, shots, story, export
+            voice_plan,
+            realization,
+            presentation,
+            delivery,
+            narration,
+            shots,
+            story,
+            export,
+            presentation_profile=arguments.presentation_profile,
         )
 
         voice_block = cast(Mapping[str, object], voice_plan["voice"])
-        require_engine_versions(voice_block)
+        require_engine_versions(voice_block, allow_provisional_engine=allow_provisional_engine)
         require_local_g2p_assets()
         weights_path = Path(arguments.model_weights)
         config_path = Path(arguments.model_config)

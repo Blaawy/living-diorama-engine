@@ -96,8 +96,34 @@ def build(
     story_path: Path,
     export_path: Path,
     output_path: Path,
+    *,
+    presentation_profile: str | None = None,
 ) -> int:
-    """Write the voice plan for the given sources and return its byte length."""
+    """Write the voice plan for the given sources and return its byte length.
+
+    Args:
+        realization_path: The Episode Language Realization Plan the plan speaks.
+        presentation_path: The Episode Presentation Plan the plan speaks to.
+        delivery_path: The Episode Narration Delivery Plan the presentation
+            plan images. Verification-only.
+        narration_path: The Episode Narration Plan the presentation presents.
+            Verification-only.
+        shots_path: The Shot Direction Plan the delivery plan was cut against.
+            Verification-only.
+        story_path: The Episode Story Plan the realization plan was proven
+            against. Verification-only.
+        export_path: The render export the story and realization were derived
+            from. Verification-only.
+        output_path: Where to write the voice plan; refused if it already exists.
+        presentation_profile: The presentation profile the reused Phase 27
+            gate verifies the presentation plan under. ``None`` (the default)
+            preserves today's exact behavior: a presentation plan carrying
+            ``motion_windows`` is verified as V2, any other plan as V1. Pass
+            ``"v1"``, ``"v2"`` or ``"v3"`` to pin the profile explicitly --
+            ``"v3"`` is required for the frozen, content-sized V3
+            presentation plan, which carries no ``motion_windows`` and would
+            otherwise be re-derived as V1 and refused by the gate.
+    """
     if output_path.exists():
         raise FileExistsError(
             f"voice plan destination {output_path} already exists; plans are never overwritten"
@@ -128,6 +154,7 @@ def build(
         shots,
         story,
         export,
+        presentation_profile=presentation_profile,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(payload)
@@ -170,6 +197,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="the render export the story and realization were derived from",
     )
     parser.add_argument("--output", required=True, help="where to write the voice plan")
+    parser.add_argument(
+        "--presentation-profile",
+        choices=("v1", "v2", "v3", "v4"),
+        default=None,
+        help=(
+            "the presentation profile the reused Phase 27 gate verifies the presentation "
+            "plan under; v1 reproduces today's bytes exactly, v2 verifies the additive "
+            "motion-window plan, v3 verifies the frozen, content-sized plan with no motion "
+            "windows; when the flag is omitted today's exact behavior is preserved"
+        ),
+    )
     namespace = parser.parse_args(argv)
 
     try:
@@ -182,6 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(namespace.story),
             Path(namespace.export),
             Path(namespace.output),
+            presentation_profile=namespace.presentation_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         # OSError covers the deliberate FileExistsError/FileNotFoundError

@@ -509,6 +509,7 @@ def write_cli_inputs(
     """
     realization, presentation, delivery, narration, shots, story, export = sources
     render_dir, _render_manifest = render
+    root.mkdir(parents=True, exist_ok=True)
 
     paths: dict[str, Path] = {}
     for name, document, description in (

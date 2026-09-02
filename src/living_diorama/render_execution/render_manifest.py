@@ -39,6 +39,7 @@ def build_episode_render_manifest_document(
     results: dict[int, dict[str, object]],
     environment: dict[str, str],
     witness_difference: float,
+    camera_profile: str = "v1",
 ) -> dict[str, JsonValue]:
     """Return the manifest for a completed render.
 
@@ -54,6 +55,10 @@ def build_episode_render_manifest_document(
             witness frame and the final playback frame, in levels. Measured
             by whoever held both images; the verdict about it is computed
             here rather than supplied.
+        camera_profile: ``"v1"`` (default) or ``"v2"``. Threaded into both
+            validators so a V2 plan/manifest carrying movement-camera
+            identities and the movement-catalogue binding validates under the
+            same profile it was built under.
 
     Returns:
         The complete, validated manifest document.
@@ -63,7 +68,7 @@ def build_episode_render_manifest_document(
         ValueError: If a planned frame has no result, a result names a frame
             the plan does not, or the plan itself is invalid.
     """
-    plan = validate_episode_render_plan(render_plan)
+    plan = validate_episode_render_plan(render_plan, camera_profile=camera_profile)
     plan_digest = sha256_hex(dumps_canonical(plan, "episode render plan"))
     planned = [cast(dict[str, JsonValue], entry) for entry in cast(list[JsonValue], plan["frames"])]
 
@@ -136,7 +141,7 @@ def build_episode_render_manifest_document(
             ),
         },
     }
-    return validate_episode_render_manifest(document)
+    return validate_episode_render_manifest(document, camera_profile=camera_profile)
 
 
 def build_episode_render_manifest_bytes(
@@ -145,6 +150,7 @@ def build_episode_render_manifest_bytes(
     results: dict[int, dict[str, object]],
     environment: dict[str, str],
     witness_difference: float,
+    camera_profile: str = "v1",
 ) -> bytes:
     """Return the canonical bytes of one episode render manifest."""
     return dumps_canonical(
@@ -153,6 +159,7 @@ def build_episode_render_manifest_bytes(
             results=results,
             environment=environment,
             witness_difference=witness_difference,
+            camera_profile=camera_profile,
         ),
         "episode render manifest",
     )

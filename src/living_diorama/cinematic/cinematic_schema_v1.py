@@ -16,6 +16,8 @@ direction is a read-only consumer of a verified story plan and a source-bound
 Phase 17 clock, and must never reach into live simulation.
 """
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Final, cast
 
 from living_diorama.cinematic.cinematic_spec import (
@@ -88,6 +90,59 @@ test re-hashes the shipped config against it, so silent drift fails loudly in
 both directions.
 """
 
+DIRECTOR_V4_MOTION_TIME_SHA256: Final = (
+    "a821049b648c0d37a9bc5c6cbc74142cffb0c21a817ad3e2b10764dfeaa4079c"
+)
+"""The SHA-256 of the reviewed Director V4 Motion & Time Spec.
+
+The exact bytes of ``visual/blender/config/motion_time_director_v4.json`` in the
+locked tree this build was reviewed against. Same discipline as the canonical
+pin: a repository test re-hashes the shipped file against this constant, and the
+resolved clock below is what that digest resolves to.
+"""
+
+CANONICAL_RESOLVED_TIMELINE: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "end_frame": 193,
+        "end_hold_frames": 48,
+        "fps": 24,
+        "start_frame": 1,
+        "start_hold_frames": 24,
+        "transition_end": 145,
+        "transition_frames": 120,
+        "transition_start": 25,
+    }
+)
+"""The resolved canonical Phase 17 clock, restated beside its source digest."""
+
+DIRECTOR_V4_RESOLVED_TIMELINE: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "end_frame": 319,
+        "end_hold_frames": 18,
+        "fps": 24,
+        "start_frame": 1,
+        "start_hold_frames": 24,
+        "transition_end": 301,
+        "transition_frames": 276,
+        "transition_start": 25,
+    }
+)
+"""The resolved Director V4 clock: 314 playback frames at 24 fps (13.0833 s)."""
+
+REVIEWED_CLOCKS: Final[Mapping[str, Mapping[str, int]]] = MappingProxyType(
+    {
+        CANONICAL_MOTION_TIME_SHA256: CANONICAL_RESOLVED_TIMELINE,
+        DIRECTOR_V4_MOTION_TIME_SHA256: DIRECTOR_V4_RESOLVED_TIMELINE,
+    }
+)
+"""The closed set of reviewed Motion & Time clocks this build directs.
+
+A plan is accepted only when its bound digest is one of these AND the clock it
+restates is exactly the clock that digest resolves to -- a document cannot claim
+one clock while binding another. This is a closed set, never a shape test: any
+other digest, however internally consistent, is refused outright.
+"""
+
 MAX_TIMELINE_FPS: Final = 240
 """Phase 17's own upper bound on a plausible frame rate, restated as data."""
 
@@ -119,13 +174,13 @@ SOURCE_KEYS: Final = frozenset(
 
 ``story_plan_sha256`` is the digest of the story plan's own canonical bytes;
 ``motion_time_sha256`` is the digest of the exact Phase 17 Motion & Time Spec
-bytes the clock was resolved from, and must equal the canonical pinned source;
-``catalogue_sha256`` is the digest of the approved camera anchor catalogue's
-canonical serialization, recomputed and enforced by this validator -- so a shot
-plan names not merely an episode and a frame count but the exact story, the
-exact locked clock, and the exact approved camera set it was cut for. Pairing
-it with a different story plan, an invented alternate clock, or a tampered
-catalogue is refused rather than silently accepted.
+bytes the clock was resolved from, and must be one of the reviewed pinned
+sources; ``catalogue_sha256`` is the digest of the approved camera anchor
+catalogue's canonical serialization, recomputed and enforced by this validator
+-- so a shot plan names not merely an episode and a frame count but the exact
+story, the exact locked clock, and the exact approved camera set it was cut for.
+Pairing it with a different story plan, an invented alternate clock, or a
+tampered catalogue is refused rather than silently accepted.
 """
 
 TIMELINE_KEYS: Final = frozenset(
@@ -323,7 +378,8 @@ def validate_shot_direction_plan(value: object) -> dict[str, JsonValue]:
 
     Checks the exact key sets at every governed level, the format tag and schema
     version, the story-plan and Motion & Time Spec bindings, the restated
-    Phase 17 timeline (including that it agrees with its own phase arithmetic),
+    Phase 17 timeline (including that it agrees with its own phase arithmetic
+    and that it is exactly what the bound reviewed digest resolves to),
     and every shot: that its anchor comes from the closed catalogue, its kind,
     reason and emphasis agree and come from the closed vocabularies, its declared
     id matches its position, its frames lie inside the locked timeline, and that
@@ -408,11 +464,11 @@ def validate_shot_direction_plan(value: object) -> dict[str, JsonValue]:
     motion_digest = require_hash_hex(
         source.get("motion_time_sha256"), "shot direction plan source motion_time_sha256"
     )
-    if motion_digest != CANONICAL_MOTION_TIME_SHA256:
+    if motion_digest not in REVIEWED_CLOCKS:
         raise ValueError(
             f"shot direction plan was cut against motion time spec {motion_digest}, "
             f"which is not the canonical Phase 17 source this build was reviewed "
-            f"against ({CANONICAL_MOTION_TIME_SHA256})"
+            f"against (admissible reviewed clocks: {', '.join(sorted(REVIEWED_CLOCKS))})"
         )
     supplied_catalogue = require_hash_hex(
         source.get("catalogue_sha256"), "shot direction plan source catalogue_sha256"
@@ -444,6 +500,17 @@ def validate_shot_direction_plan(value: object) -> dict[str, JsonValue]:
             )
 
     timeline = _validate_timeline(document.get("timeline"))
+
+    # The bound digest and the restated clock must name the same document: a
+    # plan that binds a reviewed digest but restates the OTHER reviewed clock's
+    # timeline (or any hand-edited one) claims one clock while binding another.
+    expected_timeline = dict(REVIEWED_CLOCKS[motion_digest])
+    if timeline != expected_timeline:
+        raise ValueError(
+            f"shot direction plan restates timeline {timeline!r}, but the reviewed "
+            f"motion time spec {motion_digest} resolves to {expected_timeline!r}; a plan "
+            "restates exactly the clock its bound digest resolves to"
+        )
 
     shots = _require_list(document.get("shots"), "shot direction plan shots")
     if not shots:
@@ -485,7 +552,8 @@ def validate_shot_direction_plan(value: object) -> dict[str, JsonValue]:
                 "previous shot was already on; adjacent shots never share an anchor"
             )
 
-    # Loop closure: Phase 17 guarantees frame 1 and frame 193 are the same world.
+    # Loop closure: Phase 17 guarantees frame 1 and the final frame are the same
+    # world (frame 193 on the canonical clock, frame 315 on the Director V4 one).
     if validated[0]["camera_anchor_id"] != validated[-1]["camera_anchor_id"]:
         raise ValueError(
             f"shot direction plan opens on {validated[0]['camera_anchor_id']!r} and "

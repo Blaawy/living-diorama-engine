@@ -1,6 +1,6 @@
 """Deterministic cinematic direction over verified episode emphasis.
 
-This package owns one question: given what Phase 21 says mattered, which
+This package owns one question: given what Phase 21 said mattered, which
 already-existing camera anchor should be looking, and for how long?
 
 CINEMATIC DIRECTION IS PRESENTATION METADATA, NOT AUTHORITATIVE WORLD TRUTH.
@@ -16,14 +16,17 @@ produces and are not part of it.
 """
 
 from living_diorama.cinematic.cinematic_cross_check import (
+    build_shot_direction_plan_v2_bytes,
     validate_shot_direction_plan_against_story,
 )
 from living_diorama.cinematic.cinematic_schema_v1 import (
     CANONICAL_MOTION_TIME_SHA256,
+    REVIEWED_CLOCKS,
     SHOT_PLAN_FORMAT,
     SHOT_SCHEMA_VERSION,
     validate_shot_direction_plan,
 )
+from living_diorama.cinematic.cinematic_schema_v2 import validate_shot_direction_plan_v2
 from living_diorama.cinematic.cinematic_spec import (
     BEAT_ANCHORS,
     CAMERA_ANCHORS,
@@ -49,14 +52,17 @@ __all__ = [
     "ESTABLISHING_ANCHOR",
     "MIN_SHOT_FRAMES",
     "REASON_CODES",
+    "REVIEWED_CLOCKS",
     "SHOT_KINDS",
     "SHOT_PLAN_FORMAT",
     "SHOT_SCHEMA_VERSION",
     "build_shot_direction_plan_bytes",
     "build_shot_direction_plan_document",
+    "build_shot_direction_plan_v2_bytes",
     "catalogue_document",
     "catalogue_sha256",
     "resolve_motion_time_binding",
     "validate_shot_direction_plan",
     "validate_shot_direction_plan_against_story",
+    "validate_shot_direction_plan_v2",
 ]

@@ -12,6 +12,10 @@ from pathlib import Path
 import pytest
 
 from living_diorama.cli.build_language_realization_plan import main
+from living_diorama.language_realization import (
+    build_episode_language_realization_plan_bytes,
+    validate_episode_language_realization_plan,
+)
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
 
 from .conftest import REPO_ROOT, build_realization_sources
@@ -219,3 +223,57 @@ def test_the_cli_never_calls_a_second_decoder() -> None:
     }
     assert "loads" not in json_calls
     assert json_calls == {"dumps"}
+
+
+# ------------------------------------------------------------ wording profile wiring
+
+
+@pytest.mark.parametrize("flag", [None, ["--wording-profile", "v1"]])
+def test_the_wording_profile_flag_omitted_or_v1_reproduces_todays_bytes(
+    tmp_path: Path, flag: list[str] | None
+) -> None:
+    """The new flag is a pure pass-through: v1 (or omitted) is today's exact bytes."""
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths) + (flag or [])) == 0
+    payload = paths[3].read_bytes()
+    narration, story, export = build_realization_sources(1)
+    assert payload == build_episode_language_realization_plan_bytes(narration, story, export)
+    assert b'"wording_profile"' not in payload
+
+
+def test_the_wording_profile_v2_flag_writes_a_genuine_v2_plan(tmp_path: Path) -> None:
+    """v2 output differs from v1, declares its register, and verifies end to end.
+
+    The CLI's own cross-check re-derived the same v2 bytes from the sources
+    before writing, so the byte-equality proof holds for a v2 plan too; the
+    single realization validator reads the register from the plan itself.
+    """
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths) + ["--wording-profile", "v2"]) == 0
+    payload = paths[3].read_bytes()
+    document = loads_canonical(payload, "plan")
+    assert document["wording_profile"] == "v2"
+    assert "viewer_guidance" in document
+    assert validate_episode_language_realization_plan(document) is document
+    narration, story, export = build_realization_sources(1)
+    assert payload == build_episode_language_realization_plan_bytes(
+        narration, story, export, wording_profile="v2"
+    )
+    assert payload != build_episode_language_realization_plan_bytes(narration, story, export)
+
+
+def test_the_v2_only_fields_cannot_exist_outside_a_declared_v2_register(tmp_path: Path) -> None:
+    """The schema refuses the v2-only block unless the plan declares the v2 register.
+
+    The realization validator is profile-aware and reads the register from the
+    plan itself, so a plan carrying ``viewer_guidance`` while not declaring
+    ``wording_profile == "v2"`` is refused: the profile gate is genuine, never
+    inferred from the sentence text.
+    """
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths) + ["--wording-profile", "v2"]) == 0
+    document = loads_canonical(paths[3].read_bytes(), "plan")
+    forged = dict(document)
+    forged["wording_profile"] = "v1"
+    with pytest.raises(ValueError, match="v2-only"):
+        validate_episode_language_realization_plan(forged)

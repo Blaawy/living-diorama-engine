@@ -17,6 +17,13 @@ cross-validated against both inputs, so a delivery plan file can never exist
 without its bindings having been proven against the actual sources at least
 once.
 
+``--delivery-profile`` selects which slot-allocation policy the plan is cut to.
+``v1`` (the default) writes the historical equal-partition plan exactly as this
+command always has. ``v4`` writes the content-proportional plan: a host
+interval shared by several units is partitioned in proportion to each unit's
+required speech frames. The cross-check re-derives the plan under the same
+profile, so a v4 plan closes every degree of freedom a v1 plan closes.
+
 There is no render plan and no render manifest input. A delivery slot is
 semantic presentation time, settled once the story is narrated and the episode
 directed; joining slots and sentences to the frames a render actually produced
@@ -72,8 +79,18 @@ def _read_canonical(path: Path, description: str) -> object:
     return document
 
 
-def build(narration_path: Path, shots_path: Path, output_path: Path) -> int:
-    """Write the delivery plan for the given sources and return its byte length."""
+def build(
+    narration_path: Path,
+    shots_path: Path,
+    output_path: Path,
+    delivery_profile: str = "v1",
+) -> int:
+    """Write the delivery plan for the given sources and return its byte length.
+
+    Under ``delivery_profile="v1"`` the builder call is exactly the historical
+    one, byte for byte. Under ``"v4"`` the plan is built with the
+    content-proportional partition and carries the v4 policy identifier.
+    """
     if output_path.exists():
         raise FileExistsError(
             f"narration delivery plan destination {output_path} already exists; "
@@ -81,15 +98,21 @@ def build(narration_path: Path, shots_path: Path, output_path: Path) -> int:
         )
     narration = _read_canonical(narration_path, "episode narration plan")
     shots = _read_canonical(shots_path, "shot direction plan")
-    payload = build_episode_narration_delivery_plan_bytes(narration, shots)
+    payload = build_episode_narration_delivery_plan_bytes(
+        narration, shots, delivery_profile=delivery_profile
+    )
     # The plan file must never exist without its source bindings having been
-    # proven; the cross-check re-derives the plan from both inputs and compares
-    # byte for byte, so this is a genuine end-to-end verification, not a re-run
-    # of the same code path's assumptions. Decoded through the same strict
-    # reader as every other document this command touches, rather than a plain
-    # json.loads of bytes this process itself just emitted.
+    # proven; the cross-check re-derives the plan from both inputs under the
+    # same profile and compares byte for byte, so this is a genuine end-to-end
+    # verification, not a re-run of the same code path's assumptions. Decoded
+    # through the same strict reader as every other document this command
+    # touches, rather than a plain json.loads of bytes this process itself just
+    # emitted.
     validate_narration_delivery_plan_against_sources(
-        loads_canonical(payload, "narration delivery plan"), narration, shots
+        loads_canonical(payload, "narration delivery plan"),
+        narration,
+        shots,
+        delivery_profile=delivery_profile,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(payload)
@@ -106,6 +129,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--shots", required=True, help="the Shot Direction Plan whose segments host the slots"
     )
+    parser.add_argument(
+        "--delivery-profile",
+        choices=("v1", "v4"),
+        default="v1",
+        help="delivery profile: v1 (equal partition, the historical output) or "
+        "v4 (content-proportional partition by required speech frames)",
+    )
     parser.add_argument("--output", required=True, help="where to write the delivery plan")
     namespace = parser.parse_args(argv)
 
@@ -114,6 +144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(namespace.narration),
             Path(namespace.shots),
             Path(namespace.output),
+            delivery_profile=namespace.delivery_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         # OSError covers the deliberate FileExistsError/FileNotFoundError

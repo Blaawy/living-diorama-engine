@@ -6,6 +6,7 @@ be -- so they attack the directory, not the code.
 """
 
 import contextlib
+import copy
 import json
 import shutil
 import struct
@@ -18,7 +19,12 @@ import pytest
 from living_diorama.cli import build_render_plan, verify_render
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.render_execution import build_episode_render_manifest_document
+from living_diorama.render_execution import (
+    build_episode_render_manifest_document,
+    build_episode_render_plan_bytes,
+    build_episode_render_plan_document,
+    validate_episode_render_plan,
+)
 from living_diorama.render_execution.frame_image import mean_abs_difference
 from living_diorama.render_execution.render_execution_spec import (
     render_profile_dimensions,
@@ -41,7 +47,13 @@ def _image_digest(payload: bytes) -> str:
     return sha256_hex(zlib.decompress(bytes(image)))
 
 
-def _write_render(tmp_path: Path, plan: dict[str, Any], *, witness_fill: int | None = None) -> Path:
+def _write_render(
+    tmp_path: Path,
+    plan: dict[str, Any],
+    *,
+    witness_fill: int | None = None,
+    camera_profile: str = "v1",
+) -> Path:
     """Materialise a complete, truthful render directory for one plan."""
     render_dir = tmp_path / plan["destination"]["render_id"]
     (render_dir / "frames").mkdir(parents=True)
@@ -77,6 +89,7 @@ def _write_render(tmp_path: Path, plan: dict[str, Any], *, witness_fill: int | N
         results=results,
         environment=ENVIRONMENT,
         witness_difference=measured,
+        camera_profile=camera_profile,
     )
     (render_dir / "episode_render_manifest.json").write_bytes(
         dumps_canonical(manifest, "episode render manifest")
@@ -785,3 +798,143 @@ def test_every_frame_is_decoded_not_only_the_boundary_pair(
 
     assert len(decoded) == len(render_plan["frames"]) == 193
     assert {path.name for path in decoded} == {entry["file"] for entry in render_plan["frames"]}
+
+
+# ------------------------------------------------------------ camera profile wiring
+
+
+@pytest.mark.parametrize("flag", [None, ["--camera-profile", "v1"]])
+def test_the_camera_profile_flag_omitted_or_v1_reproduces_todays_bytes(
+    tmp_path: Path,
+    shot_plan_leg1: dict[str, Any],
+    story_leg1: dict[str, Any],
+    flag: list[str] | None,
+) -> None:
+    """The new flag is a pure pass-through: v1 (or omitted) is today's exact bytes."""
+    shot_path, story_path = _write_inputs(tmp_path, shot_plan_leg1, story_leg1)
+    output = tmp_path / "render_plan.json"
+    argv = [
+        "--shot-plan",
+        str(shot_path),
+        "--story-plan",
+        str(story_path),
+        "--output",
+        str(output),
+    ]
+    assert build_render_plan.main(argv + (flag or [])) == 0
+    assert output.read_bytes() == build_episode_render_plan_bytes(shot_plan_leg1, story_leg1)
+
+
+def test_the_camera_profile_v2_flag_writes_a_genuine_v2_plan(
+    tmp_path: Path, shot_plan_leg1: dict[str, Any], story_leg1: dict[str, Any]
+) -> None:
+    """v2 output differs from v1, and only the existing V2 validator accepts it."""
+    shot_path, story_path = _write_inputs(tmp_path, shot_plan_leg1, story_leg1)
+    output = tmp_path / "render_plan.json"
+    argv = [
+        "--shot-plan",
+        str(shot_path),
+        "--story-plan",
+        str(story_path),
+        "--output",
+        str(output),
+    ]
+    assert build_render_plan.main(argv + ["--camera-profile", "v2"]) == 0
+    document = json.loads(output.read_text(encoding="utf-8"))
+    assert validate_episode_render_plan(document, camera_profile="v2") is document
+    with pytest.raises(ValueError):
+        validate_episode_render_plan(document)
+    assert output.read_bytes() == build_episode_render_plan_bytes(
+        shot_plan_leg1, story_leg1, camera_profile="v2"
+    )
+    assert output.read_bytes() != build_episode_render_plan_bytes(shot_plan_leg1, story_leg1)
+
+
+# ------------------------------------------- camera profile: verify_render
+
+
+def _v2_render_plan(shot_plan: dict[str, Any], story_plan: dict[str, Any]) -> dict[str, Any]:
+    """The genuine V2 render plan, built by the engine planner under V2."""
+    from living_diorama.cinematic.camera_movement_planner import plan_camera_movements
+
+    return build_episode_render_plan_document(
+        plan_camera_movements(copy.deepcopy(shot_plan)), story_plan, camera_profile="v2"
+    )
+
+
+def test_a_genuine_v2_render_directory_passes_the_audit(
+    tmp_path: Path, shot_plan_leg1: dict[str, Any], story_leg1: dict[str, Any]
+) -> None:
+    """The hard closure: verify_render accepts a real V2 render end to end.
+
+    The plan and manifest really carry ``movement_catalogue_sha256`` and
+    ``CAM_MOVEMENT_*`` frame anchors, and a truthful checkpoint is audited
+    against both of them, so every render_binding call in the audit runs under
+    the auto-detected V2 profile.
+    """
+    plan = _v2_render_plan(shot_plan_leg1, story_leg1)
+    assert "movement_catalogue_sha256" in plan["source"]
+    assert any(entry["camera_anchor_id"].startswith("CAM_MOVEMENT_") for entry in plan["frames"])
+    render_dir = _write_render(tmp_path, plan, camera_profile="v2")
+    _write_checkpoint(render_dir)
+    assert verify_render.audit_render_directory(render_dir) == []
+    assert verify_render.main(["--render-dir", str(render_dir)]) == 0
+
+
+def test_the_audit_still_catches_a_v1_source_lie_under_auto_detected_v1(
+    tmp_path: Path, render_plan: dict[str, Any]
+) -> None:
+    """Auto-detected v1 keeps V1 mismatch detection exactly as it was."""
+    render_dir = _write_render(tmp_path, render_plan)
+    path = render_dir / "episode_render_manifest.json"
+    manifest = loads_canonical(path.read_bytes(), "render manifest")
+    manifest["source"]["story_plan_sha256"] = "0" * 64
+    path.write_bytes(dumps_canonical(manifest, "render manifest"))
+
+    problems = verify_render.audit_render_directory(render_dir)
+    assert any("source disagrees" in problem for problem in problems), problems
+    assert verify_render.main(["--render-dir", str(render_dir)]) == 1
+
+
+def test_a_v2_plan_with_a_v1_manifest_is_refused_not_silently_picked(
+    tmp_path: Path, shot_plan_leg1: dict[str, Any], story_leg1: dict[str, Any]
+) -> None:
+    """A disagreement about the movement catalogue is a refusal, not a choice.
+
+    The V2 plan is built from a shot plan with no movement shots, so the
+    manifest for it carries no ``CAM_MOVEMENT_*`` anchors; dropping the
+    catalogue binding from its source leaves a perfectly valid V1 manifest
+    that still disagrees with the V2 plan beside it, and the source
+    comparison must surface that.
+    """
+    plan = build_episode_render_plan_document(shot_plan_leg1, story_leg1, camera_profile="v2")
+    render_dir = _write_render(tmp_path, plan, camera_profile="v2")
+    path = render_dir / "episode_render_manifest.json"
+    manifest = loads_canonical(path.read_bytes(), "render manifest")
+    del manifest["source"]["movement_catalogue_sha256"]
+    path.write_bytes(dumps_canonical(manifest, "render manifest"))
+
+    problems = verify_render.audit_render_directory(render_dir)
+    assert any(
+        "source disagrees" in problem and "movement_catalogue_sha256" in problem
+        for problem in problems
+    ), problems
+    assert verify_render.main(["--render-dir", str(render_dir)]) == 1
+
+
+def test_a_v1_plan_with_a_v2_manifest_is_refused_not_silently_picked(
+    tmp_path: Path, render_plan: dict[str, Any]
+) -> None:
+    """The same disagreement in the other direction is refused the same way."""
+    render_dir = _write_render(tmp_path, render_plan)
+    path = render_dir / "episode_render_manifest.json"
+    manifest = loads_canonical(path.read_bytes(), "render manifest")
+    manifest["source"]["movement_catalogue_sha256"] = "0" * 64
+    path.write_bytes(dumps_canonical(manifest, "render manifest"))
+
+    problems = verify_render.audit_render_directory(render_dir)
+    assert any(
+        "source disagrees" in problem and "movement_catalogue_sha256" in problem
+        for problem in problems
+    ), problems
+    assert verify_render.main(["--render-dir", str(render_dir)]) == 1

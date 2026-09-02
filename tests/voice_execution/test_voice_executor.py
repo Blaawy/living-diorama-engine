@@ -1,17 +1,19 @@
-"""Executor orchestration, driven by a fake Kokoro/Torch/spaCy stack.
+"""Executor orchestration, driven by a fake Kokoro/Torch/NumPy/spaCy stack.
 
 The executor is imported via ``importlib.util.spec_from_file_location``,
 exactly as Phase 23's own executor is imported without Blender, so importing
-this module never requires kokoro, torch, misaki or spacy to be installed.
-Every third-party name the executor would import is registered into
-``sys.modules`` by the ``fake_stack`` fixture before any executor function
-that needs it is called, and removed again afterward by ``monkeypatch``.
+this module never requires kokoro, torch, misaki, numpy or spacy to be
+installed. Every third-party name the executor would import is registered
+into ``sys.modules`` by the ``fake_stack`` fixture before any executor
+function that needs it is called, and removed again afterward by
+``monkeypatch``.
 """
 
 import ast
 import importlib.metadata
 import importlib.util
 import math
+import os
 import sys
 import types
 from pathlib import Path
@@ -37,37 +39,29 @@ def _load_executor() -> Any:
 executor = _load_executor()
 
 FLOAT32 = object()
-"""A stable sentinel identity for torch.float32, compared with `is`."""
+"""A stable sentinel identity for numpy.float32, compared with `is`."""
+
+FLOAT64 = object()
+"""A stable sentinel identity for the dtype np.asarray widens a Python list to."""
 
 
-class FakeTensor:
-    """A minimal stand-in for torch.Tensor, holding only what the bridge touches."""
+class FakeNdArray:
+    """A minimal stand-in for numpy.ndarray, holding only what the bridge touches."""
 
     def __init__(self, values: list[float], *, dtype: object = FLOAT32, ndim: int = 1) -> None:
         """Hold the sample values plus the dtype/ndim the bridge inspects."""
         self.values = values
         self.dtype = dtype
         self.ndim = ndim
-
-    def numel(self) -> int:
-        """Return the sample count."""
-        return len(self.values)
-
-    def detach(self) -> "FakeTensor":
-        """Return self -- there is no autograd graph to detach from."""
-        return self
-
-    def cpu(self) -> "FakeTensor":
-        """Return self -- the fake stack has no device to move from."""
-        return self
+        self.size = len(values)
 
     def tolist(self) -> list[float]:
-        """Return the samples as a fresh Python list, exactly as torch.Tensor.tolist does."""
+        """Return the samples as a fresh Python list, exactly as ndarray.tolist does."""
         return list(self.values)
 
 
 class FakeIsFiniteResult:
-    """A minimal stand-in for the boolean tensor torch.isfinite returns."""
+    """A minimal stand-in for the boolean ndarray numpy.isfinite returns."""
 
     def __init__(self, all_finite: bool) -> None:
         """Record whether every sample was finite."""
@@ -78,25 +72,6 @@ class FakeIsFiniteResult:
         return self._all_finite
 
 
-class FakeOutput:
-    """A minimal stand-in for one KPipeline output chunk."""
-
-    def __init__(self, audio: object) -> None:
-        """Hold the one attribute the bridge reads: .audio."""
-        self.audio = audio
-
-
-class FakeG2P:
-    """A minimal stand-in for misaki.en.G2P, recording its own construction arguments."""
-
-    def __init__(self, *, trf: bool, british: bool, fallback: object, unk: str) -> None:
-        """Record the constructor arguments as attributes, exactly as the real G2P does."""
-        self.trf = trf
-        self.british = british
-        self.fallback = fallback
-        self.unk = unk
-
-
 class Control:
     """Records what the fake stack observed, and arms misbehaviour per test."""
 
@@ -105,8 +80,10 @@ class Control:
         self.manual_seed_calls: list[tuple[int, int]] = []
         self.pipeline_calls: list[dict[str, Any]] = []
         self.grad_enabled_calls: list[bool] = []
-        self.model_constructions: list[dict[str, Any]] = []
         self.pipeline_constructions: list[dict[str, Any]] = []
+        self.kmodel_constructions: list[dict[str, Any]] = []
+        self.kmodel_calls: list[dict[str, Any]] = []
+        self.kmodel_instances: list[Any] = []
         self.chunks_at_unit: dict[int, int] = {}
         self.dtype_at_unit: dict[int, object] = {}
         self.dims_at_unit: dict[int, int] = {}
@@ -128,12 +105,10 @@ class Control:
 
 @pytest.fixture
 def fake_stack(monkeypatch: pytest.MonkeyPatch) -> Control:
-    """Install a fake torch/kokoro/misaki/spacy stack into sys.modules for one test."""
+    """Install a fake torch/numpy/kokoro/spacy stack into sys.modules for one test."""
     control = Control()
 
     fake_torch = types.ModuleType("torch")
-    fake_torch.float32 = FLOAT32  # type: ignore[attr-defined]
-    fake_torch.Tensor = FakeTensor  # type: ignore[attr-defined]
     fake_torch.__version__ = "2.13.0+cpu"  # type: ignore[attr-defined]
 
     def _set_grad_enabled(flag: bool) -> None:
@@ -142,17 +117,42 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> Control:
     def _manual_seed(seed: int) -> None:
         control.manual_seed_calls.append((seed, control.next_order()))
 
-    def _isfinite(tensor: FakeTensor) -> FakeIsFiniteResult:
-        finite = all(math.isfinite(v) for v in tensor.values) if tensor.values else True
-        return FakeIsFiniteResult(finite)
-
     fake_torch.set_grad_enabled = _set_grad_enabled  # type: ignore[attr-defined]
     fake_torch.manual_seed = _manual_seed  # type: ignore[attr-defined]
-    fake_torch.isfinite = _isfinite  # type: ignore[attr-defined]
+
+    fake_numpy = types.ModuleType("numpy")
+    fake_numpy.float32 = FLOAT32  # type: ignore[attr-defined]
+
+    def _asarray(audio: object) -> object:
+        if isinstance(audio, FakeNdArray):
+            return audio
+        if isinstance(audio, list):
+            # Mirrors np.asarray on a Python list: a non-float32 dtype that
+            # the bridge must refuse.
+            return FakeNdArray(audio, dtype=FLOAT64)
+        raise TypeError(f"asarray of {type(audio).__name__}")
+
+    def _isfinite(array: object) -> FakeIsFiniteResult:
+        if not isinstance(array, FakeNdArray):
+            raise TypeError(f"isfinite of {type(array).__name__}")
+        finite = all(math.isfinite(v) for v in array.values) if array.values else True
+        return FakeIsFiniteResult(finite)
+
+    fake_numpy.asarray = _asarray  # type: ignore[attr-defined]
+    fake_numpy.isfinite = _isfinite  # type: ignore[attr-defined]
 
     class FakeKModel:
-        def __init__(self, *, repo_id: str, config: str, model: str) -> None:
-            control.model_constructions.append(
+        """A stand-in for kokoro.model.KModel, recording construction and chained calls."""
+
+        def __init__(
+            self,
+            *,
+            repo_id: str,
+            config: str,
+            model: str,
+        ) -> None:
+            control.kmodel_instances.append(self)
+            control.kmodel_constructions.append(
                 {
                     "repo_id": repo_id,
                     "config": config,
@@ -162,30 +162,37 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> Control:
             )
 
         def to(self, device: str) -> "FakeKModel":
+            control.kmodel_calls.append(
+                {"method": "to", "device": device, "order": control.next_order()}
+            )
             return self
 
         def eval(self) -> "FakeKModel":
+            control.kmodel_calls.append({"method": "eval", "order": control.next_order()})
             return self
 
     class FakeKPipeline:
         def __init__(
-            self, *, lang_code: str, repo_id: str, model: "FakeKModel", device: str, trf: bool
+            self,
+            *,
+            lang_code: str,
+            repo_id: str,
+            model: FakeKModel,
+            device: str,
         ) -> None:
             control.pipeline_constructions.append(
                 {
                     "lang_code": lang_code,
                     "repo_id": repo_id,
+                    "model": model,
                     "device": device,
-                    "trf": trf,
                     "order": control.next_order(),
                 }
             )
-            # Mirrors the real KPipeline default: an English pipeline
-            # constructs a fallback by default. The executor is required to
-            # replace it explicitly.
-            self.g2p = FakeG2P(trf=False, british=False, fallback="ambient-espeak", unk="?")
 
-        def __call__(self, text: str, *, voice: str, speed: float) -> list[FakeOutput]:
+        def __call__(
+            self, text: str, *, voice: str, speed: float
+        ) -> list[tuple[str, str, FakeNdArray]]:
             control.unit_counter += 1
             unit = control.unit_counter
             control.pipeline_calls.append(
@@ -205,16 +212,15 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> Control:
                 values = [math.nan, *values]
             dtype = control.dtype_at_unit.get(unit, FLOAT32)
             ndim = control.dims_at_unit.get(unit, 1)
-            tensor = FakeTensor(values, dtype=dtype, ndim=ndim)
-            return [FakeOutput(tensor) for _ in range(chunk_count)]
+            audio = FakeNdArray(values, dtype=dtype, ndim=ndim)
+            return [("graphemes", "phonemes", audio) for _ in range(chunk_count)]
 
     fake_kokoro = types.ModuleType("kokoro")
-    fake_kokoro.KModel = FakeKModel  # type: ignore[attr-defined]
     fake_kokoro.KPipeline = FakeKPipeline  # type: ignore[attr-defined]
 
-    fake_misaki = types.ModuleType("misaki")
-    fake_misaki_en = types.ModuleType("misaki.en")
-    fake_misaki_en.G2P = FakeG2P  # type: ignore[attr-defined]
+    fake_kokoro_model = types.ModuleType("kokoro.model")
+    fake_kokoro_model.KModel = FakeKModel  # type: ignore[attr-defined]
+    fake_kokoro.model = fake_kokoro_model  # type: ignore[attr-defined]
 
     fake_spacy = types.ModuleType("spacy")
     fake_spacy_util = types.ModuleType("spacy.util")
@@ -226,9 +232,9 @@ def fake_stack(monkeypatch: pytest.MonkeyPatch) -> Control:
     fake_spacy.util = fake_spacy_util  # type: ignore[attr-defined]
 
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "numpy", fake_numpy)
     monkeypatch.setitem(sys.modules, "kokoro", fake_kokoro)
-    monkeypatch.setitem(sys.modules, "misaki", fake_misaki)
-    monkeypatch.setitem(sys.modules, "misaki.en", fake_misaki_en)
+    monkeypatch.setitem(sys.modules, "kokoro.model", fake_kokoro_model)
     monkeypatch.setitem(sys.modules, "spacy", fake_spacy)
     monkeypatch.setitem(sys.modules, "spacy.util", fake_spacy_util)
 
@@ -271,13 +277,13 @@ VOICE_BLOCK = {
 """The exact locked Phase 28 narrator request -- used verbatim, never re-declared."""
 
 
-# ---------------------------------------------------------------- tensor bridge
+# ---------------------------------------------------------------- audio bridge
 
 
 def test_the_real_bridge_shape_reaches_pcm16_bytes(fake_stack: Control) -> None:
-    """The real FakeTorch tensor shape converts to built-in floats and reaches pcm16_bytes."""
-    tensor = FakeTensor([0.1, -0.2, 0.3])
-    values = executor.tensor_to_float_list(tensor, "x")
+    """The real audio-array shape converts to built-in floats and reaches pcm16_bytes."""
+    audio = FakeNdArray([0.1, -0.2, 0.3])
+    values = executor.audio_to_float_list(audio, "x")
     assert values == [0.1, -0.2, 0.3]
     for value in values:
         assert type(value) is float
@@ -286,69 +292,45 @@ def test_the_real_bridge_shape_reaches_pcm16_bytes(fake_stack: Control) -> None:
 
 
 def test_count_is_preserved(fake_stack: Control) -> None:
-    """len(values) == numel and len(pcm) == numel * 2."""
-    tensor = FakeTensor([0.0] * 17)
-    values = executor.tensor_to_float_list(tensor, "x")
-    assert len(values) == tensor.numel() == 17
+    """len(values) == size and len(pcm) == size * 2."""
+    audio = FakeNdArray([0.0] * 17)
+    values = executor.audio_to_float_list(audio, "x")
+    assert len(values) == audio.size == 17
     assert len(executor.pcm16_bytes(values, "x")) == 34
 
 
-def test_not_a_tensor_is_refused(fake_stack: Control) -> None:
-    """A non-tensor object is refused before any conversion."""
-    with pytest.raises(executor.SpeechRefused, match="Tensor"):
-        executor.tensor_to_float_list([0.1, 0.2], "x")
+def test_a_python_list_is_refused_on_dtype(fake_stack: Control) -> None:
+    """A Python list (which np.asarray widens to float64) is refused on dtype."""
+    with pytest.raises(executor.SpeechRefused, match="dtype"):
+        executor.audio_to_float_list([0.1, 0.2], "x")
 
 
 def test_wrong_dtype_is_refused(fake_stack: Control) -> None:
-    """A tensor of the wrong dtype is refused before conversion."""
-    tensor = FakeTensor([0.1], dtype=object())
+    """An array of the wrong dtype is refused before conversion."""
+    audio = FakeNdArray([0.1], dtype=object())
     with pytest.raises(executor.SpeechRefused, match="dtype"):
-        executor.tensor_to_float_list(tensor, "x")
+        executor.audio_to_float_list(audio, "x")
 
 
 def test_wrong_ndim_is_refused(fake_stack: Control) -> None:
-    """A non-1D tensor is refused before conversion."""
-    tensor = FakeTensor([0.1], ndim=2)
+    """A non-1D array is refused before conversion."""
+    audio = FakeNdArray([0.1], ndim=2)
     with pytest.raises(executor.SpeechRefused, match="dimensions"):
-        executor.tensor_to_float_list(tensor, "x")
+        executor.audio_to_float_list(audio, "x")
 
 
-def test_zero_numel_is_refused(fake_stack: Control) -> None:
-    """A zero-sample tensor is refused before conversion."""
-    tensor = FakeTensor([])
+def test_zero_size_is_refused(fake_stack: Control) -> None:
+    """A zero-sample array is refused before conversion."""
+    audio = FakeNdArray([])
     with pytest.raises(executor.SpeechRefused, match="zero samples"):
-        executor.tensor_to_float_list(tensor, "x")
+        executor.audio_to_float_list(audio, "x")
 
 
 def test_a_non_finite_sample_is_refused(fake_stack: Control) -> None:
     """A non-finite sample is refused before conversion."""
-    tensor = FakeTensor([0.1, math.nan])
+    audio = FakeNdArray([0.1, math.nan])
     with pytest.raises(executor.SpeechRefused, match="non-finite"):
-        executor.tensor_to_float_list(tensor, "x")
-
-
-def test_a_tolist_length_disagreement_is_refused(fake_stack: Control) -> None:
-    """A tensor whose tolist() disagrees with its own numel() is refused."""
-
-    class BadTensor(FakeTensor):
-        def tolist(self) -> list[float]:
-            return [0.0]
-
-    tensor = BadTensor([0.0, 0.0, 0.0])
-    with pytest.raises(executor.SpeechRefused, match="returned 1 values"):
-        executor.tensor_to_float_list(tensor, "x")
-
-
-def test_a_non_float_element_is_refused(fake_stack: Control) -> None:
-    """A tolist() element that is not an exact float is refused."""
-
-    class BadTensor(FakeTensor):
-        def tolist(self) -> list[Any]:
-            return [0, 0, 0]
-
-    tensor = BadTensor([0.0, 0.0, 0.0])
-    with pytest.raises(executor.SpeechRefused, match="exact float"):
-        executor.tensor_to_float_list(tensor, "x")
+        executor.audio_to_float_list(audio, "x")
 
 
 # ---------------------------------------------------------------- one call per unit, seed law
@@ -361,6 +343,19 @@ def test_synthesize_unit_makes_exactly_one_engine_call(fake_stack: Control) -> N
         pipeline, "hello", voice_pack_path=Path("v"), speed_percent=100, seed=0
     )
     assert len(fake_stack.pipeline_calls) == 1
+
+
+def test_synthesize_unit_returns_a_non_empty_list_of_finite_floats(
+    fake_stack: Control,
+) -> None:
+    """A real-shaped synthesis call returns a non-empty list of finite built-in floats."""
+    pipeline = executor.build_pipeline(VOICE_BLOCK, weights_path=Path("w"), config_path=Path("c"))
+    values = executor.synthesize_unit(
+        pipeline, "hello", voice_pack_path=Path("v"), speed_percent=100, seed=0
+    )
+    assert len(values) >= 1
+    assert all(type(value) is float for value in values)
+    assert all(math.isfinite(value) for value in values)
 
 
 def test_manual_seed_is_called_once_per_unit_immediately_before_synthesis(
@@ -380,13 +375,13 @@ def test_manual_seed_is_called_once_per_unit_immediately_before_synthesis(
         assert seed_order == call_order - 1
 
 
-def test_model_construction_precedes_the_first_seed_call(fake_stack: Control) -> None:
-    """Model and pipeline construction happen strictly before the first manual_seed call."""
+def test_pipeline_construction_precedes_the_first_seed_call(fake_stack: Control) -> None:
+    """Pipeline construction happens strictly before the first manual_seed call."""
     pipeline = executor.build_pipeline(VOICE_BLOCK, weights_path=Path("w"), config_path=Path("c"))
     executor.synthesize_unit(
         pipeline, "hello", voice_pack_path=Path("v"), speed_percent=100, seed=0
     )
-    construction_order = fake_stack.model_constructions[0]["order"]
+    construction_order = fake_stack.pipeline_constructions[0]["order"]
     first_seed_order = fake_stack.manual_seed_calls[0][1]
     assert construction_order < first_seed_order
 
@@ -397,17 +392,32 @@ def test_grad_is_disabled_once_at_construction(fake_stack: Control) -> None:
     assert fake_stack.grad_enabled_calls == [False]
 
 
-def test_fallback_is_none_after_construction(fake_stack: Control) -> None:
-    """pipeline.g2p.fallback is None after build_pipeline -- never the ambient default."""
-    pipeline = executor.build_pipeline(VOICE_BLOCK, weights_path=Path("w"), config_path=Path("c"))
-    assert pipeline.g2p.fallback is None
-
-
-def test_model_repository_comes_from_the_voice_block_not_a_literal(fake_stack: Control) -> None:
-    """model_repository is read from the verified voice block, used for both constructions."""
+def test_the_pipeline_is_built_from_local_paths_and_the_voice_block(
+    fake_stack: Control,
+) -> None:
+    """build_pipeline builds a KModel from local paths, then a KPipeline around that model."""
     executor.build_pipeline(VOICE_BLOCK, weights_path=Path("w"), config_path=Path("c"))
-    assert fake_stack.model_constructions[0]["repo_id"] == VOICE_BLOCK["model_repository"]
-    assert fake_stack.pipeline_constructions[0]["repo_id"] == VOICE_BLOCK["model_repository"]
+    kmodel = fake_stack.kmodel_constructions[0]
+    assert kmodel["repo_id"] == VOICE_BLOCK["model_repository"]
+    assert kmodel["config"] == "c"
+    assert kmodel["model"] == "w"
+    kmodel_calls = fake_stack.kmodel_calls
+    assert [call["method"] for call in kmodel_calls] == ["to", "eval"]
+    assert kmodel_calls[0]["device"] == "cpu"
+    construction = fake_stack.pipeline_constructions[0]
+    assert construction["lang_code"] == VOICE_BLOCK["lang_code"]
+    assert construction["repo_id"] == VOICE_BLOCK["model_repository"]
+    assert construction["model"] is fake_stack.kmodel_instances[0]
+    assert construction["device"] == "cpu"
+    assert kmodel_calls[0]["order"] < kmodel_calls[1]["order"] < construction["order"]
+    assert set(construction) == {"lang_code", "repo_id", "model", "device", "order"}
+
+
+def test_lang_code_comes_from_the_voice_block_not_a_literal(fake_stack: Control) -> None:
+    """lang_code is read from the verified voice block, never from a duplicate literal."""
+    block = dict(VOICE_BLOCK, lang_code="x")
+    executor.build_pipeline(block, weights_path=Path("w"), config_path=Path("c"))
+    assert fake_stack.pipeline_constructions[0]["lang_code"] == "x"
 
 
 @pytest.mark.parametrize(
@@ -465,6 +475,39 @@ def test_require_engine_versions_refuses_a_wrong_misaki_version(fake_stack: Cont
     fake_stack.installed_misaki_version = "0.9.3"
     with pytest.raises(executor.VoicePlanRefused, match="g2p_version"):
         executor.require_engine_versions(VOICE_BLOCK)
+
+
+def test_require_engine_versions_hard_refuses_the_real_substitute_engine_without_the_opt_in(
+    fake_stack: Control,
+) -> None:
+    """The real installed kokoro==0.2.2/misaki==0.7.4 build is still a hard refusal by default."""
+    fake_stack.installed_kokoro_version = "0.2.2"
+    fake_stack.installed_misaki_version = "0.7.4"
+    with pytest.raises(executor.VoicePlanRefused, match="engine_version"):
+        executor.require_engine_versions(VOICE_BLOCK)
+
+
+def test_require_engine_versions_accepts_the_substitute_engine_with_the_explicit_opt_in(
+    fake_stack: Control, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """allow_provisional_engine=True accepts the substitute build and warns honestly on stderr."""
+    fake_stack.installed_kokoro_version = "0.2.2"
+    fake_stack.installed_misaki_version = "0.7.4"
+    executor.require_engine_versions(VOICE_BLOCK, allow_provisional_engine=True)
+    captured = capsys.readouterr()
+    assert "PREVIEW-ONLY" in captured.err
+    assert "0.2.2" in captured.err
+    assert "no claim is made that the pinned engine executed" in captured.err
+    assert captured.out == ""
+
+
+def test_require_engine_versions_prints_no_warning_for_the_exact_pins(
+    fake_stack: Control, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An exact pin match is the reviewed build: no provisional warning is printed."""
+    executor.require_engine_versions(VOICE_BLOCK, allow_provisional_engine=True)
+    captured = capsys.readouterr()
+    assert captured.err == ""
 
 
 def test_require_local_g2p_assets_accepts_the_installed_stack(fake_stack: Control) -> None:
@@ -533,11 +576,23 @@ def test_require_local_model_assets_refuses_a_wrong_digest(tmp_path: Path) -> No
         )
 
 
+# ---------------------------------------------------------------- offline environment
+
+
+def test_offline_environment_variables_are_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The offline-environment variables are set exactly, before any third-party import."""
+    for key in executor._OFFLINE_ENVIRONMENT_VARIABLES:
+        monkeypatch.delenv(key, raising=False)
+    executor._require_offline_environment()
+    for key, value in executor._OFFLINE_ENVIRONMENT_VARIABLES.items():
+        assert os.environ[key] == value
+
+
 # ---------------------------------------------------------------- CLI flags
 
 
-def test_the_executor_accepts_exactly_twelve_required_flags() -> None:
-    """The executor's CLI accepts exactly twelve required flags."""
+def test_the_executor_accepts_exactly_twelve_required_flags_plus_the_optional_profile() -> None:
+    """The executor's CLI accepts exactly twelve required flags plus the optional profile."""
     argv = [
         "--voice-plan",
         "a",
@@ -579,14 +634,110 @@ def test_the_executor_accepts_exactly_twelve_required_flags() -> None:
         "model_config",
         "voice_pack",
         "output_root",
+        "presentation_profile",
     }
-    assert len(destinations) == 12
+    assert len(destinations) == 13
+    # Omitting the flag preserves today's exact behavior: the default is None,
+    # so the gate keeps its motion_windows-driven V2/V1 inference.
+    assert namespace.presentation_profile is None
+
+
+def test_presentation_profile_flag_accepts_only_the_reviewed_choices_and_defaults_to_none() -> None:
+    """--presentation-profile accepts v1/v2/v3, refuses anything else, and defaults to None."""
+    argv = [
+        "--voice-plan",
+        "a",
+        "--realization",
+        "b",
+        "--presentation",
+        "c",
+        "--delivery",
+        "d",
+        "--narration",
+        "e",
+        "--shots",
+        "f",
+        "--story",
+        "g",
+        "--export",
+        "h",
+        "--model-weights",
+        "i",
+        "--model-config",
+        "j",
+        "--voice-pack",
+        "k",
+        "--output-root",
+        "l",
+    ]
+    assert executor.parse_arguments(argv).presentation_profile is None
+    for choice in ("v1", "v2", "v3", "v4"):
+        parsed = executor.parse_arguments(argv + ["--presentation-profile", choice])
+        assert parsed.presentation_profile == choice
+    with pytest.raises(SystemExit):
+        executor.parse_arguments(argv + ["--presentation-profile", "v9"])
 
 
 def test_a_missing_required_flag_is_refused() -> None:
     """A missing required flag is refused by argparse."""
     with pytest.raises(SystemExit):
         executor.parse_arguments(["--voice-plan", "a"])
+
+
+def test_presentation_profile_threads_through_to_the_source_gate(
+    fake_stack: Control,
+    sources_ep0: tuple,
+    plan_ep0: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """--presentation-profile reaches the source gate as a keyword; omission passes None."""
+    seen: list[dict[str, object]] = []
+
+    def _recording_gate(*args: object, **kwargs: object) -> object:
+        seen.append(dict(kwargs))
+        return None
+
+    monkeypatch.setattr(executor, "validate_episode_voice_plan_against_sources", _recording_gate)
+    monkeypatch.setattr(executor, "require_local_model_assets", lambda *a, **k: None)
+
+    paths = _write_documents(tmp_path, sources_ep0, plan_ep0)
+    argv = [
+        "--voice-plan",
+        str(paths["voice_plan"]),
+        "--realization",
+        str(paths["realization"]),
+        "--presentation",
+        str(paths["presentation"]),
+        "--delivery",
+        str(paths["delivery"]),
+        "--narration",
+        str(paths["narration"]),
+        "--shots",
+        str(paths["shots"]),
+        "--story",
+        str(paths["story"]),
+        "--export",
+        str(paths["export"]),
+        "--model-weights",
+        str(tmp_path / "w"),
+        "--model-config",
+        str(tmp_path / "c"),
+        "--voice-pack",
+        str(tmp_path / "v"),
+    ]
+
+    # Omitted: today's exact behavior -- the gate sees presentation_profile=None.
+    exit_code = executor.main(argv + ["--output-root", str(tmp_path / "voice")])
+    assert exit_code == 0
+    assert seen[0]["presentation_profile"] is None
+
+    # Explicit v3 threads through as the keyword argument.
+    exit_code = executor.main(
+        argv + ["--presentation-profile", "v3", "--output-root", str(tmp_path / "voice_v3")]
+    )
+    assert exit_code == 0
+    assert seen[1]["presentation_profile"] == "v3"
 
 
 # ---------------------------------------------------------------- staging ownership
@@ -1118,6 +1269,94 @@ def test_main_calls_the_gate_before_build_pipeline_before_publish(
     exit_code = executor.main(argv)
     assert exit_code == 0
     assert calls == ["gate", "build_pipeline", "publish_episode"]
+
+
+def test_main_threads_the_provisional_opt_in_to_the_engine_gate(
+    fake_stack: Control,
+    sources_ep0: tuple,
+    plan_ep0: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """A preview caller can pass allow_provisional_engine=True through main."""
+    fake_stack.installed_kokoro_version = "0.2.2"
+    fake_stack.installed_misaki_version = "0.7.4"
+    monkeypatch.setattr(executor, "require_local_model_assets", lambda *a, **k: None)
+    paths = _write_documents(tmp_path, sources_ep0, plan_ep0)
+    argv = [
+        "--voice-plan",
+        str(paths["voice_plan"]),
+        "--realization",
+        str(paths["realization"]),
+        "--presentation",
+        str(paths["presentation"]),
+        "--delivery",
+        str(paths["delivery"]),
+        "--narration",
+        str(paths["narration"]),
+        "--shots",
+        str(paths["shots"]),
+        "--story",
+        str(paths["story"]),
+        "--export",
+        str(paths["export"]),
+        "--model-weights",
+        str(tmp_path / "w"),
+        "--model-config",
+        str(tmp_path / "c"),
+        "--voice-pack",
+        str(tmp_path / "v"),
+        "--output-root",
+        str(tmp_path / "voice"),
+    ]
+    exit_code = executor.main(argv, allow_provisional_engine=True)
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "PREVIEW-ONLY" in captured.err
+
+
+def test_main_refuses_the_substitute_engine_without_the_opt_in(
+    fake_stack: Control,
+    sources_ep0: tuple,
+    plan_ep0: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Without the opt-in, main hard-refuses the substitute engine before any synthesis."""
+    fake_stack.installed_kokoro_version = "0.2.2"
+    fake_stack.installed_misaki_version = "0.7.4"
+    monkeypatch.setattr(executor, "require_local_model_assets", lambda *a, **k: None)
+    paths = _write_documents(tmp_path, sources_ep0, plan_ep0)
+    argv = [
+        "--voice-plan",
+        str(paths["voice_plan"]),
+        "--realization",
+        str(paths["realization"]),
+        "--presentation",
+        str(paths["presentation"]),
+        "--delivery",
+        str(paths["delivery"]),
+        "--narration",
+        str(paths["narration"]),
+        "--shots",
+        str(paths["shots"]),
+        "--story",
+        str(paths["story"]),
+        "--export",
+        str(paths["export"]),
+        "--model-weights",
+        str(tmp_path / "w"),
+        "--model-config",
+        str(tmp_path / "c"),
+        "--voice-pack",
+        str(tmp_path / "v"),
+        "--output-root",
+        str(tmp_path / "voice"),
+    ]
+    exit_code = executor.main(argv)
+    assert exit_code == 1
+    assert not any((tmp_path / "voice").glob("episode_*"))
 
 
 def test_publish_episode_has_exactly_one_call_site_inside_main() -> None:

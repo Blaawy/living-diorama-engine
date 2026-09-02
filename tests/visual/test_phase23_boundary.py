@@ -30,11 +30,13 @@ SCRIPTS = REPO_ROOT / "visual" / "blender" / "scripts"
 PURE_MODULES = (
     RENDER_EXECUTION / "__init__.py",
     RENDER_EXECUTION / "frame_image.py",
+    RENDER_EXECUTION / "lighting_qa_metrics.py",
     RENDER_EXECUTION / "render_execution_schema_v1.py",
     RENDER_EXECUTION / "render_execution_spec.py",
     RENDER_EXECUTION / "render_binding.py",
     RENDER_EXECUTION / "render_manifest.py",
     RENDER_EXECUTION / "render_planner.py",
+    RENDER_EXECUTION / "render_v2_metrics.py",
     CLI / "build_render_plan.py",
     CLI / "verify_render.py",
 )
@@ -56,6 +58,7 @@ PHASE23_TEST_FILES = (
     TESTS_RENDER_EXECUTION / "__init__.py",
     TESTS_RENDER_EXECUTION / "conftest.py",
     TESTS_RENDER_EXECUTION / "test_frame_image.py",
+    TESTS_RENDER_EXECUTION / "test_lighting_qa_metrics.py",
     TESTS_RENDER_EXECUTION / "test_production_boundary.py",
     TESTS_RENDER_EXECUTION / "test_render_binding.py",
     TESTS_RENDER_EXECUTION / "test_render_cli.py",
@@ -89,6 +92,7 @@ ALLOWED_ENGINE_MODULES = frozenset(
     {
         "living_diorama.cinematic",
         "living_diorama.cinematic.cinematic_schema_v1",
+        "living_diorama.cinematic.cinematic_schema_v2",
         "living_diorama.cinematic.cinematic_spec",
         "living_diorama.persistence.json_codec",
         "living_diorama.persistence.schema.state_hash",
@@ -545,10 +549,10 @@ def test_the_scan_covers_every_phase_twenty_three_test_file() -> None:
 
 
 def test_every_candidate_file_exists_and_is_counted() -> None:
-    """All twenty-eight files the candidate ships are covered by the scan."""
+    """All thirty-one files the candidate ships are covered by the scan."""
     for path in PHASE23_FILES:
         assert path.is_file(), path
-    assert len(PHASE23_FILES) == 28, len(PHASE23_FILES)
+    assert len(PHASE23_FILES) == 31, len(PHASE23_FILES)
 
 
 def test_every_guarded_file_exists() -> None:

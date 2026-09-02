@@ -8,6 +8,10 @@ a unit no camera framed. It asserts nothing about wording, nothing about
 visibility, and nothing about the world -- those live in the documents it
 binds, and stay there.
 
+Two allocation policies are closed and reviewed: the v1 equal partition and the
+v4 content-proportional partition. Every plan declares which one cut its slots,
+and a plan cut under any other identifier is refused, never guessed at.
+
 The document shape is exact at every level this module governs. A key that is
 missing means the plan is incomplete; a key that is extra means it was written
 by something this contract does not describe. Both are refused, never repaired.
@@ -35,6 +39,7 @@ from living_diorama.narration_delivery.delivery_spec import (
     DELIVERY_ID_FORM,
     DELIVERY_PLAN_FORMAT,
     DELIVERY_POLICY_V1,
+    DELIVERY_POLICY_V4,
     DELIVERY_SCHEMA_VERSION,
     PLACEMENT_CLASSES,
     PLACEMENT_SHOT_ANCHORED,
@@ -261,12 +266,13 @@ def validate_episode_narration_delivery_plan(value: object) -> dict[str, JsonVal
     """Verify a document's Episode Narration Delivery Plan V1 envelope, and return it.
 
     Checks the exact key sets at every governed level, the format tag, schema
-    version and policy identity, the source binding (episode, mode, the digest
-    fields, and the rule that only a baseline has no previous episode), the
-    restated timeline's own arithmetic, and every delivery record: that its
-    identifiers agree with its position, that its placement comes from the
-    closed vocabulary, and that its slot is a well-formed inclusive span inside
-    the playback domain. Two whole-document rules are enforced too:
+    version and policy identity (one of the two closed policy identifiers), the
+    source binding (episode, mode, the digest fields, and the rule that only a
+    baseline has no previous episode), the restated timeline's own arithmetic,
+    and every delivery record: that its identifiers agree with its position,
+    that its placement comes from the closed vocabulary, and that its slot is a
+    well-formed inclusive span inside the playback domain. Two whole-document
+    rules are enforced too:
 
     * slots appear in order and never overlap -- for consecutive records,
       the next slot starts after the previous one ends
@@ -295,11 +301,12 @@ def validate_episode_narration_delivery_plan(value: object) -> dict[str, JsonVal
             f"this build reads version {DELIVERY_SCHEMA_VERSION} only"
         )
     policy = require_text(document.get("policy"), "narration delivery plan policy")
-    if policy != DELIVERY_POLICY_V1:
+    if policy not in (DELIVERY_POLICY_V1, DELIVERY_POLICY_V4):
         raise ValueError(
             f"narration delivery plan declares policy {policy!r}; this build derives and "
-            f"validates {DELIVERY_POLICY_V1!r} only, and a slot cut under another policy "
-            "must never be mistaken for one of these"
+            f"validates {DELIVERY_POLICY_V1!r} (equal partition) and "
+            f"{DELIVERY_POLICY_V4!r} (content-proportional partition) only, and a slot "
+            "cut under another policy must never be mistaken for one of these"
         )
 
     source = _require_document(document.get("source"), "narration delivery plan source")

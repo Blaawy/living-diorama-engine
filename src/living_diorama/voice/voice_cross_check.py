@@ -49,7 +49,7 @@ from living_diorama.persistence.schema.state_hash import sha256_hex
 from living_diorama.presentation.presentation_cross_check import (
     validate_episode_presentation_plan_against_sources,
 )
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.voice.voice_planner import build_episode_voice_plan_bytes
 from living_diorama.voice.voice_schema_v1 import JsonValue, validate_episode_voice_plan
 from living_diorama.voice.voice_spec import VOICE_BLOCK, samples_per_presentation_frame
@@ -121,6 +121,8 @@ def validate_episode_voice_plan_against_sources(
     shot_plan: object,
     story_plan: object,
     current_export: object,
+    *,
+    presentation_profile: str | None = None,
 ) -> dict[str, JsonValue]:
     """Verify an Episode Voice Plan against its actual sources.
 
@@ -145,6 +147,14 @@ def validate_episode_voice_plan_against_sources(
         current_export: The Render Export V1 the story and realization plans
             were derived from. Verification-only: an argument to the reused
             gate.
+        presentation_profile: The presentation profile the reused Phase 27
+            gate re-derives the presentation plan under. ``None`` (the
+            default) preserves today's exact behavior: a plan carrying
+            ``motion_windows`` is verified as V2, any other plan as V1. Pass
+            ``"v1"``, ``"v2"`` or ``"v3"`` to pin the profile explicitly --
+            ``"v3"`` is required for the frozen, content-sized V3
+            presentation plan, which carries no ``motion_windows`` and would
+            otherwise be re-derived as V1 and refused.
 
     The named checks, in order:
 
@@ -189,11 +199,20 @@ def validate_episode_voice_plan_against_sources(
         realization_plan,
         story_plan,
         current_export,
+        presentation_profile=(
+            (
+                "v2"
+                if isinstance(presentation_plan, dict) and "motion_windows" in presentation_plan
+                else "v1"
+            )
+            if presentation_profile is None
+            else presentation_profile
+        ),
     )
 
     voice = validate_episode_voice_plan(voice_plan)
     realization = validate_episode_language_realization_plan(realization_plan)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    presentation = validate_presentation_plan(presentation_plan)
 
     source = _document(voice["source"], "voice plan source")
     _check_bindings(source, realization, presentation)

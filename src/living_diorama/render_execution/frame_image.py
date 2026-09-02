@@ -298,15 +298,29 @@ def image_stream_digest(path: str | Path) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def read_rgb_samples(path: str | Path) -> tuple[int, int, bytearray]:
-    """Return one frame's width, height and unfiltered RGB samples.
+def read_rgb_samples_bytes(data: bytes, description: str = "frame") -> tuple[int, int, bytearray]:
+    """Return width, height and unfiltered RGB samples from in-memory PNG bytes.
+
+    The bytes-based twin of :func:`read_rgb_samples`, added so pure consumers
+    (the lighting QA metrics) can decode frames they already hold as bytes
+    without touching the filesystem. The decoding path is shared: this function
+    contains the one implementation, and the path-based reader delegates to it,
+    so a picture read from disk and the same picture read from memory cannot
+    drift apart.
+
+    Args:
+        data: The exact bytes of an eight-bit, non-interlaced RGB PNG.
+        description: What the bytes are, for error messages (default ``"frame"``).
+
+    Returns:
+        A ``(width, height, samples)`` triple where ``samples`` holds one byte
+        per RGB channel in row-major order.
 
     Raises:
-        FrameImageProblem: If the file is not an eight-bit non-interlaced RGB
-            PNG, or uses a scanline filter this decoder does not know.
+        FrameImageProblem: If the bytes are not an eight-bit non-interlaced RGB
+            PNG, or use a scanline filter this decoder does not know.
     """
-    data = Path(path).read_bytes()
-    chunks = _chunks(data, str(path))
+    chunks = _chunks(data, description)
     # Exactly one IHDR, first, and thirteen bytes long: the parser proved all
     # three, so this is the header.
     header = chunks[0][1]
@@ -322,21 +336,21 @@ def read_rgb_samples(path: str | Path) -> tuple[int, int, bytearray]:
     ):
         if actual != expected:
             raise FrameImageProblem(
-                f"{path} declares {label} {actual}, but Phase 23 writes {expected}; this "
+                f"{description} declares {label} {actual}, but Phase 23 writes {expected}; this "
                 "decoder reads only what this phase writes, and half-decoding the rest would "
                 "be worse than refusing it"
             )
     if not 1 <= width <= MAXIMUM_FRAME_EDGE or not 1 <= height <= MAXIMUM_FRAME_EDGE:
         raise FrameImageProblem(
-            f"{path} declares implausible dimensions {width}x{height}; a header beyond "
+            f"{description} declares implausible dimensions {width}x{height}; a header beyond "
             f"{MAXIMUM_FRAME_EDGE} on an edge is corrupt or hostile, not a very large picture"
         )
 
     payload = b"".join(body for kind, body in chunks if kind == b"IDAT")
     if not payload:
-        raise FrameImageProblem(f"{path} carries no image data")
-    raw = _inflate(payload, str(path))
-    _require_scanline_payload(raw, width, height, str(path))
+        raise FrameImageProblem(f"{description} carries no image data")
+    raw = _inflate(payload, description)
+    _require_scanline_payload(raw, width, height, description)
     stride = width * 3
 
     out = bytearray(stride * height)
@@ -348,7 +362,7 @@ def read_rgb_samples(path: str | Path) -> tuple[int, int, bytearray]:
         line = bytearray(raw[position : position + stride])
         position += stride
         if filter_type not in VALID_FILTER_TYPES:
-            raise FrameImageProblem(f"{path} row {row} uses unknown filter {filter_type}")
+            raise FrameImageProblem(f"{description} row {row} uses unknown filter {filter_type}")
         if filter_type == 0:
             # None: the scanline already holds its samples.
             out[row * stride : (row + 1) * stride] = line
@@ -386,6 +400,16 @@ def read_rgb_samples(path: str | Path) -> tuple[int, int, bytearray]:
         out[row * stride : (row + 1) * stride] = line
         previous = line
     return width, height, out
+
+
+def read_rgb_samples(path: str | Path) -> tuple[int, int, bytearray]:
+    """Return one frame's width, height and unfiltered RGB samples.
+
+    Raises:
+        FrameImageProblem: If the file is not an eight-bit non-interlaced RGB
+            PNG, or uses a scanline filter this decoder does not know.
+    """
+    return read_rgb_samples_bytes(Path(path).read_bytes(), str(path))
 
 
 def verify_frame_image(path: str | Path, *, expected_width: int, expected_height: int) -> list[str]:

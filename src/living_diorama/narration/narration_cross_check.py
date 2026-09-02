@@ -20,7 +20,7 @@ failure says which claim stopped being true.
 
 from typing import cast
 
-from living_diorama.cinematic import validate_shot_direction_plan
+from living_diorama.cinematic import validate_shot_direction_plan_v2
 from living_diorama.narration.narration_facts import fact_summary_for_evidence
 from living_diorama.narration.narration_planner import (
     EVIDENCE_EVENT,
@@ -265,7 +265,7 @@ def validate_narration_plan_against_sources(
     """
     plan = validate_episode_narration_plan(narration_plan)
     story = validate_episode_story_plan(story_plan)
-    shots = validate_shot_direction_plan(shot_plan)
+    shots = validate_shot_direction_plan_v2(shot_plan)
     export = cast(dict[str, JsonValue], validate_render_export(current_export))
 
     source = _document(plan["source"], "episode narration plan source")

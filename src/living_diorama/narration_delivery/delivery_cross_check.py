@@ -13,18 +13,18 @@ digests is not thereby source-verified.
 
 This module closes that gap. Given the plan and the two documents it claims to
 schedule, it verifies every binding and every per-record agreement, and then
-seals the whole question by re-deriving the plan from those sources: the
-delivery contract is a deterministic single-output function of its inputs, so
-the one valid plan for a given narration plan and direction is the plan the
-planner derives. Anything else is refused, named check by named check first so
-a failure says which claim stopped being true.
+seals the whole question by re-deriving the plan from those sources under the
+same delivery profile: the delivery contract is a deterministic single-output
+function of its inputs, so the one valid plan for a given narration plan and
+direction is the plan the planner derives. Anything else is refused, named
+check by named check first so a failure says which claim stopped being true.
 """
 
 from typing import cast
 
 from living_diorama.cinematic import (
-    CANONICAL_MOTION_TIME_SHA256,
-    validate_shot_direction_plan,
+    REVIEWED_CLOCKS,
+    validate_shot_direction_plan_v2,
 )
 from living_diorama.narration.narration_schema_v1 import validate_episode_narration_plan
 from living_diorama.narration.narration_spec import VISIBILITY_SHOWN
@@ -37,6 +37,7 @@ from living_diorama.narration_delivery.delivery_schema_v1 import (
     validate_episode_narration_delivery_plan,
 )
 from living_diorama.narration_delivery.delivery_spec import (
+    DELIVERY_POLICY_V4,
     PLACEMENT_ALLOCATED_UNSHOWN,
     PLACEMENT_SHOT_ANCHORED,
     playback_domain,
@@ -108,12 +109,12 @@ def _check_bindings(
             f"{shot_source['motion_time_sha256']!r}; a restated clock names the exact "
             "source it resolves from"
         )
-    if source["motion_time_sha256"] != CANONICAL_MOTION_TIME_SHA256:
+    if source["motion_time_sha256"] not in REVIEWED_CLOCKS:
         raise ValueError(
             f"narration delivery plan pins Motion & Time source "
-            f"{source['motion_time_sha256']!r}, which is not the canonical locked clock "
-            f"({CANONICAL_MOTION_TIME_SHA256}); Phase 17 owns the clock and this layer "
-            "schedules on no other"
+            f"{source['motion_time_sha256']!r}, which is not one of the reviewed locked "
+            f"clocks ({', '.join(sorted(REVIEWED_CLOCKS))}); Phase 17 owns the clock and "
+            "this layer schedules on no other"
         )
 
 
@@ -137,7 +138,11 @@ def _check_timeline(delivery: dict[str, JsonValue], shots: dict[str, JsonValue])
 
 
 def validate_narration_delivery_plan_against_sources(
-    delivery_plan: object, narration_plan: object, shot_plan: object
+    delivery_plan: object,
+    narration_plan: object,
+    shot_plan: object,
+    *,
+    delivery_profile: str | None = None,
 ) -> dict[str, JsonValue]:
     """Verify an Episode Narration Delivery Plan against its actual sources.
 
@@ -145,6 +150,14 @@ def validate_narration_delivery_plan_against_sources(
         delivery_plan: The Episode Narration Delivery Plan V1 document to verify.
         narration_plan: The Episode Narration Plan V1 it claims to schedule.
         shot_plan: The Shot Direction Plan V1 whose segments host the slots.
+        delivery_profile: Which profile to re-derive under. ``None`` (the
+            default) reads the profile the offered plan declares in its own
+            ``policy`` field, so every downstream layer that re-verifies a
+            delivery plan does so under the profile that plan was built with
+            without having to be told. This is safe because the comparison is
+            still byte-exact: a document that mislabels its policy simply fails
+            to equal the derivation its label selects. An explicit ``"v1"`` or
+            ``"v4"`` overrides the declaration.
 
     The named checks, in order:
 
@@ -165,11 +178,11 @@ def validate_narration_delivery_plan_against_sources(
       the narration plan says frames its beat
     * the accounting block agrees with the narration plan's own
 
-    Finally the plan is re-derived from the two sources and must equal it byte
-    for byte, which closes every remaining degree of freedom -- the slot
-    arithmetic itself included. A narration plan whose units misreport the
-    direction's framing is refused by that derivation, with the derivation's
-    own diagnostic.
+    Finally the plan is re-derived from the two sources under the same profile
+    and must equal it byte for byte, which closes every remaining degree of
+    freedom -- the slot arithmetic itself included. A narration plan whose
+    units misreport the direction's framing is refused by that derivation, with
+    the derivation's own diagnostic.
 
     Returns:
         The verified delivery plan.
@@ -181,7 +194,7 @@ def validate_narration_delivery_plan_against_sources(
     """
     delivery = validate_episode_narration_delivery_plan(delivery_plan)
     narration = validate_episode_narration_plan(narration_plan)
-    shots = validate_shot_direction_plan(shot_plan)
+    shots = validate_shot_direction_plan_v2(shot_plan)
 
     source = _document(delivery["source"], "narration delivery plan source")
     _check_bindings(source, narration, shots)
@@ -265,9 +278,15 @@ def validate_narration_delivery_plan_against_sources(
 
     # The contract is a deterministic single-output function of its sources, so
     # the one valid plan for this narration plan and direction is the one the
-    # planner derives. Byte equality closes every degree of freedom the named
-    # checks above leave open -- the slot arithmetic itself included.
-    derived = build_episode_narration_delivery_plan_bytes(narration, shots)
+    # planner derives under the same profile. Byte equality closes every degree
+    # of freedom the named checks above leave open -- the slot arithmetic
+    # itself included.
+    if delivery_profile is None:
+        declared = delivery.get("policy")
+        delivery_profile = "v4" if declared == DELIVERY_POLICY_V4 else "v1"
+    derived = build_episode_narration_delivery_plan_bytes(
+        narration, shots, delivery_profile=delivery_profile
+    )
     offered = dumps_canonical(delivery, "narration delivery plan")
     if offered != derived:
         raise ValueError(

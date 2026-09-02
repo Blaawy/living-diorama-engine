@@ -8,10 +8,18 @@ documents always produce the same bytes.
 What it decides is when each narration unit may be delivered, and only from
 structure: unit order, visibility, the citing shots' spans, and the locked
 Phase 17 clock the shot plan restates. What it never decides is what is said,
-what mattered, or what is framed. Wording stays in the narration plan and is
-never read here -- not carried, not measured, not counted. Visibility is the
-narration plan's report of Phase 22's decision, re-verified against the shot
-plan and never re-judged. Shots are never moved, resized or re-cut.
+what mattered, or what is framed. Wording stays in the narration plan and --
+under the v1 profile, the default and the historical output -- is never read
+here: not carried, not measured, not counted. Visibility is the narration
+plan's report of Phase 22's decision, re-verified against the shot plan and
+never re-judged. Shots are never moved, resized or re-cut.
+
+The v4 delivery profile is this layer's one reviewed exception to the no-text
+rule: it counts the words of each unit's finalized sentence to weight a shared
+host interval in proportion to the speech that sentence will carry (see
+``required_frames_for_word_count`` in ``delivery_spec`` for the calibrated
+formula and the safety argument). The measurement is a count only -- the
+sentence itself is never carried, compared or emitted.
 
 The slot allocation is deliberately small enough to state in full. Every shot's
 playback segment is its span clamped to the playback domain, because the
@@ -21,16 +29,17 @@ interval between its SHOWN neighbours' segments when that interval is nonempty;
 when it is empty -- the canonical episode 1 case, where two beat shots sit
 frame-adjacent around a durable consequence nobody could film -- the run folds
 backward into the preceding segment, or forward into the following one when no
-preceding SHOWN unit exists. Every host interval is then partitioned equally
-among its claimants in unit order. Folding backward rather than forward keeps
-each segment's first slot starting on its own cut, so a shown unit's narration
-never drifts past the footage it belongs to.
+preceding SHOWN unit exists. Every host interval is then partitioned among its
+claimants in unit order -- equally under v1, and in proportion to each
+claimant's required speech frames under v4. Folding backward rather than
+forward keeps each segment's first slot starting on its own cut, so a shown
+unit's narration never drifts past the footage it belongs to.
 """
 
 from collections.abc import Sequence
 from typing import Final, cast
 
-from living_diorama.cinematic import validate_shot_direction_plan
+from living_diorama.cinematic import validate_shot_direction_plan_v2
 from living_diorama.narration.narration_schema_v1 import (
     UNIT_ID_FORM,
     validate_episode_narration_plan,
@@ -44,11 +53,14 @@ from living_diorama.narration_delivery.delivery_spec import (
     DELIVERY_ID_FORM,
     DELIVERY_PLAN_FORMAT,
     DELIVERY_POLICY_V1,
+    DELIVERY_POLICY_V4,
     DELIVERY_SCHEMA_VERSION,
     PLACEMENT_ALLOCATED_UNSHOWN,
     PLACEMENT_SHOT_ANCHORED,
     partition_equally,
+    partition_proportionally,
     playback_domain,
+    required_frames_for_word_count,
 )
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
@@ -74,6 +86,15 @@ def _document(value: object, description: str) -> dict[str, JsonValue]:
     if type(value) is not dict:
         raise TypeError(f"{description} must be a dict, got {type(value).__name__}")
     return cast(dict[str, JsonValue], value)
+
+
+def _require_delivery_profile(delivery_profile: str) -> None:
+    """Refuse a delivery profile this build does not derive."""
+    if delivery_profile not in ("v1", "v4"):
+        raise ValueError(
+            f"delivery profile {delivery_profile!r} is not reviewed; this build derives "
+            "'v1' (equal partition) and 'v4' (content-proportional partition) only"
+        )
 
 
 def _require_join(
@@ -192,8 +213,11 @@ def resolve_delivery_slots(
     unit_segments: Sequence[tuple[int, int] | None],
     playback_first: int,
     playback_final: int,
+    *,
+    delivery_profile: str = "v1",
+    unit_weights: Sequence[int] | None = None,
 ) -> list[tuple[int, int]]:
-    """Return one inclusive playback slot per unit, under the V1 policy.
+    """Return one inclusive playback slot per unit, under the chosen profile.
 
     Args:
         unit_segments: One entry per narration unit, in unit order: the citing
@@ -202,6 +226,11 @@ def resolve_delivery_slots(
             pass the same segment pair.
         playback_first: The first playback frame of the episode.
         playback_final: The final playback frame of the episode.
+        delivery_profile: ``"v1"`` (the default) partitions every shared host
+            interval equally; ``"v4"`` partitions it in proportion to each
+            claimant's required frames (``unit_weights``).
+        unit_weights: Under ``"v4"``, one strictly positive required-frames
+            weight per unit, in unit order. Ignored under ``"v1"``.
 
     Returns:
         One ``(start_frame, end_frame)`` pair per unit, in unit order. Slots
@@ -209,10 +238,28 @@ def resolve_delivery_slots(
         order.
 
     Raises:
-        ValueError: If a segment leaves the playback domain, if SHOWN segments
-            regress against unit order, or if any host interval holds fewer
-            frames than the units claiming it.
+        ValueError: If the profile is unreviewed, if ``unit_weights`` is
+            missing or mis-sized under ``"v4"``, if a segment leaves the
+            playback domain, if SHOWN segments regress against unit order, or
+            if any host interval holds fewer frames than the units claiming it.
     """
+    if delivery_profile not in ("v1", "v4"):
+        raise ValueError(
+            f"delivery profile {delivery_profile!r} is not reviewed; this build resolves "
+            "'v1' (equal partition) and 'v4' (content-proportional partition) only"
+        )
+    total = len(unit_segments)
+    if delivery_profile == "v4":
+        if unit_weights is None:
+            raise ValueError(
+                "the v4 profile requires one required-frames weight per unit; none were offered"
+            )
+        if len(unit_weights) != total:
+            raise ValueError(
+                f"the v4 profile requires {total} required-frames weights, one per unit, "
+                f"but received {len(unit_weights)}"
+            )
+
     hosts: list[tuple[tuple[int, int], list[int]]] = []
     host_by_segment: dict[tuple[int, int], list[int]] = {}
     last_segment: tuple[int, int] | None = None
@@ -228,7 +275,6 @@ def resolve_delivery_slots(
             hosts.append((segment, claimants))
         claimants.append(index)
 
-    total = len(unit_segments)
     index = 0
     while index < total:
         segment = unit_segments[index]
@@ -276,7 +322,13 @@ def resolve_delivery_slots(
     slots: list[tuple[int, int] | None] = [None] * total
     for (first, last), claimants in hosts:
         try:
-            pieces = partition_equally(first, last, len(claimants))
+            if delivery_profile == "v4":
+                claim_weights = cast(Sequence[int], unit_weights)
+                pieces = partition_proportionally(
+                    first, last, [claim_weights[unit_index] for unit_index in claimants]
+                )
+            else:
+                pieces = partition_equally(first, last, len(claimants))
         except ValueError as error:
             named = ", ".join(_unit(unit_index) for unit_index in claimants)
             raise ValueError(f"cannot allocate delivery slots for {named}: {error}") from error
@@ -295,7 +347,7 @@ def resolve_delivery_slots(
 
 
 def build_episode_narration_delivery_plan_document(
-    narration_plan: object, shot_plan: object
+    narration_plan: object, shot_plan: object, *, delivery_profile: str = "v1"
 ) -> dict[str, JsonValue]:
     """Return the Episode Narration Delivery Plan document for one directed episode.
 
@@ -303,6 +355,10 @@ def build_episode_narration_delivery_plan_document(
         narration_plan: The Episode Narration Plan V1 whose units are scheduled.
         shot_plan: The Shot Direction Plan V1 whose segments host them, and
             whose restated Phase 17 timeline is the clock every slot lives on.
+        delivery_profile: ``"v1"`` (the default) reproduces today's plan byte
+            for byte and declares the v1 policy; ``"v4"`` partitions every
+            shared host interval in proportion to each unit's required frames
+            and declares the v4 policy.
 
     Returns:
         A validated Episode Narration Delivery Plan V1 document.
@@ -310,11 +366,13 @@ def build_episode_narration_delivery_plan_document(
     Raises:
         TypeError: If any input has the wrong shape.
         ValueError: If either input fails its own contract, if the two do not
-            join, if any unit's framing disagrees with the direction, or if the
-            policy cannot cut a slot of at least one frame for every unit.
+            join, if any unit's framing disagrees with the direction, if the
+            profile is unreviewed, or if the policy cannot cut a slot of at
+            least one frame for every unit.
     """
+    _require_delivery_profile(delivery_profile)
     narration = validate_episode_narration_plan(narration_plan)
-    shots = validate_shot_direction_plan(shot_plan)
+    shots = validate_shot_direction_plan_v2(shot_plan)
 
     source = _require_join(narration, shots)
     _require_framing_agreement(narration, shots)
@@ -348,7 +406,19 @@ def build_episode_narration_delivery_plan_document(
             )
         unit_segments.append(segment)
 
-    slots = resolve_delivery_slots(unit_segments, playback_first, playback_final)
+    weights: list[int] | None = None
+    if delivery_profile == "v4":
+        weights = [
+            required_frames_for_word_count(len(cast(str, unit["text"]).split())) for unit in units
+        ]
+
+    slots = resolve_delivery_slots(
+        unit_segments,
+        playback_first,
+        playback_final,
+        delivery_profile=delivery_profile,
+        unit_weights=weights,
+    )
 
     deliveries: list[JsonValue] = []
     anchored = 0
@@ -374,7 +444,7 @@ def build_episode_narration_delivery_plan_document(
         },
         "deliveries": deliveries,
         "format": DELIVERY_PLAN_FORMAT,
-        "policy": DELIVERY_POLICY_V1,
+        "policy": DELIVERY_POLICY_V4 if delivery_profile == "v4" else DELIVERY_POLICY_V1,
         "schema_version": DELIVERY_SCHEMA_VERSION,
         "source": source,
         "timeline": cast(JsonValue, timeline),
@@ -382,11 +452,17 @@ def build_episode_narration_delivery_plan_document(
     return validate_episode_narration_delivery_plan(document)
 
 
-def build_episode_narration_delivery_plan_bytes(narration_plan: object, shot_plan: object) -> bytes:
+def build_episode_narration_delivery_plan_bytes(
+    narration_plan: object, shot_plan: object, *, delivery_profile: str = "v1"
+) -> bytes:
     """Return the canonical Episode Narration Delivery Plan bytes for the given sources.
 
     The returned bytes are the one canonical encoding of the plan: sorted keys,
     tight separators, no non-finite floats, and exactly one trailing newline.
+    Under ``delivery_profile="v1"`` (the default) the bytes are identical to
+    this function's historical output.
     """
-    document = build_episode_narration_delivery_plan_document(narration_plan, shot_plan)
+    document = build_episode_narration_delivery_plan_document(
+        narration_plan, shot_plan, delivery_profile=delivery_profile
+    )
     return dumps_canonical(document, "narration delivery plan")

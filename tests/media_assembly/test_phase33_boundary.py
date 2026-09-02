@@ -44,7 +44,12 @@ PHASE33_TEST_FILES: Final[tuple[Path, ...]] = tuple(
 ) + tuple(sorted(TESTS_DIR.glob("fixtures/*.json")))
 
 PHASE33_FILES: Final[tuple[Path, ...]] = PHASE33_MODULES + (DOCS_FILE,) + PHASE33_TEST_FILES
-"""Every one of the 29 candidate files -- production, docs and tests -- for E3."""
+"""Every one of the 30 candidate files -- production, docs and tests -- for E3.
+
+30, not the original 29: Creative Production Upgrade V1's presentation V2
+lane added ``tests/media_assembly/test_media_assembly_motion_v2.py``, picked
+up automatically by ``PHASE33_TEST_FILES``'s glob.
+"""
 
 
 @pytest.fixture(scope="module")
@@ -448,8 +453,8 @@ def test_e3_the_boundary_test_file_itself_is_in_the_scanned_tuple() -> None:
 
 
 def test_e3_all_29_candidate_files_are_present() -> None:
-    """E3 all 29 candidate files are present."""
-    assert len(PHASE33_FILES) == 29
+    """E3 all 30 candidate files are present."""
+    assert len(PHASE33_FILES) == 30
 
 
 # ---------------------------------------------------------------------------
@@ -698,7 +703,9 @@ def test_no_witness_document_participates_in_mapping_or_frame_writing(
     # geometry -- confirmed structurally: presentation_frame_map and require_playback_lookup
     # are the sole geometry inputs to the frame loop, neither of which is a witness.
     assert "presentation_frame_map(presentation_plan)" in publisher_source
-    assert "require_playback_lookup(render_manifest)" in publisher_source
+    assert "require_playback_lookup(render_manifest, camera_profile=render_camera_profile)" in (
+        publisher_source
+    )
 
 
 def test_permitted_witness_field_reads_are_narrowly_scoped() -> None:

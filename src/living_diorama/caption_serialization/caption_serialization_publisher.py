@@ -54,6 +54,7 @@ def publish_episode_caption_serialization(
     story_plan: object,
     current_export: object,
     output_root: Path,
+    presentation_profile: str | None = None,
 ) -> Path:
     """Serialize, stage, publish and return one episode's captions directory.
 
@@ -64,6 +65,13 @@ def publish_episode_caption_serialization(
     captured observation ``caption_plan`` was parsed from; they become the copied plan and
     the bound ``caption_plan_sha256``, so parse, gate, digest and copy all share one
     observation -- the single-capture law.
+
+    ``presentation_profile`` is threaded unmodified into the reused Phase 27 gate inside
+    the Phase 32 verification: ``None`` (the default) preserves today's exact inference (a
+    presentation plan carrying ``motion_windows`` is verified as V2, any other plan as V1);
+    pass ``"v1"``, ``"v2"`` or ``"v3"`` to pin the profile explicitly -- ``"v3"`` is
+    required for the frozen, content-sized V3 presentation plan, which carries no
+    ``motion_windows`` and would otherwise be re-derived as V1 and refused.
 
     The handled-refusal ``try`` begins at fresh staging creation and covers every handled
     failure from that point through terminal publication: once this run's own staging tree
@@ -93,6 +101,7 @@ def publish_episode_caption_serialization(
         shot_plan,
         story_plan,
         current_export,
+        presentation_profile=presentation_profile,
     )
     if type(caption_plan_bytes) is not bytes:
         raise TypeError(

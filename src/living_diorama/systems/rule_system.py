@@ -21,7 +21,12 @@ contracts, ``issubclass(type(...), ...)`` for domain objects), never through
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeIs, cast
+from typing import TYPE_CHECKING, cast
+
+try:  # typing.TypeIs exists only on Python >= 3.13
+    from typing import TypeIs
+except ImportError:  # Python 3.12: typing_extensions provides it
+    from typing_extensions import TypeIs  # noqa: UP035 -- intentional 3.12 fallback
 
 from living_diorama.entities import EntityId, Law, LawValue, Tick
 from living_diorama.events import Event, EventBus, EventType

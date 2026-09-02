@@ -226,6 +226,97 @@ _STYLE_C: dict[str, object] = {
 
 DNA_STYLE = "dna"
 
+LIGHTING_PROFILE_NAMES = ("dna", "dna_daylight")
+"""Lighting lanes on top of a style's own lighting override.
+
+``"dna"`` is the identity lane: it adds nothing, so the resolved lighting is
+exactly today's, byte-for-byte. ``"dna_daylight"`` overrides only the
+free-to-change daylight knobs (sun elevation/rotation, key color, background
+strength, dust density); it never touches exposure, view transform, or look,
+which stay pinned by the render-profile digest in ``render_execution_spec``.
+"""
+
+_LIGHTING_DAYLIGHT: dict[str, object] = {
+    # TRIAL VALUES -- being tuned against a real render. dna's key_energy
+    # (110000) and fill_energy (15500) were calibrated to compensate for a
+    # near-zero-contribution sky at elevation -3.0 (near horizon, where
+    # Nishita's physical sun/sky model delivers almost no direct irradiance).
+    # At elevation 50.0 the real sun disk contributes enormously more energy;
+    # keeping the old area-light energies on top of that double-counts the
+    # light source and blows the frame out to solid white (confirmed by a
+    # real render, not assumed). Trial: cut sun_intensity, key_energy,
+    # fill_energy and background_strength substantially; the physically
+    # modeled sun should now carry most of the illumination.
+    #
+    # Note: volume_density/volume_anisotropy were tried at lower values here
+    # (0.00015 and then 0.0, against dna's 0.0011/0.5) while chasing the
+    # witness-closure tolerance failure below. That was a dead end: measured
+    # witness difference got WORSE monotonically as fog density went down
+    # (0.0011 -> 1.147628, 0.00015 -> 1.620709, 0.0 -> 1.735422), proving the
+    # fog was never the dominant noise source -- if anything it was masking a
+    # real structural difference between the two compared frames. The real
+    # cause was the closing shot's camera still being in motion at the plan's
+    # final frame (see camera_movement_planner.py's settle-margin fix).
+    # SUPERSEDED: the density is no longer inherited. It is set to 0.0 below,
+    # for the Director's clear-air presentation, and the objection recorded
+    # here no longer applies -- the V5 lane's camera never moves at all, so
+    # there is no camera-settle difference left for fog to mask.
+    "sun_elevation_deg": 50.0,
+    "sun_rotation_deg": 300.0,
+    "sun_intensity": 0.05,
+    "key_color": (1.0, 0.96, 0.90),
+    "key_energy": 8000.0,
+    "key_size": 160.0,
+    "fill_energy": 3000.0,
+    "fill_size": 220.0,
+    # 0.25 -> 0.20 (wall-area sky-glare fix): measured sky/horizon band at the
+    # top of frame reads 207-229 luma vs 115-170 on the ground; this knob
+    # linearly multiplies the whole sky/horizon Background output. The sky is
+    # this scene's dominant ambient source, so the ground falls FASTER than
+    # the sky: -3.098 vs -2.005 luma per 0.01, measured on real frames (AgX
+    # compresses the highlight end where the sky sits). 0.20 is a balance --
+    # overall brightness down about 5%, bright pixels (>=215) down about 11%,
+    # ground still 133 luma; 0.12 was measured and rejected (ground 108 =
+    # gloom). The wall is dark-albedo (~0.045-0.052), so the bright band is
+    # sky, not wall. exposure 1.25 / AgX / look stay pinned -- untouched here.
+    # 0.20 -> 0.23, paired with the clear-air visibility lane. Removing the
+    # district-air haze also removed the in-scatter brightness it contributed:
+    # measured on identical-camera frames, clear air at 0.20 dropped the ground
+    # to 122.65, BELOW even the pre-fog-work build's 130.5. At 0.23 the ground
+    # returns to 129.39 (mid-grey is 128) and the sky sits at 214.88, within
+    # 1.24 luma of the accepted build, while the whole contrast win is kept:
+    # far-building edge contrast +82.3%, mid-distance +93.7%. This is the small
+    # secondary correction the clear-air A/B proved necessary -- it restores
+    # brightness the haze was supplying, and is NOT a broad darkening lever.
+    "background_strength": 0.23,
+    "dust_density": 0.05,
+    "air_density": 0.9,
+    "ozone_density": 1.0,
+    # Zero fog for the Director's clear-air presentation. The dna lane's
+    # LD_ATMOSPHERE volume (0.0011) is what made the picture read as milky:
+    # measured on identical-camera frames, removing it lifts city-band local
+    # contrast 4.874 -> 7.125 (+46%), widens the tonal spread 144 -> 185, and
+    # drops the darkest percentile 69 -> 16 -- the veil had been holding blacks
+    # 53 levels off the floor. The sky moves 0.65 luma, so the daylight mood is
+    # untouched; this clears the air rather than darkening the world.
+    #
+    # An earlier trial of this same knob was recorded as making witness closure
+    # monotonically worse (0.0011 -> 1.147628, 0.0 -> 1.735422). That failure
+    # was later root-caused to camera settle timing, not fog, and the V5 lane's
+    # camera never moves at all -- so the objection no longer applies.
+    #
+    # The other haze source, the per-district "air" strata in
+    # state_response_v1.json, is deliberately NOT touched: that document is
+    # digest-pinned, and its spec refuses a zero base_density outright.
+    "volume_density": 0.0,
+}
+
+LIGHTING_PROFILES: dict[str, dict[str, object]] = {
+    "dna": {},
+    "dna_daylight": _LIGHTING_DAYLIGHT,
+}
+"""Every lighting lane, keyed by name; ``"dna"`` is the identity lane."""
+
 _STYLE_DNA: dict[str, object] = {
     "name": "dna",
     "title": "Living Diorama Macro-to-Monumental Visual DNA V1",
@@ -301,17 +392,32 @@ _STYLE_DNA: dict[str, object] = {
 _PROFILES = {"a": _STYLE_A, "b": _STYLE_B, "c": _STYLE_C, "dna": _STYLE_DNA}
 
 
-def resolve_style(name: str) -> dict:
+def resolve_style(name: str, *, lighting_profile: str = "dna") -> dict:
     """Return one style profile with fully-resolved lighting and settings.
 
+    ``lighting_profile`` selects an ADDITIVE lighting lane on top of the
+    style's own lighting overrides, mirroring the additive
+    ``camera_profile``/``mobility_profile``/``traffic_profile`` precedent:
+    ``"dna"`` (the default) is the identity lane and changes nothing, so
+    today's exact lighting is reproduced byte-for-byte; ``"dna_daylight"``
+    overrides only the free daylight knobs. The lane never touches
+    exposure/view transform/look, which stay pinned by the render-profile
+    digest.
+
     Raises:
-        ValueError: If the style name is unknown.
+        ValueError: If the style name or the lighting profile is unknown.
     """
     if name not in _PROFILES:
         raise ValueError(f"unknown style {name!r}; expected one of {(*STYLE_NAMES, DNA_STYLE)}")
+    if lighting_profile not in LIGHTING_PROFILES:
+        raise ValueError(
+            f"unknown lighting_profile {lighting_profile!r}; expected one of "
+            f"{LIGHTING_PROFILE_NAMES}"
+        )
     profile = _PROFILES[name]
     lighting = dict(_BASE_LIGHTING)
     lighting.update(profile["lighting"])
+    lighting.update(LIGHTING_PROFILES[lighting_profile])
     settings = dict(_BASE_SETTINGS)
     settings.update(profile["settings"])
     return {

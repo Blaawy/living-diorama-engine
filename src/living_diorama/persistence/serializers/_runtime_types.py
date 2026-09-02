@@ -13,7 +13,11 @@ exactly one direction already, and this module must not add another edge.
 """
 
 from collections.abc import Mapping
-from typing import TypeIs
+
+try:  # typing.TypeIs exists only on Python >= 3.13
+    from typing import TypeIs
+except ImportError:  # Python 3.12: typing_extensions provides it
+    from typing_extensions import TypeIs  # noqa: UP035 -- intentional 3.12 fallback
 
 
 def is_runtime_instance[ExpectedT](

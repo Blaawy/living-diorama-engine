@@ -480,3 +480,87 @@ def test_b8_a_bound_document_reserialized_with_different_spacing(
     cli_inputs_ep0[flag].write_bytes(respaced)
     with pytest.raises(ValueError):
         _call_assemble(cli_inputs_ep0)
+
+
+# ---------------------------------------------------------------------------
+# The --presentation-profile flag: a real v3 presentation plan end to end
+# ---------------------------------------------------------------------------
+
+
+def _v3_composition(tmp_path: Path, sources) -> tuple[dict[str, Any], Path]:
+    """Build a real v3 presentation and a fully v3-consistent composition directory.
+
+    The composition must be built from the same v3 chain (v3 voice plan, v3
+    voice manifest, v3 audio track plan) because the media assembly binds the
+    composition manifest's ``presentation_plan_sha256`` to the offered
+    presentation plan digest.
+    """
+    from living_diorama.audio_track import build_episode_audio_track_plan_document
+    from living_diorama.presentation import build_episode_presentation_plan_document
+
+    from .conftest import (
+        build_voice_manifest,
+        build_voice_plan,
+        compose_into,
+        write_voice_directory,
+    )
+
+    realization, _presentation, delivery, narration, _shots, _story, _export = sources
+    v3_presentation = build_episode_presentation_plan_document(
+        delivery, narration, realization, presentation_profile="v3"
+    )
+    v3_voice_plan = build_voice_plan(realization, v3_presentation)
+    v3_manifest = build_voice_manifest(v3_voice_plan, patterned=False)
+    v3_voice_dir = write_voice_directory(tmp_path / "voice", v3_voice_plan, v3_manifest)
+    v3_track = build_episode_audio_track_plan_document(v3_manifest, v3_presentation)
+    composition = compose_into(tmp_path / "audio_tracks", v3_track, v3_manifest, v3_voice_dir)
+    return v3_presentation, composition
+
+
+def test_the_v3_presentation_profile_flag_accepts_a_real_v3_presentation_plan(
+    tmp_path: Path,
+    sources_ep0: tuple[dict[str, Any], ...],
+    render_ep0,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--presentation-profile v3`` admits the real frozen, content-sized plan.
+
+    A real V3 presentation plan carries no ``motion_windows``, so the CLI's
+    omitted-flag inference verifies it as V1 and the Phase 27 gate re-derives
+    V1 bytes and refuses; the explicit v3 flag makes the gate re-derive the
+    plan it was actually built under, and the assembly is published.
+    """
+    from .conftest import write_cli_inputs
+
+    v3_presentation, v3_composition = _v3_composition(tmp_path, sources_ep0)
+    realization, _p, delivery, narration, shots, story, export = sources_ep0
+    v3_sources = (realization, v3_presentation, delivery, narration, shots, story, export)
+    inputs = write_cli_inputs(tmp_path / "cli", v3_sources, render_ep0, v3_composition)
+    exit_code = cli.main(_argv(inputs) + ["--presentation-profile", "v3"])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["episode"] == 0
+    assert summary["mode"] == "baseline"
+
+
+def test_without_the_flag_a_v3_presentation_plan_is_still_refused(
+    tmp_path: Path,
+    sources_ep0: tuple[dict[str, Any], ...],
+    render_ep0,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Omitting the flag keeps today's refusal of a V3 plan, publishing nothing."""
+    from .conftest import write_cli_inputs
+
+    v3_presentation, v3_composition = _v3_composition(tmp_path, sources_ep0)
+    realization, _p, delivery, narration, shots, story, export = sources_ep0
+    v3_sources = (realization, v3_presentation, delivery, narration, shots, story, export)
+    inputs = write_cli_inputs(tmp_path / "cli", v3_sources, render_ep0, v3_composition)
+    exit_code = cli.main(_argv(inputs))
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "does not equal the deterministic derivation" in captured.err
+    assert "Traceback" not in captured.err
+    assert not inputs["output_root"].exists()

@@ -215,3 +215,61 @@ def test_each_input_path_is_read_exactly_once(
     ):
         path = cli_inputs_ep1[key]
         assert counts.get(path, 0) == 1, f"{key} was read {counts.get(path, 0)} times"
+
+
+# ---------------------------------------------------------------------------
+# The --presentation-profile flag: a real v3 presentation plan end to end
+# ---------------------------------------------------------------------------
+
+
+def _write_v3_inputs(cli_inputs_ep1: dict[str, Path], sources_ep1) -> None:
+    """Overwrite the presentation and caption-plan files with real v3 documents."""
+    from living_diorama.caption import build_episode_caption_plan_document
+    from living_diorama.persistence.json_codec import dumps_canonical
+    from living_diorama.presentation import build_episode_presentation_plan_document
+
+    realization, _presentation, delivery, narration, _shots, _story, _export = sources_ep1
+    v3_presentation = build_episode_presentation_plan_document(
+        delivery, narration, realization, presentation_profile="v3"
+    )
+    v3_caption_plan = build_episode_caption_plan_document(realization, v3_presentation)
+    cli_inputs_ep1["presentation"].write_bytes(
+        dumps_canonical(v3_presentation, "presentation plan")
+    )
+    cli_inputs_ep1["caption_plan"].write_bytes(dumps_canonical(v3_caption_plan, "caption plan"))
+
+
+def test_the_v3_presentation_profile_flag_accepts_a_real_v3_presentation_plan(
+    cli_inputs_ep1: dict[str, Path],
+    sources_ep1,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--presentation-profile v3`` admits the real frozen, content-sized plan.
+
+    A real V3 presentation plan carries no ``motion_windows``, so under the
+    default (v1) derivation the reused Phase 27 gate inside the Phase 32
+    verification re-derives V1 bytes and refuses; the explicit v3 flag makes
+    the gate re-derive the plan it was actually built under, and the caption
+    serialization is published.
+    """
+    _write_v3_inputs(cli_inputs_ep1, sources_ep1)
+    exit_code = cli.main(_argv(cli_inputs_ep1) + ["--presentation-profile", "v3"])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["captions_total"] == 3
+
+
+def test_without_the_flag_a_v3_presentation_plan_is_still_refused(
+    cli_inputs_ep1: dict[str, Path],
+    sources_ep1,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Omitting the flag keeps today's refusal of a V3 plan, publishing nothing."""
+    _write_v3_inputs(cli_inputs_ep1, sources_ep1)
+    exit_code = cli.main(_argv(cli_inputs_ep1))
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "does not equal the deterministic derivation" in captured.err
+    assert "Traceback" not in captured.err

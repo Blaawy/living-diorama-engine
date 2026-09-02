@@ -22,6 +22,21 @@ its content or metadata is ever trusted. No expected condition (``OSError``, ``T
 ``ValueError`` or ``MediaAssemblyDirectoryRefused``) escapes this function: it always
 returns, it never raises for a governed filesystem or data problem. It writes nothing,
 repairs nothing, and imports no synthesis or rendering engine.
+
+The copied presentation plan is validated through the profile dispatcher
+(:func:`living_diorama.presentation.presentation_schema_v2.validate_presentation_plan`), so
+an assembly of a V2 plan -- whose held positions show the plan's own pure-bounce motion
+windows -- audits exactly like one of a V1 plan: the mapping re-proof compares every
+published frame record against the re-derived semantic frame, whichever profile the plan
+carries.
+
+The copied shot plan witness is validated through the V1/V2 auto-detecting dispatcher
+:func:`living_diorama.cinematic.validate_shot_direction_plan_v2`, which delegates a V1
+document byte-for-byte to the unchanged V1 validator and only governs the additive
+``camera_movement`` blocks a V2 shot plan carries. The copied render manifest is validated
+under the ``camera_profile`` detected from its own ``source`` block (``"v2"`` exactly when
+``movement_catalogue_sha256`` is present), the same auto-detection idiom the render
+verifier itself uses -- so a genuine V2 render audits without the caller ever choosing.
 """
 
 from pathlib import Path
@@ -30,7 +45,7 @@ from typing import cast
 from living_diorama.audio_composition.audio_composition_schema_v1 import (
     validate_episode_audio_composition_manifest,
 )
-from living_diorama.cinematic.cinematic_schema_v1 import validate_shot_direction_plan
+from living_diorama.cinematic import validate_shot_direction_plan_v2
 from living_diorama.media_assembly.media_assembly_binding import (
     require_assembly_matches_sources,
     require_assembly_sources_join,
@@ -72,7 +87,7 @@ from living_diorama.narration_delivery.delivery_schema_v1 import (
 )
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.render_execution.render_execution_schema_v1 import (
     validate_episode_render_manifest,
 )
@@ -192,7 +207,11 @@ def _audit_governed_directory(
         manifest_value = loads_canonical(manifest_bytes, "episode media assembly manifest")
         manifest = validate_episode_media_assembly_manifest(manifest_value)
     except (TypeError, ValueError) as error:
-        return ([f"episode media assembly manifest is invalid: {error}"], None, None)
+        return (
+            [f"episode media assembly manifest is invalid: {error}"],
+            manifest_bytes,
+            None,
+        )
     if manifest_bytes != dumps_canonical(manifest, "episode media assembly manifest"):
         return ([f"{manifest_path} is not canonical bytes"], manifest_bytes, manifest)
 
@@ -201,7 +220,21 @@ def _audit_governed_directory(
     render_bytes = render_path.read_bytes()
     try:
         render_value = loads_canonical(render_bytes, "render manifest")
-        render = validate_episode_render_manifest(render_value)
+        # The render manifest copy is validated under the profile its own source block
+        # declares, exactly the idiom verify_render.py uses: "v2" iff the movement
+        # catalogue binding is present, else the V1-only default. The profile is then
+        # threaded into every downstream relationship check that re-validates this
+        # document, so a genuine V2 render audits end to end.
+        render_value_source = render_value.get("source") if isinstance(render_value, dict) else None
+        render_camera_profile = (
+            "v2"
+            if isinstance(render_value_source, dict)
+            and "movement_catalogue_sha256" in render_value_source
+            else "v1"
+        )
+        render = validate_episode_render_manifest(
+            render_value, camera_profile=render_camera_profile
+        )
     except (TypeError, ValueError) as error:
         return (
             problems + [f"copied render manifest is invalid: {error}"],
@@ -214,7 +247,7 @@ def _audit_governed_directory(
     presentation_bytes = presentation_path.read_bytes()
     try:
         presentation_value = loads_canonical(presentation_bytes, "presentation plan")
-        presentation = validate_episode_presentation_plan(presentation_value)
+        presentation = validate_presentation_plan(presentation_value)
     except (TypeError, ValueError) as error:
         return (
             problems + [f"copied presentation plan is invalid: {error}"],
@@ -253,7 +286,7 @@ def _audit_governed_directory(
     shot_bytes = shot_path.read_bytes()
     try:
         shot_value = loads_canonical(shot_bytes, "shot direction plan")
-        shots = validate_shot_direction_plan(shot_value)
+        shots = validate_shot_direction_plan_v2(shot_value)
     except (TypeError, ValueError) as error:
         return (
             problems + [f"copied shot plan witness is invalid: {error}"],
@@ -302,6 +335,7 @@ def _audit_governed_directory(
             audio_composition_manifest_sha256=composition_digest,
             delivery_plan_sha256=delivery_digest,
             shot_plan_sha256=shot_digest,
+            camera_profile=render_camera_profile,
         )
     except (TypeError, ValueError) as error:
         problems.append(f"the four bound documents do not join: {error}")
@@ -315,13 +349,22 @@ def _audit_governed_directory(
         )
 
     try:
-        require_assembly_matches_sources(manifest, render, presentation, composition, delivery)
+        require_assembly_matches_sources(
+            manifest,
+            render,
+            presentation,
+            composition,
+            delivery,
+            camera_profile=render_camera_profile,
+        )
     except (TypeError, ValueError) as error:
         problems.append(f"the manifest contradicts a document beside it: {error}")
 
     # ---- clock re-derivation and closure, independent of the manifest's own claim ----
     try:
-        resolved_clock = require_clock_closure(presentation, render, composition)
+        resolved_clock = require_clock_closure(
+            presentation, render, composition, camera_profile=render_camera_profile
+        )
     except (TypeError, ValueError) as error:
         problems.append(f"the integer clock does not close: {error}")
         resolved_clock = None
@@ -343,7 +386,7 @@ def _audit_governed_directory(
         problems.append(f"the copied presentation plan does not expand: {error}")
         expected_mapping = ()
     try:
-        lookup = require_playback_lookup(render)
+        lookup = require_playback_lookup(render, camera_profile=render_camera_profile)
     except (TypeError, ValueError) as error:
         problems.append(f"the copied render manifest has no usable playback lookup: {error}")
         lookup = {}

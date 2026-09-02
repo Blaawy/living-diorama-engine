@@ -26,13 +26,16 @@ ALLOWED_STDLIB = {
     "math",
     "types",
     "typing",
+    "typing_extensions",
 }
 """Exactly the standard-library roots the memory layer imports today.
 
 Kept tight on purpose: a roomy allowlist quietly permits dependencies nobody
 decided to take. ``collections`` belongs here because ``collections.abc`` is
 standard library and an allowlist checking the first path segment would
-otherwise flag it as third-party.
+otherwise flag it as third-party. ``typing_extensions`` is the sole exception:
+world_memory.py falls back to it only on Python 3.12, where ``typing`` has no
+``TypeIs``, and never imports it on 3.13.
 """
 
 FORBIDDEN_FOR_MEMORY = (

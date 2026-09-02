@@ -42,7 +42,7 @@ check first so a failure says which claim stopped being true.
 
 from typing import cast
 
-from living_diorama.cinematic import CANONICAL_MOTION_TIME_SHA256
+from living_diorama.cinematic import REVIEWED_CLOCKS
 from living_diorama.language_realization.realization_cross_check import (
     validate_language_realization_plan_against_sources,
 )
@@ -63,6 +63,9 @@ from living_diorama.presentation.presentation_planner import build_episode_prese
 from living_diorama.presentation.presentation_schema_v1 import (
     JsonValue,
     validate_episode_presentation_plan,
+)
+from living_diorama.presentation.presentation_schema_v2 import (
+    validate_episode_presentation_plan_v2,
 )
 
 __all__ = ["validate_episode_presentation_plan_against_sources"]
@@ -149,11 +152,12 @@ def _check_bindings(
             f"{delivery_source['motion_time_sha256']!r}; a restated clock names the exact "
             "source it resolves from"
         )
-    if source["motion_time_sha256"] != CANONICAL_MOTION_TIME_SHA256:
+    if source["motion_time_sha256"] not in REVIEWED_CLOCKS:
         raise ValueError(
             f"presentation plan pins Motion & Time source {source['motion_time_sha256']!r}, "
-            f"which is not the canonical locked clock ({CANONICAL_MOTION_TIME_SHA256}); "
-            "Phase 17 owns the clock and this layer presents no other"
+            f"which is not one of the reviewed locked clocks "
+            f"({', '.join(sorted(REVIEWED_CLOCKS))}); Phase 17 owns the clock and this "
+            "layer presents no other"
         )
 
 
@@ -178,11 +182,14 @@ def validate_episode_presentation_plan_against_sources(
     realization_plan: object,
     story_plan: object,
     current_export: object,
+    *,
+    presentation_profile: str = "v1",
 ) -> dict[str, JsonValue]:
     """Verify an Episode Presentation Plan against its actual sources.
 
     Args:
-        presentation_plan: The Episode Presentation Plan V1 document to verify.
+        presentation_plan: The Episode Presentation Plan document to verify
+            (V1 under the default profile, V2 under ``"v2"``).
         delivery_plan: The Episode Narration Delivery Plan V1 whose slots this
             plan images. Bound in this plan's source block.
         narration_plan: The Episode Narration Plan V1 whose units this plan
@@ -199,6 +206,13 @@ def validate_episode_presentation_plan_against_sources(
         current_export: The Render Export V1 the story and realization plans
             were derived from. Verification-only: an argument to the locked
             Phase 26 gate.
+        presentation_profile: ``"v1"`` (the default) validates the plan under
+            the V1 validator and re-derives today's exact bytes;
+            ``"v2"`` validates the plan under
+            :func:`living_diorama.presentation.presentation_schema_v2.validate_episode_presentation_plan_v2`
+            and re-derives the additive motion-window plan under the same
+            profile, so byte equality closes every degree of freedom for a V2
+            plan too.
 
     The named checks, in order:
 
@@ -208,7 +222,8 @@ def validate_episode_presentation_plan_against_sources(
       sentences -- and the narration plan's ``kind`` and therefore its
       ``text_source`` classification -- are true of the actual story plan and
       render export
-    * the presentation plan validates under its own contract
+    * the presentation plan validates under its own contract (the V1
+      validator under the default profile, the V2 validator under ``"v2"``)
     * the plan's three digests name exactly the delivery, narration and
       realization documents offered, and those documents name each other
     * schema versions, mode, episode and previous episode agree across all
@@ -219,9 +234,10 @@ def validate_episode_presentation_plan_against_sources(
     * every window presents its positional narration unit and its positional
       realization: one window per unit, in the narration plan's own order
 
-    Finally the plan is re-derived from its three bound sources and must
-    equal it byte for byte, which closes every remaining degree of freedom --
-    the hold placement and window geometry themselves included.
+    Finally the plan is re-derived from its three bound sources under the
+    same profile and must equal it byte for byte, which closes every remaining
+    degree of freedom -- the hold placement and the window geometry themselves
+    included.
 
     Returns:
         The verified presentation plan.
@@ -239,7 +255,11 @@ def validate_episode_presentation_plan_against_sources(
         realization_plan, narration_plan, story_plan, current_export
     )
 
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    presentation = (
+        validate_episode_presentation_plan_v2(presentation_plan)
+        if presentation_profile == "v2"
+        else validate_episode_presentation_plan(presentation_plan)
+    )
     delivery = validate_episode_narration_delivery_plan(delivery_plan)
     narration = validate_episode_narration_plan(narration_plan)
     realization = validate_episode_language_realization_plan(realization_plan)
@@ -297,12 +317,14 @@ def validate_episode_presentation_plan_against_sources(
     # The contract is a deterministic single-output function of its three
     # bound sources, so the one valid plan for this delivery plan, this
     # narration plan and this realization plan is the one the planner
-    # derives. Byte equality closes every degree of freedom the named checks
-    # above leave open -- the hold placement and the window geometry
-    # themselves included. The shot plan, story plan and render export never
-    # enter this derivation: they are the two upstream gates' arguments, not
-    # this layer's own.
-    derived = build_episode_presentation_plan_bytes(delivery, narration, realization)
+    # derives under the same profile. Byte equality closes every degree of
+    # freedom the named checks above leave open -- the hold placement and the
+    # window geometry themselves included. The shot plan, story plan and
+    # render export never enter this derivation: they are the two upstream
+    # gates' arguments, not this layer's own.
+    derived = build_episode_presentation_plan_bytes(
+        delivery, narration, realization, presentation_profile=presentation_profile
+    )
     offered = dumps_canonical(presentation, "presentation plan")
     if offered != derived:
         raise ValueError(

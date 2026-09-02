@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from living_diorama.language_realization import (
+    WORDING_PROFILE_V1,
     build_episode_language_realization_plan_bytes,
     validate_language_realization_plan_against_sources,
 )
@@ -72,8 +73,26 @@ def _read_canonical(path: Path, description: str) -> object:
     return document
 
 
-def build(narration_path: Path, story_path: Path, export_path: Path, output_path: Path) -> int:
-    """Write the realization plan for the given sources and return its byte length."""
+def build(
+    narration_path: Path,
+    story_path: Path,
+    export_path: Path,
+    output_path: Path,
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
+) -> int:
+    """Write the realization plan for the given sources and return its byte length.
+
+    Args:
+        narration_path: The Episode Narration Plan to realize.
+        story_path: The Episode Story Plan the narration plan itself is bound to.
+        export_path: The render export the narration plan's facts are bound to.
+        output_path: Where to write the realization plan; refused if it already exists.
+        wording_profile: The reviewed register to compose under; ``v1`` (the
+            default) reproduces today's derivation byte for byte, ``v2`` the
+            second closed register. The profile is passed through to the
+            planner; the cross-check reads it back from the plan itself.
+    """
     if output_path.exists():
         raise FileExistsError(
             f"language realization plan destination {output_path} already exists; "
@@ -82,7 +101,9 @@ def build(narration_path: Path, story_path: Path, export_path: Path, output_path
     narration = _read_canonical(narration_path, "episode narration plan")
     story = _read_canonical(story_path, "episode story plan")
     export = _read_canonical(export_path, "render export")
-    payload = build_episode_language_realization_plan_bytes(narration, story, export)
+    payload = build_episode_language_realization_plan_bytes(
+        narration, story, export, wording_profile=wording_profile
+    )
     # The plan file must never exist without its source bindings having been
     # proven; the cross-check re-derives the plan from all three inputs and
     # compares byte for byte, so this is a genuine end-to-end verification, not
@@ -111,6 +132,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--export", required=True, help="the render export the story plan was derived from"
     )
     parser.add_argument("--output", required=True, help="where to write the realization plan")
+    parser.add_argument(
+        "--wording-profile",
+        choices=("v1", "v2"),
+        default=WORDING_PROFILE_V1,
+        help=(
+            "the reviewed register to compose under; v1 (the default) reproduces today's "
+            "derivation byte for byte, v2 derives the second closed register"
+        ),
+    )
     namespace = parser.parse_args(argv)
 
     try:
@@ -119,6 +149,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(namespace.story),
             Path(namespace.export),
             Path(namespace.output),
+            wording_profile=namespace.wording_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         # OSError covers the deliberate FileExistsError/FileNotFoundError

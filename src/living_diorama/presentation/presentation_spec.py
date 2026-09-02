@@ -21,6 +21,14 @@ real motion Phase 19 and Phase 23 already rendered at their own true rate. And
 there is no rate, duration-in-seconds, or speech vocabulary anywhere: a window
 is presentation frames, and whether a synthesized voice fits it is a later
 layer's measured question, never this layer's guess.
+
+The V2 presentation profile adds a second, additive reading of the same hold:
+instead of repeating the onset frame's PNG for every held position, the
+mapping may ping-pong across the unit's own slot span, showing already-rendered
+frames in their true temporal order. The capacity arithmetic, the window
+geometry and the segment shape are unchanged -- only the per-position choice
+inside a hold differs, and the pure functions at the bottom of this module are
+the whole of that choice. They read no clock and draw no randomness.
 """
 
 from typing import Final
@@ -33,7 +41,10 @@ PRESENTATION_SCHEMA_VERSION: Final = 1
 
 Independent from the narration, delivery, realization and persistence schema
 versions. The window-sizing and hold policy in this module is part of this
-version.
+version. V2 plans stay on this same version: a V2 plan is the V1 document plus
+one additive top-level ``motion_windows`` block, exactly the strict-superset
+pattern the cinematic V2 schema already uses, and a plan without that block is
+validated by the unchanged V1 path.
 """
 
 PRESENTATION_POLICY_V1: Final = "presentation_policy_v1"
@@ -41,7 +52,9 @@ PRESENTATION_POLICY_V1: Final = "presentation_policy_v1"
 
 Declared in the document rather than merely implied, so a future plan written
 under a revised policy can never be mistaken for this one. The validator
-requires the field to equal this constant exactly.
+requires the field to equal this constant exactly. The V2 profile keeps the
+same policy identity: it changes how a hold's already-scheduled capacity is
+mapped onto rendered frames, never how that capacity is sized.
 """
 
 SEGMENT_ID_FORM: Final = "segment_%04d"
@@ -164,3 +177,102 @@ def window_and_hold(slot_start: int, slot_end: int, text_source: str) -> tuple[i
     floor = window_frames_for_text_source(text_source)
     window_frames = max(length, floor)
     return window_frames, window_frames - length
+
+
+def bounce_window(lo: int, hi: int, length: int) -> tuple[int, ...]:
+    """Return the first ``length`` values of the infinite bounce over ``[lo, hi]``.
+
+    The bounce is the standard forward-then-backward oscillation
+    ``lo, lo + 1, ..., hi, hi - 1, ..., lo, lo + 1, ...`` -- a triangle wave of
+    period ``2 * (hi - lo)``. It is pure arithmetic over its three integer
+    arguments: no randomness, no wall clock, no state, and the same arguments
+    always produce the same tuple, so a plan that names a bounce names one
+    concrete sequence forever.
+
+    Consecutive values differ by exactly one everywhere, so no two adjacent
+    held positions ever repeat a PNG under the V2 mapping.
+
+    Args:
+        lo: The window's first semantic frame, inclusive.
+        hi: The window's final semantic frame, inclusive, with ``hi > lo``.
+        length: How many values to take, a positive integer.
+
+    Returns:
+        A tuple of exactly ``length`` integers, each within ``[lo, hi]``.
+
+    Raises:
+        ValueError: If the window is empty, inverted, or a single frame (a
+            one-frame window is not a bounce and would freeze), or if
+            ``length`` is not positive.
+    """
+    if hi <= lo:
+        raise ValueError(
+            f"bounce window [{lo}, {hi}] must span at least two semantic frames; a "
+            "one-frame window cannot bounce and is refused rather than frozen"
+        )
+    if length < 1:
+        raise ValueError(f"bounce length must be positive, got {length}")
+    span = hi - lo
+    period = 2 * span
+    return tuple(
+        lo + (step if step <= span else period - step)
+        for step in (index % period for index in range(length))
+    )
+
+
+def motion_window_for_hold(onset: int, slot_end: int, length: int) -> tuple[int, ...]:
+    """Return the V2 ping-pong sequence for one hold, within the unit's own slot.
+
+    The safe local window is the holding unit's own delivery slot
+    ``[onset, slot_end]`` -- never a frame of a neighbouring unit's slot and
+    never a frame of a different animation phase. This function chooses, from
+    the largest prefix of that slot, the bounce whose final value lands closest
+    to the onset, so the hold re-enters the natural footage flow without a
+    visible jump; the first held value is always the onset itself (the shot's
+    cut and the voice onset), because requirement three -- continuity *into*
+    the hold -- is the binding one, and the exit is then brought as close to
+    the onset as the pure bounce allows rather than ever breaking the
+    deterministic triangle shape with a hand-edited tail.
+
+    The choice is made once here and documented once: entry continuity wins,
+    exit continuity is approximated to within one frame where the slot permits
+    it (``exit in {onset, onset + 1}``), and the pure, deterministic bounce is
+    never mutated. A slot that offers only its onset frame offers no safe
+    motion, and this function says so honestly by refusing rather than by
+    freezing a fake bounce.
+
+    Args:
+        onset: The hold's semantic onset frame -- the slot's own ``start_frame``.
+        slot_end: The holding unit's slot's final semantic frame, inclusive.
+        length: The hold's dwell in presentation frames (its required length).
+
+    Returns:
+        Exactly ``length`` semantic indices: the canonical bounce over
+        ``[onset, onset + span]`` for the chosen span.
+
+    Raises:
+        ValueError: If the slot offers fewer than two frames of safe motion, or
+            if ``length`` is not positive.
+    """
+    if slot_end < onset:
+        raise ValueError(f"delivery slot [{onset}, {slot_end}] is empty or inverted")
+    max_span = slot_end - onset
+    if max_span < 1:
+        raise ValueError(
+            f"slot [{onset}, {slot_end}] offers no second frame of safe motion; "
+            "no V2 ping-pong window exists, and motion is not forced where none is safe"
+        )
+    if length < 1:
+        raise ValueError(f"hold length must be positive, got {length}")
+    best_span = max_span
+    best_gap: int | None = None
+    for span in range(max_span, 0, -1):
+        period = 2 * span
+        remainder = (length - 1) % period
+        gap = remainder if remainder <= span else period - remainder
+        if best_gap is None or gap < best_gap:
+            best_gap = gap
+            best_span = span
+            if gap == 0:
+                break
+    return bounce_window(onset, onset + best_span, length)

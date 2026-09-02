@@ -114,8 +114,37 @@ def assemble(
     story_path: Path,
     export_path: Path,
     output_root: Path,
+    *,
+    presentation_profile: str | None = None,
 ) -> Path:
-    """Assemble one episode's media and return its published assembly directory."""
+    """Assemble one episode's media and return its published assembly directory.
+
+    Args:
+        render_dir: The Phase 23 render directory whose manifest the assembly binds.
+        composition_dir: The Phase 31 audio composition directory whose manifest and WAV
+            the assembly binds.
+        presentation_path: The Episode Presentation Plan the assembly presents.
+        delivery_path: The Episode Narration Delivery Plan the presentation plan images.
+            Verification-only: an argument to the Phase 27 gate.
+        shots_path: The Shot Direction Plan the delivery plan was cut against.
+            Verification-only: an argument to the Phase 27 gate.
+        narration_path: The Episode Narration Plan the presentation presents.
+            Verification-only: an argument to the Phase 27 gate.
+        realization_path: The Episode Language Realization Plan the presentation plan
+            speaks. Verification-only: an argument to the Phase 27 gate.
+        story_path: The Episode Story Plan the realization plan was proven against.
+            Verification-only: an argument to the Phase 27 gate.
+        export_path: The render export the story and realization were derived from.
+            Verification-only: an argument to the Phase 27 gate.
+        output_root: Where to publish the assembly directory.
+        presentation_profile: The presentation profile the Phase 27 gate re-derives the
+            presentation plan under. ``None`` (the default) preserves today's exact
+            behavior: a presentation plan carrying ``motion_windows`` is verified as V2,
+            any other plan as V1. Pass ``"v1"``, ``"v2"`` or ``"v3"`` to pin the profile
+            explicitly -- ``"v3"`` is required for the frozen, content-sized V3
+            presentation plan, which carries no ``motion_windows`` and would otherwise be
+            re-derived as V1 and refused.
+    """
     # 0. THE FIRST STATEMENT: no filesystem query below output_root precedes this.
     _require_direct_parent(output_root)
 
@@ -163,6 +192,15 @@ def assemble(
         realization,
         story,
         export,
+        presentation_profile=(
+            (
+                "v2"
+                if isinstance(presentation_plan, dict) and "motion_windows" in presentation_plan
+                else "v1"
+            )
+            if presentation_profile is None
+            else presentation_profile
+        ),
     )
 
     # ---- THE CARRIED EPISODE AUDIO IS OBSERVED EXACTLY ONCE ----
@@ -216,6 +254,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--output-root", required=True, help="where to publish the assembly directory"
     )
+    parser.add_argument(
+        "--presentation-profile",
+        choices=("v1", "v2", "v3", "v4"),
+        default=None,
+        help=(
+            "the presentation profile the Phase 27 gate re-derives the presentation plan "
+            "under; v1 reproduces today's bytes exactly, v2 verifies the additive "
+            "motion-window plan, v3 verifies the frozen, content-sized plan with no motion "
+            "windows; when the flag is omitted today's exact behavior is preserved"
+        ),
+    )
     namespace = parser.parse_args(argv)
 
     try:
@@ -230,6 +279,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(namespace.story),
             Path(namespace.export),
             Path(namespace.output_root),
+            presentation_profile=namespace.presentation_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)

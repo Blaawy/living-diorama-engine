@@ -14,6 +14,16 @@ own entity records. The narration plan contributes identity and order; its
 sentences are provenance history this module never reads, so a lying source
 sentence over unchanged structure cannot move a single realized byte.
 
+The wording register is a parameter of the derivation, not an input document:
+``v1`` (the default) reproduces today's bytes exactly, and ``v2`` composes the
+same atoms under the second reviewed table. The register the derivation used
+is written into the plan it produces, so a reader never has to guess which
+table a sentence came from. A ``v2`` plan additionally carries, on every
+record, the binding the sentence is grounded in -- its category, the memory
+fact it restates (when it restates one) and the export event index it cites --
+and a top-level ``viewer_guidance`` list selected deterministically from the
+world export.
+
 The three documents must belong together, and that is checked before a single
 sentence is composed. A narration plan names the story it restates and the
 export it carried sentences from by digest; a story plan names the export it
@@ -25,9 +35,11 @@ episode.
 from typing import cast
 
 from living_diorama.language_realization.realization_atoms import (
+    EVIDENCE_EVENT,
     EVIDENCE_MEMORY_FACT,
     realized_text_for_beat,
 )
+from living_diorama.language_realization.realization_guidance import select_viewer_guidance
 from living_diorama.language_realization.realization_schema_v1 import (
     JsonValue,
     validate_episode_language_realization_plan,
@@ -37,6 +49,8 @@ from living_diorama.language_realization.realization_spec import (
     REALIZATION_PLAN_FORMAT,
     REALIZATION_POLICY_V1,
     REALIZATION_SCHEMA_VERSION,
+    WORDING_PROFILE_V1,
+    require_wording_profile,
 )
 from living_diorama.narration import validate_episode_narration_plan
 from living_diorama.narration.narration_spec import (
@@ -198,8 +212,36 @@ def _require_unit_beat_agreement(
     return kind
 
 
+def _event_index_for_beat(
+    beat: dict[str, JsonValue],
+    description: str,
+) -> JsonValue:
+    """Return the export event index a beat's evidence cites, or ``None``.
+
+    An event-derived or fact-derived beat cites exactly one event; an absence
+    beat cites none. The index is the beat's own claim, which the atoms layer
+    proves against the actual export event before any sentence is composed.
+    """
+    indices = [
+        cast(int, entry["index"])
+        for entry in cast(list[dict[str, JsonValue]], beat["evidence"])
+        if entry["kind"] == EVIDENCE_EVENT
+    ]
+    if not indices:
+        return None
+    if len(indices) != 1:
+        raise ValueError(
+            f"{description} cites {len(indices)} events; a beat names exactly one event or none"
+        )
+    return indices[0]
+
+
 def build_episode_language_realization_plan_document(
-    narration_plan: object, story_plan: object, current_export: object
+    narration_plan: object,
+    story_plan: object,
+    current_export: object,
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
 ) -> dict[str, JsonValue]:
     """Return the Episode Language Realization Plan document for one episode.
 
@@ -209,6 +251,12 @@ def build_episode_language_realization_plan_document(
             licenses every spoken atom.
         current_export: The Render Export V1 whose events, facts and world
             entities every claim and label is proven against.
+        wording_profile: The reviewed register to compose under; ``v1`` (the
+            default) reproduces today's derivation byte for byte, and a plan
+            written under it carries no ``wording_profile`` field. A ``v2``
+            plan records the register it was written under, binds every record
+            to its category, fact and event, and carries the deterministic
+            viewer guidance selected from the world export.
 
     Returns:
         A validated Episode Language Realization Plan V1 document.
@@ -216,9 +264,10 @@ def build_episode_language_realization_plan_document(
     Raises:
         TypeError: If any input has the wrong shape.
         ValueError: If any input fails its own contract, if the three do not
-            join, if any unit disagrees with its beat, or if any sentence's
-            structural proof fails.
+            join, if any unit disagrees with its beat, if the wording profile
+            is unreviewed, or if any sentence's structural proof fails.
     """
+    require_wording_profile(wording_profile, "language realization plan")
     narration = validate_episode_narration_plan(narration_plan)
     story = validate_episode_story_plan(story_plan)
     export = cast(dict[str, JsonValue], validate_render_export(current_export))
@@ -233,21 +282,27 @@ def build_episode_language_realization_plan_document(
             f"{len(beats)} beats; every beat is realized exactly once"
         )
 
+    is_v2 = wording_profile != WORDING_PROFILE_V1
     realizations: list[JsonValue] = []
     fact_backed = 0
     for position, (unit, beat) in enumerate(zip(units, beats, strict=True), start=1):
         kind = _require_unit_beat_agreement(unit, beat, position)
         description = f"episode story plan beats[{position - 1}]"
-        text = realized_text_for_beat(kind, beat, export, description)
+        text = realized_text_for_beat(
+            kind, beat, export, description, wording_profile=wording_profile
+        )
         if text_source_for_kind(kind) == TEXT_SOURCE_MEMORY_FACT_SUMMARY:
             fact_backed += 1
-        realizations.append(
-            {
-                "realization_id": REALIZATION_ID_FORM % position,
-                "realized_text": text,
-                "unit_id": unit["unit_id"],
-            }
-        )
+        record: dict[str, JsonValue] = {
+            "realization_id": REALIZATION_ID_FORM % position,
+            "realized_text": text,
+            "unit_id": unit["unit_id"],
+        }
+        if is_v2:
+            record["category"] = "fact"
+            record["fact_id"] = unit["fact_id"]
+            record["event_id"] = _event_index_for_beat(beat, description)
+        realizations.append(record)
 
     document: dict[str, JsonValue] = {
         "accounting": {
@@ -261,18 +316,29 @@ def build_episode_language_realization_plan_document(
         "schema_version": REALIZATION_SCHEMA_VERSION,
         "source": source,
     }
+    if is_v2:
+        document["wording_profile"] = wording_profile
+        document["viewer_guidance"] = cast(
+            JsonValue, select_viewer_guidance(export, cast(int, source["episode"]))
+        )
     return validate_episode_language_realization_plan(document)
 
 
 def build_episode_language_realization_plan_bytes(
-    narration_plan: object, story_plan: object, current_export: object
+    narration_plan: object,
+    story_plan: object,
+    current_export: object,
+    *,
+    wording_profile: str = WORDING_PROFILE_V1,
 ) -> bytes:
     """Return the canonical Episode Language Realization Plan bytes.
 
     The returned bytes are the one canonical encoding of the plan: sorted keys,
     tight separators, no non-finite floats, and exactly one trailing newline.
+    The ``wording_profile`` argument selects the reviewed register the plan was
+    written under, exactly as for the document builder.
     """
     document = build_episode_language_realization_plan_document(
-        narration_plan, story_plan, current_export
+        narration_plan, story_plan, current_export, wording_profile=wording_profile
     )
     return dumps_canonical(document, "language realization plan")

@@ -40,6 +40,23 @@ if str(SCRIPTS_DIR) not in sys.path:
 MARKER_PREFIX = "P22_SHOT_"
 """Every timeline marker this phase owns starts here, and nothing else does."""
 
+MOVEMENT_MARKER_PREFIX = "P22_MOVE_"
+"""Every timeline marker the V2 movement applier owns, restated.
+
+A movement marker binds a movement camera for its shot's window, exactly as
+this phase's own markers bind fixed anchors. It is NOT a foreign claim on the
+active camera: under V2 it is the very camera this plan directs for that
+window, so the foreign-marker refusal must not trip on it.
+"""
+
+CAMERA_MOVEMENT_PREFIX = "CAM_MOVEMENT_"
+"""The object-name prefix of every V2 movement camera, restated.
+
+Identical to ``apply_camera_movement.CAMERA_PREFIX`` and the engine's
+``cinematic_spec.CAMERA_MOVEMENT_PREFIX``; a pure test in
+``test_production_boundary.py`` pins all the copies equal.
+"""
+
 CANONICAL_MOTION_TIME_SHA256 = "bfcbfcfd8d2b33f0ca8a0bc51655a1028babc601a73cdd42ca3c8caf3f9da673"
 """The one canonical Phase 17 Motion & Time Spec this build directs.
 
@@ -81,6 +98,33 @@ canonical digest is refused here by direct comparison -- source identity AND
 resolved values, never one as a substitute for the other.
 """
 
+DIRECTOR_V4_MOTION_TIME_SHA256 = "a821049b648c0d37a9bc5c6cbc74142cffb0c21a817ad3e2b10764dfeaa4079c"
+"""The reviewed Director V4 Motion & Time Spec digest, restated beside the canonical one."""
+
+DIRECTOR_V4_TIMELINE = {
+    "end_frame": 319,
+    "end_hold_frames": 18,
+    "fps": 24,
+    "start_frame": 1,
+    "start_hold_frames": 24,
+    "transition_end": 301,
+    "transition_frames": 276,
+    "transition_start": 25,
+}
+"""The resolved Director V4 clock, restated as data beside its source digest."""
+
+REVIEWED_CLOCKS = {
+    CANONICAL_MOTION_TIME_SHA256: CANONICAL_TIMELINE,
+    DIRECTOR_V4_MOTION_TIME_SHA256: DIRECTOR_V4_TIMELINE,
+}
+"""The closed set of reviewed clocks this build directs: digest -> resolved clock.
+
+A plan is admitted only when its bound digest is one of these AND the clock it
+restates is exactly what that digest resolves to -- a document cannot claim one
+clock while binding another, and any digest outside this closed set is refused
+outright, however internally consistent.
+"""
+
 DELTA_TOLERANCE = 1e-6
 """Slack for delta transforms and scale, which the builders leave at factory
 identity exactly."""
@@ -120,6 +164,27 @@ CLIP_TOLERANCE = 1e-3
 
 class CinematicApplyError(RuntimeError):
     """Raised when the scene cannot honour the plan exactly."""
+
+
+def _movement_camera_name(shot_id: str) -> str:
+    """Return the single new camera identity a movement shot earns, restated.
+
+    Identical string to ``apply_camera_movement.movement_camera_name`` and the
+    engine's ``cinematic_spec.movement_camera_name``; a pinned equality test in
+    ``test_production_boundary.py`` proves all the copies agree.
+    """
+    return f"{CAMERA_MOVEMENT_PREFIX}{shot_id}"
+
+
+def _is_movement_shot(shot) -> bool:
+    """Return whether a shot carries a non-STATIC ``camera_movement`` block.
+
+    The same signal the V2 planner uses: only a movement type other than
+    ``STATIC`` earns a new camera identity, because a STATIC block is a
+    deliberate hold on the fixed anchor.
+    """
+    movement = shot.get("camera_movement")
+    return movement is not None and movement["movement_type"] != "STATIC"
 
 
 def _view_axes_from_euler(euler):
@@ -499,7 +564,9 @@ def clear_owned_markers(scene) -> int:
     return len(owned)
 
 
-def _require_no_foreign_camera_markers(scene, timeline: dict) -> None:
+def _require_no_foreign_camera_markers(
+    scene, timeline: dict, *, movement_marker_prefix: str | None = None
+) -> None:
     """Refuse if a foreign camera-bound marker competes for the directed frames.
 
     Blender binds the active camera from a camera-carrying marker onward, so any
@@ -509,11 +576,18 @@ def _require_no_foreign_camera_markers(scene, timeline: dict) -> None:
     marker is somebody else's claim on the same mechanism this phase uses, and
     the two cannot both hold. The foreign marker is never touched: the plan is
     refused, and resolving the conflict is its owner's decision.
+
+    ``movement_marker_prefix`` is the V2 carve-out: when the movement applier
+    has run first, its ``P22_MOVE_`` markers are NOT foreign -- they bind the
+    very cameras this plan directs for the movement windows -- so markers under
+    that prefix are excluded from the scan. Under V1 nothing is passed and the
+    behaviour is byte-for-byte unchanged.
     """
     conflicting = [
         marker
         for marker in scene.timeline_markers
         if not marker.name.startswith(MARKER_PREFIX)
+        and (movement_marker_prefix is None or not marker.name.startswith(movement_marker_prefix))
         and getattr(marker, "camera", None) is not None
         and marker.frame <= timeline["end_frame"]
     ]
@@ -529,15 +603,45 @@ def _require_no_foreign_camera_markers(scene, timeline: dict) -> None:
         )
 
 
-def apply_shot_direction_plan(bpy, plan: dict, catalogue: dict) -> dict:
+def _movement_camera_object(bpy, shot_id: str) -> object:
+    """Return the scene object of one movement shot's derived camera, proven present.
+
+    The V2 movement applier creates exactly one such object per non-STATIC
+    movement shot before direction is applied; a plan that reaches direction
+    without one is a composition-order bug, refused rather than substituted.
+    """
+    name = _movement_camera_name(shot_id)
+    matches = [obj for obj in bpy.data.objects if obj.name == name]
+    if not matches:
+        raise CinematicApplyError(
+            f"movement camera {name!r} is absent from the scene; the V2 movement "
+            "applier must run before direction binds the shot"
+        )
+    if len(matches) > 1:
+        raise CinematicApplyError(
+            f"movement camera {name!r} resolves to {len(matches)} objects; a movement "
+            "shot gets exactly one camera"
+        )
+    return matches[0]
+
+
+def apply_shot_direction_plan(
+    bpy, plan: dict, catalogue: dict, *, camera_profile: str = "v1"
+) -> dict:
     """Bind every shot in a validated plan to the scene timeline.
 
     Args:
         bpy: The Blender Python module.
-        plan: A Shot Direction Plan V1 document, already validated by the pure
+        plan: A Shot Direction Plan document, already validated by the pure
             layer. This function re-checks only what the scene can contradict.
         catalogue: The Phase 22 camera anchor catalogue, passed as data so this
             module imports nothing from the engine package.
+        camera_profile: ``"v1"`` (default) or ``"v2"``. Under V2 only, three
+            additive rules hold: the movement applier's ``P22_MOVE_`` markers
+            are not foreign; a movement shot's window is left to its movement
+            marker (no competing ``P22_SHOT_`` marker is bound over it); and the
+            scene's opening camera is the movement camera when the opening shot
+            moves. V1 behaviour is byte-for-byte unchanged.
 
     Returns:
         A report of what was bound, for the structural tests to assert against.
@@ -552,22 +656,23 @@ def apply_shot_direction_plan(bpy, plan: dict, catalogue: dict) -> dict:
     shots = plan["shots"]
     timeline = plan["timeline"]
 
-    # The plan itself must be one this build was reviewed against: cut on the
-    # canonical Phase 17 clock and for the approved camera catalogue. The
+    # The plan itself must be one this build was reviewed against: cut on a
+    # reviewed Phase 17 clock and for the approved camera catalogue. The
     # supplied catalogue's own canonical digest must then match what the plan
     # binds -- so a scene mutated to agree with a mutated catalogue is refused
     # on the catalogue's identity before any camera is even inspected.
     bound_clock = plan["source"]["motion_time_sha256"]
-    if bound_clock != CANONICAL_MOTION_TIME_SHA256:
+    if bound_clock not in REVIEWED_CLOCKS:
         raise CinematicApplyError(
             f"plan binds motion time spec {bound_clock}, which is not the canonical "
-            f"Phase 17 source this build directs ({CANONICAL_MOTION_TIME_SHA256})"
+            f"Phase 17 source this build directs (admissible reviewed clocks: "
+            f"{', '.join(sorted(REVIEWED_CLOCKS))})"
         )
-    if dict(timeline) != CANONICAL_TIMELINE:
+    if dict(timeline) != dict(REVIEWED_CLOCKS[bound_clock]):
         raise CinematicApplyError(
             f"plan restates timeline {dict(timeline)!r}, which is not what the "
-            "canonical Phase 17 source resolves to; a hand-edited clock under the "
-            "canonical digest is refused"
+            f"reviewed Phase 17 source {bound_clock} resolves to; a hand-edited clock "
+            "under a reviewed digest is refused"
         )
     bound_catalogue = plan["source"]["catalogue_sha256"]
     if bound_catalogue != APPROVED_CATALOGUE_SHA256:
@@ -668,12 +773,22 @@ def apply_shot_direction_plan(bpy, plan: dict, catalogue: dict) -> dict:
                 f"{shot['shot_id']} starts at frame {frame}, outside the scene range"
             )
 
-    _require_no_foreign_camera_markers(scene, timeline)
+    _require_no_foreign_camera_markers(
+        scene,
+        timeline,
+        movement_marker_prefix=MOVEMENT_MARKER_PREFIX if camera_profile == "v2" else None,
+    )
 
     removed = clear_owned_markers(scene)
 
     bound = []
     for shot in shots:
+        if camera_profile == "v2" and _is_movement_shot(shot):
+            # The movement applier's P22_MOVE_ marker already governs this
+            # shot's window with the movement camera; binding a P22_SHOT_
+            # marker at the same start frame would give the active camera two
+            # competing claimants. The window is left to its movement marker.
+            continue
         frame = shot["start_frame"]
         marker = scene.timeline_markers.new(f"{MARKER_PREFIX}{shot['shot_id']}", frame=frame)
         marker.camera = resolved[shot["camera_anchor_id"]]
@@ -687,16 +802,27 @@ def apply_shot_direction_plan(bpy, plan: dict, catalogue: dict) -> dict:
         )
 
     # The scene's own camera is set to the opening shot so a still render without
-    # marker evaluation still shows the intended first frame.
-    scene.camera = resolved[shots[0]["camera_anchor_id"]]
+    # marker evaluation still shows the intended first frame. Under V2 an opening
+    # movement shot opens through its derived movement camera, not the fixed
+    # anchor the shot plan still names.
+    opening_shot = shots[0]
+    if camera_profile == "v2" and _is_movement_shot(opening_shot):
+        opening_camera = _movement_camera_object(bpy, opening_shot["shot_id"])
+    else:
+        opening_camera = resolved[opening_shot["camera_anchor_id"]]
+    scene.camera = opening_camera
 
     return {
         "markers_removed": removed,
         "markers_bound": len(bound),
         "bound": bound,
         "anchors_verified": sorted(resolved),
-        "opening_camera": shots[0]["camera_anchor_id"],
-        "closing_camera": shots[-1]["camera_anchor_id"],
+        "opening_camera": opening_camera.name,
+        "closing_camera": (
+            _movement_camera_name(shots[-1]["shot_id"])
+            if camera_profile == "v2" and _is_movement_shot(shots[-1])
+            else shots[-1]["camera_anchor_id"]
+        ),
     }
 
 

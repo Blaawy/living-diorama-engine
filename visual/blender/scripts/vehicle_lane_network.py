@@ -1424,6 +1424,8 @@ def plan_vehicle_lanes(
     mobility_spec: dict,
     vehicle_half_width: float,
     timeline: dict,
+    *,
+    prefer_open_routes: bool = False,
 ) -> dict:
     """The complete vehicle lane network and the routes it can carry.
 
@@ -1440,6 +1442,15 @@ def plan_vehicle_lanes(
     SPREAD, because a technically valid traffic system that animates one corner
     of the city is not a daily-life result. Ties break on route keys, so the
     answer never depends on ordering.
+
+    ``prefer_open_routes`` is a V2-only selection preference, defaulting to
+    ``False`` and a strict no-op when ``False`` -- the score tuple, and therefore
+    the selected set, is byte-for-byte today's. When ``True`` the exact search
+    inserts one term into the score, immediately after the capacity term, that
+    prefers any set of routes containing an out-and-back (``direction ==
+    "shuttle"``) among sets reaching the same capacity, so the open family can
+    actually win the selection instead of always losing the spread comparison.
+    The v1 call site never passes it, so v1 output is unchanged by construction.
     """
     network = build_lane_network(master_spec, graph, ground, mobility_spec, vehicle_half_width)
     longest = vehicle_kit_longest()
@@ -1609,7 +1620,19 @@ def plan_vehicle_lanes(
         if index == len(viable):
             chosen = [viable[bit] for bit in range(len(viable)) if mask >> bit & 1]
             keys = tuple(entry["circuit_key"] for entry in chosen)
-            score = (min(capacity, target), *_spread_score(chosen), capacity)
+            if prefer_open_routes:
+                # V2-only selection preference: among sets that reach the same
+                # capacity, prefer one that contains an open out-and-back route.
+                # The check mirrors mobility_traffic_v2.is_open_route
+                # (direction == "shuttle") inline to avoid a circular import.
+                score = (
+                    min(capacity, target),
+                    (1 if any(entry.get("direction") == "shuttle" for entry in chosen) else 0),
+                    *_spread_score(chosen),
+                    capacity,
+                )
+            else:
+                score = (min(capacity, target), *_spread_score(chosen), capacity)
             if (
                 best["score"] is None
                 or score > best["score"]

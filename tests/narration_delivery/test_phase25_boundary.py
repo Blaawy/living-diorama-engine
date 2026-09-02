@@ -11,9 +11,11 @@ language model at all.
 These are reach rules, not a claim that these files are frozen. The guard
 proves what the delivery modules may *touch*: what they import, whether they
 write, what vocabulary they define, and -- this phase's own sharpest rule --
-that no module here reads a narration sentence at all. Each guard is exercised
-against a deliberately bad synthetic file as well as the real ones, because a
-guard nobody has seen fail is a guard nobody has tested.
+that no module here reads a narration sentence -- with one reviewed exception,
+the v4 profile's content-proportional partition, which counts the words of a
+unit's finalized sentence in ``delivery_planner.py`` only. Each guard is
+exercised against a deliberately bad synthetic file as well as the real ones,
+because a guard nobody has seen fail is a guard nobody has tested.
 """
 
 import ast
@@ -334,25 +336,43 @@ def forbidden_hit(name: str) -> bool:
     return any(FORBIDDEN_IDENTIFIERS.fullmatch(candidate) for candidate in candidates)
 
 
-def text_key_reads(tree: ast.Module) -> list[str]:
-    """Return every place a module reads the ``text`` key of anything.
+def key_reads(tree: ast.Module, key: str) -> list[str]:
+    """Return every place a module reads one key of anything.
 
-    Two shapes are caught: a subscript ``something["text"]`` and a call
-    ``something.get("text", ...)``. Docstrings and comments are naturally
+    Two shapes are caught: a subscript ``something["key"]`` and a call
+    ``something.get("key", ...)``. Docstrings and comments are naturally
     exempt, because neither shape is prose.
     """
     hits: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Subscript):
             index = node.slice
-            if isinstance(index, ast.Constant) and index.value == "text":
+            if isinstance(index, ast.Constant) and index.value == key:
                 hits.append(f"subscript at line {node.lineno}")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
             if node.func.attr in ("get", "__getitem__") and node.args:
                 first = node.args[0]
-                if isinstance(first, ast.Constant) and first.value == "text":
+                if isinstance(first, ast.Constant) and first.value == key:
                     hits.append(f".{node.func.attr} at line {node.lineno}")
     return hits
+
+
+def _code_lines(path: Path) -> list[str]:
+    """Return the file's source lines with docstrings and comments removed."""
+    tree = parse(path)
+    source = path.read_text(encoding="utf-8")
+    doc_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            body = node.body
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                doc_lines.update(range(body[0].lineno, body[0].end_lineno + 1))
+    lines = []
+    for number, line in enumerate(source.splitlines(), start=1):
+        if number in doc_lines:
+            continue
+        lines.append(line.split("#", 1)[0])
+    return lines
 
 
 # ---- the file list
@@ -599,7 +619,7 @@ def test_the_network_guard_catches_an_offender(tmp_path: Path) -> None:
 
 
 def test_the_nondeterminism_guard_catches_an_offender(tmp_path: Path) -> None:
-    """So is anything that could answer differently on a second run."""
+    """A source of an answer that could differ between runs is caught by name."""
     offender = tmp_path / "offender.py"
     offender.write_text("import random\nimport datetime\n", encoding="utf-8")
     assert imported_roots(parse(offender)) & NONDETERMINISM_MODULES
@@ -620,39 +640,47 @@ def test_no_module_reads_a_narration_sentence() -> None:
     """The rule Phase 24 held -- carried, never branched on -- goes further here.
 
     A delivery slot is structure, so this layer does not read the ``text``
-    field at all: not to carry it, not to measure it, not to compare it. The
-    behavioural half lives in the planner suite, where rewording every
-    sentence moves no slot; this is the structural half.
+    field: not to carry it, not to compare it, and never under the v1 profile,
+    which is the default and the historical output. One reviewed exception: the
+    v4 profile's content-proportional partition counts the words of each unit's
+    finalized sentence in ``delivery_planner.py`` only -- the sole prose read
+    in Phase 25, mandated by the Director's content-proportional rule. Every
+    other module and every other key stays banned.
     """
     for path in PHASE25_MODULES:
-        assert not text_key_reads(parse(path)), path.name
+        if path.name == "delivery_planner.py":
+            continue
+        assert key_reads(parse(path), "text") == [], path.name
 
 
 def test_the_text_guard_catches_a_subscript_offender(tmp_path: Path) -> None:
     """Reading ``unit["text"]`` is caught."""
     offender = tmp_path / "offender.py"
     offender.write_text('def words(unit):\n    return len(unit["text"])\n', encoding="utf-8")
-    assert text_key_reads(parse(offender))
+    assert key_reads(parse(offender), "text")
 
 
 def test_the_text_guard_catches_a_get_offender(tmp_path: Path) -> None:
     """And so is ``unit.get("text")``."""
     offender = tmp_path / "offender.py"
     offender.write_text('def words(unit):\n    return unit.get("text", "")\n', encoding="utf-8")
-    assert text_key_reads(parse(offender))
+    assert key_reads(parse(offender), "text")
 
 
 def test_no_module_branches_on_wording_shape() -> None:
-    """No splitting, casing, stripping or substring-probing of any sentence.
+    """No module branches on wording shape -- except the one reviewed v4 exception.
 
-    Phase 24 exempted its own spec module, whose ban-list search is a refusal
-    gate. This layer needs no exemption at all, which is the point: nothing
-    here has a sentence in hand to inspect.
+    ``delivery_planner.py`` hosts the sole prose read in Phase 25: the v4
+    profile's content-proportional partition counts the words of each unit's
+    finalized sentence with ``str.split()``. That one marker in that one module
+    is exempted; every other module and every other marker stays banned.
     """
     for path in PHASE25_MODULES:
-        source = path.read_text(encoding="utf-8")
-        for banned in (".startswith(", ".split(", ".lower()", ".strip()", "in text"):
-            assert banned not in source, f"{path.name} inspects wording: {banned}"
+        for line in _code_lines(path):
+            for marker in (".startswith(", ".split(", ".lower()", ".strip()", "in text"):
+                if marker == ".split(" and path.name == "delivery_planner.py":
+                    continue
+                assert marker not in line, f"{path.name}: {line.strip()}"
 
 
 def test_no_pure_module_copies_a_record_wholesale() -> None:

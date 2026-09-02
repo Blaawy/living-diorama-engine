@@ -68,6 +68,7 @@ ALLOWED_ENGINE_MODULES = frozenset(
         "living_diorama.persistence.schema.world_schema_v1",
         "living_diorama.presentation.presentation_cross_check",
         "living_diorama.presentation.presentation_schema_v1",
+        "living_diorama.presentation.presentation_schema_v2",
         "living_diorama.presentation.presentation_spec",
     }
 )

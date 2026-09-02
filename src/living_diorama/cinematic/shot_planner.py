@@ -26,10 +26,10 @@ import json
 from typing import Final, cast
 
 from living_diorama.cinematic.cinematic_schema_v1 import (
-    CANONICAL_MOTION_TIME_SHA256,
     MAX_TIMELINE_FPS,
     MAX_TIMELINE_FRAME,
     MOTION_TIME_FORMAT,
+    REVIEWED_CLOCKS,
     SHOT_ID_FORM,
     SHOT_PLAN_FORMAT,
     SHOT_SCHEMA_VERSION,
@@ -184,18 +184,19 @@ def resolve_motion_time_binding(motion_time: object) -> dict[str, JsonValue]:
     resolved["transition_end"] = transition_end
 
     # Shape and arithmetic prove the document is a plausible Phase 17 clock;
-    # this proves it is THE clock. A well-formed 30 fps or shifted document is
-    # refused here outright, so no plan can ever exist against an alternate
-    # source, however internally consistent. Shape runs first purely for
-    # diagnostics -- a malformed document earns its specific refusal instead of
-    # a digest mismatch.
+    # this proves it is a REVIEWED clock. A well-formed 30 fps or shifted
+    # document, or any document outside the closed reviewed set, is refused
+    # here outright, so no plan can ever exist against an alternate source,
+    # however internally consistent. Shape runs first purely for diagnostics --
+    # a malformed document earns its specific refusal instead of a digest
+    # mismatch.
     digest = sha256_hex(motion_time)
-    if digest != CANONICAL_MOTION_TIME_SHA256:
+    if digest not in REVIEWED_CLOCKS:
         raise ValueError(
             f"motion time spec bytes hash to {digest}, which is not the canonical "
             f"Phase 17 Motion & Time Spec this build was reviewed against "
-            f"({CANONICAL_MOTION_TIME_SHA256}); Phase 22 directs the locked clock, "
-            "not any document shaped like one"
+            f"(admissible reviewed clocks: {', '.join(sorted(REVIEWED_CLOCKS))}); "
+            "Phase 22 directs the locked clock, not any document shaped like one"
         )
     return {
         "motion_time_format": MOTION_TIME_FORMAT,

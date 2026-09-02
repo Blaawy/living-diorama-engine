@@ -155,7 +155,7 @@ def _plan_frame_direction(
 
 
 def require_render_plan_matches_shot_plan(
-    render_plan: object, shot_plan: object
+    render_plan: object, shot_plan: object, *, camera_profile: str = "v1"
 ) -> dict[str, JsonValue]:
     """Refuse unless the render plan agrees with the direction it names, everywhere.
 
@@ -177,6 +177,10 @@ def require_render_plan_matches_shot_plan(
     Args:
         render_plan: The parsed Episode Render Plan.
         shot_plan: The parsed Shot Direction Plan it names.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the plan
+            validator so a V2 plan carrying movement-camera identities and the
+            movement-catalogue binding validates under the same profile it was
+            built under.
 
     Returns:
         The validated render plan.
@@ -185,7 +189,7 @@ def require_render_plan_matches_shot_plan(
         TypeError: If a value is of the wrong exact type.
         ValueError: On any disagreement between the two documents.
     """
-    plan = validate_episode_render_plan(render_plan)
+    plan = validate_episode_render_plan(render_plan, camera_profile=camera_profile)
     direction = validate_shot_direction_plan(shot_plan)
 
     plan_source = cast(dict[str, JsonValue], plan["source"])
@@ -251,7 +255,9 @@ def require_render_plan_matches_shot_plan(
     return plan
 
 
-def require_shot_plan_bytes(render_plan: object, shot_plan_bytes: bytes) -> dict[str, JsonValue]:
+def require_shot_plan_bytes(
+    render_plan: object, shot_plan_bytes: bytes, *, camera_profile: str = "v1"
+) -> dict[str, JsonValue]:
     """Refuse unless these exact bytes are the shot plan the render plan was built from.
 
     The digest is taken over the bytes as they are, not over a re-serialization
@@ -269,6 +275,8 @@ def require_shot_plan_bytes(render_plan: object, shot_plan_bytes: bytes) -> dict
     Args:
         render_plan: The parsed Episode Render Plan.
         shot_plan_bytes: The shot plan file's exact bytes.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the plan
+            validator and the relationship check below.
 
     Returns:
         The validated render plan.
@@ -280,7 +288,7 @@ def require_shot_plan_bytes(render_plan: object, shot_plan_bytes: bytes) -> dict
     """
     if type(shot_plan_bytes) is not bytes:
         raise TypeError(f"shot plan bytes must be bytes, got {type(shot_plan_bytes).__name__}")
-    plan = validate_episode_render_plan(render_plan)
+    plan = validate_episode_render_plan(render_plan, camera_profile=camera_profile)
     bound = cast(dict[str, JsonValue], plan["source"])["shot_plan_sha256"]
     observed = sha256_hex(shot_plan_bytes)
     if observed != bound:
@@ -294,10 +302,12 @@ def require_shot_plan_bytes(render_plan: object, shot_plan_bytes: bytes) -> dict
     from living_diorama.persistence.json_codec import loads_canonical
 
     direction = loads_canonical(shot_plan_bytes, "shot direction plan")
-    return require_render_plan_matches_shot_plan(plan, direction)
+    return require_render_plan_matches_shot_plan(plan, direction, camera_profile=camera_profile)
 
 
-def validate_render_checkpoint(checkpoint: object, render_plan: object) -> dict[str, JsonValue]:
+def validate_render_checkpoint(
+    checkpoint: object, render_plan: object, *, camera_profile: str = "v1"
+) -> dict[str, JsonValue]:
     """Validate a resume checkpoint completely, against the plan it claims to be for.
 
     This is the standalone half, and it was the one missing from the
@@ -316,6 +326,9 @@ def validate_render_checkpoint(checkpoint: object, render_plan: object) -> dict[
     Args:
         checkpoint: The parsed render checkpoint.
         render_plan: The parsed Episode Render Plan it claims to describe.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the plan
+            validator so a V2 plan is re-validated under the same profile it
+            was built under.
 
     Returns:
         The checkpoint's frame records, keyed by semantic frame number.
@@ -324,7 +337,7 @@ def validate_render_checkpoint(checkpoint: object, render_plan: object) -> dict[
         TypeError: If a value is of the wrong exact type.
         ValueError: On any violation, or any disagreement with the plan.
     """
-    plan = validate_episode_render_plan(render_plan)
+    plan = validate_episode_render_plan(render_plan, camera_profile=camera_profile)
     plan_digest = sha256_hex(dumps_canonical(plan, "episode render plan"))
 
     if type(checkpoint) is not dict:
@@ -388,7 +401,7 @@ def validate_render_checkpoint(checkpoint: object, render_plan: object) -> dict[
 
 
 def require_checkpoint_matches_manifest(
-    checkpoint: object, manifest: object
+    checkpoint: object, manifest: object, *, camera_profile: str = "v1"
 ) -> dict[str, JsonValue]:
     """Refuse a checkpoint that contradicts the manifest sitting beside it.
 
@@ -406,6 +419,8 @@ def require_checkpoint_matches_manifest(
     Args:
         checkpoint: The parsed render checkpoint.
         manifest: The parsed Episode Render Manifest.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the
+            manifest validator.
 
     Returns:
         The checkpoint's frame records, keyed by semantic frame number.
@@ -421,7 +436,7 @@ def require_checkpoint_matches_manifest(
     if type(frames) is not dict:
         raise TypeError("render checkpoint frames must be a JSON object")
 
-    record = validate_episode_render_manifest(manifest)
+    record = validate_episode_render_manifest(manifest, camera_profile=camera_profile)
     recorded = {
         cast(int, cast(dict[str, JsonValue], entry)["frame"]): cast(dict[str, JsonValue], entry)
         for entry in cast(list[JsonValue], record["frames"])
@@ -466,7 +481,9 @@ def require_checkpoint_matches_manifest(
     return resolved
 
 
-def require_manifest_matches_plan(manifest: object, render_plan: object) -> dict[str, JsonValue]:
+def require_manifest_matches_plan(
+    manifest: object, render_plan: object, *, camera_profile: str = "v1"
+) -> dict[str, JsonValue]:
     """Refuse unless the manifest tells the truth about the plan it names.
 
     A manifest binds its plan by digest, and V2 checked that binding. But the
@@ -486,6 +503,9 @@ def require_manifest_matches_plan(manifest: object, render_plan: object) -> dict
     Args:
         manifest: The parsed Episode Render Manifest.
         render_plan: The parsed Episode Render Plan it claims to describe.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into both
+            validators so a V2 pair is re-validated under the same profile it
+            was built under.
 
     Returns:
         The validated manifest.
@@ -494,8 +514,8 @@ def require_manifest_matches_plan(manifest: object, render_plan: object) -> dict
         TypeError: If a value is of the wrong exact type.
         ValueError: On any contradiction between the two documents.
     """
-    record = validate_episode_render_manifest(manifest)
-    plan = validate_episode_render_plan(render_plan)
+    record = validate_episode_render_manifest(manifest, camera_profile=camera_profile)
+    plan = validate_episode_render_plan(render_plan, camera_profile=camera_profile)
 
     plan_digest = sha256_hex(dumps_canonical(plan, "episode render plan"))
     manifest_source = dict(cast(dict[str, JsonValue], record["source"]))

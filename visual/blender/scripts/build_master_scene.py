@@ -1428,16 +1428,25 @@ def configure_scene_settings(settings: dict) -> None:
     scene.render.resolution_percentage = 100
 
 
-def build_master_scene(spec_path: str | Path, style: str = "a") -> dict:
+def build_master_scene(
+    spec_path: str | Path, style: str = "a", *, lighting_profile: str = "dna"
+) -> dict:
     """Build the whole persistent world and return the loaded spec.
 
     ``style`` selects a bake-off visual profile; the default ``"a"`` is the
     identity profile and reproduces the reviewed benchmark exactly. Styles
     restyle materials, lighting, and grading only -- geography, topology,
     architecture, landmarks, and camera anchors are identical across styles.
+
+    ``lighting_profile`` selects an ADDITIVE lighting lane on top of the
+    style's own lighting, mirroring the ``camera_profile`` precedent:
+    ``"dna"`` (default) adds nothing and reproduces today's exact lighting,
+    ``"dna_daylight"`` applies the Director-revision late-morning daylight
+    lane. The lane never touches exposure/view transform/look, which stay
+    pinned by the render-profile digest.
     """
     require_supported_blender()
-    profile = resolve_style(style)
+    profile = resolve_style(style, lighting_profile=lighting_profile)
     set_practical_light_scale(profile["practical_scale"])
     spec = load_master_scene_spec(spec_path)
     remove_factory_defaults()
@@ -1464,8 +1473,17 @@ def main() -> None:
     parser.add_argument("--spec", required=True)
     parser.add_argument("--save", default="")
     parser.add_argument("--style", default="a")
+    parser.add_argument(
+        "--lighting-profile",
+        default="dna",
+        help="lighting lane: 'dna' (default, today's exact lighting) or 'dna_daylight'",
+    )
     arguments = parser.parse_args(argv)
-    build_master_scene(arguments.spec, style=arguments.style)
+    build_master_scene(
+        arguments.spec,
+        style=arguments.style,
+        lighting_profile=arguments.lighting_profile,
+    )
     if arguments.save.strip():
         bpy.ops.wm.save_as_mainfile(filepath=str(Path(arguments.save).resolve()))
 

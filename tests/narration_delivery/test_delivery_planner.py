@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from living_diorama.narration_delivery import (
+    DELIVERY_POLICY_V4,
     build_episode_narration_delivery_plan_bytes,
     build_episode_narration_delivery_plan_document,
     resolve_delivery_slots,
@@ -513,3 +514,167 @@ def test_rebuilding_produces_identical_bytes(episode: int) -> None:
     first = build_episode_narration_delivery_plan_bytes(*build_delivery_sources(episode))
     second = build_episode_narration_delivery_plan_bytes(*build_delivery_sources(episode))
     assert first == second
+
+
+# ---- the v4 profile: content-proportional partition
+
+
+def test_v4_partitions_a_shared_host_proportionally() -> None:
+    """Two claimants sharing one merged shot split by required frames, exactly.
+
+    Required frames 48 and 114 (the calibrated 24 + 6*words over 4- and
+    15-word sentences) over the 71-frame host: largest remainder gives 21 and
+    50, summing exactly to the interval with no lost or duplicated frame.
+    """
+    slots = resolve_delivery_slots(
+        [(25, 95), (25, 95)],
+        1,
+        192,
+        delivery_profile="v4",
+        unit_weights=[48, 114],
+    )
+    assert slots == [(25, 45), (46, 95)]
+    assert sum(end - start + 1 for start, end in slots) == 71
+
+
+def test_v4_tiles_the_host_interval_in_unit_order() -> None:
+    """No gap, no overlap: the first unit takes the head, each follows the last."""
+    slots = resolve_delivery_slots(
+        [(1, 100), (1, 100), (1, 100)],
+        1,
+        192,
+        delivery_profile="v4",
+        unit_weights=[24, 48, 84],
+    )
+    assert slots[0][0] == 1
+    assert slots[-1][1] == 100
+    for (_start, end), (next_start, _) in zip(slots, slots[1:], strict=False):
+        assert next_start == end + 1
+    assert sum(end - start + 1 for start, end in slots) == 100
+
+
+def test_v4_rounding_is_deterministic_and_total() -> None:
+    """The same host and weights always produce the same exact tiling."""
+    first = resolve_delivery_slots(
+        [(25, 95), (25, 95), (25, 95)],
+        1,
+        192,
+        delivery_profile="v4",
+        unit_weights=[30, 90, 60],
+    )
+    second = resolve_delivery_slots(
+        [(25, 95), (25, 95), (25, 95)],
+        1,
+        192,
+        delivery_profile="v4",
+        unit_weights=[30, 90, 60],
+    )
+    assert first == second
+    assert sum(end - start + 1 for start, end in first) == 71
+
+
+def test_v4_agrees_with_v1_on_a_single_unit_host() -> None:
+    """Nothing to partition: one unit takes its whole segment under both profiles."""
+    v1 = resolve_delivery_slots([(25, 144)], 1, 192)
+    v4 = resolve_delivery_slots([(25, 144)], 1, 192, delivery_profile="v4", unit_weights=[60])
+    assert v4 == v1
+    assert v4 == [(25, 144)]
+
+
+def test_v4_requires_a_weight_per_unit() -> None:
+    """The v4 profile never guesses a weight."""
+    with pytest.raises(ValueError, match="requires one required-frames weight"):
+        resolve_delivery_slots([(25, 95), (25, 95)], 1, 192, delivery_profile="v4")
+
+
+def test_v4_requires_a_weight_for_every_unit() -> None:
+    """A missing weight is a defect, not a silent equal fallback."""
+    with pytest.raises(ValueError, match="requires 2 required-frames weights"):
+        resolve_delivery_slots(
+            [(25, 95), (25, 95)], 1, 192, delivery_profile="v4", unit_weights=[48]
+        )
+
+
+def test_an_unreviewed_delivery_profile_is_refused(sources_ep1: Sources) -> None:
+    """Only v1 and v4 exist; anything else is a reviewed-version change, not a string."""
+    narration, shots = sources_ep1
+    with pytest.raises(ValueError, match="delivery profile 'v2' is not reviewed"):
+        build_episode_narration_delivery_plan_document(narration, shots, delivery_profile="v2")
+
+
+def test_the_default_path_is_byte_for_byte_v1(sources_ep1: Sources) -> None:
+    """No flag and an explicit v1 profile produce identical bytes."""
+    narration, shots = sources_ep1
+    assert build_episode_narration_delivery_plan_bytes(
+        narration, shots
+    ) == build_episode_narration_delivery_plan_bytes(narration, shots, delivery_profile="v1")
+
+
+def test_the_v4_document_carries_the_v4_policy_and_tiles(sources_ep1: Sources) -> None:
+    """The end-to-end v4 plan declares its policy and tiles every hosted interval.
+
+    The two units sharing shot_0002's 71-frame host are split in proportion to
+    their own required frames (24 + 6 per word of their finalized sentences),
+    exactly as the spec-level partition puts them, and each slot follows its
+    predecessor with no gap and no overlap.
+    """
+    from living_diorama.narration_delivery import (
+        partition_proportionally,
+        required_frames_for_word_count,
+    )
+
+    narration, shots = sources_ep1
+    plan = build_episode_narration_delivery_plan_document(narration, shots, delivery_profile="v4")
+    assert plan["policy"] == DELIVERY_POLICY_V4
+
+    units = narration["units"]
+    required = [required_frames_for_word_count(len(unit["text"].split())) for unit in units]
+    shared = partition_proportionally(25, 95, required[:2])
+    assert [(r["start_frame"], r["end_frame"]) for r in plan["deliveries"][:2]] == shared
+    assert plan["deliveries"][2]["start_frame"] == 96
+    assert plan["deliveries"][2]["end_frame"] == 144
+    for (_start, end), (next_start, _) in zip(
+        [(r["start_frame"], r["end_frame"]) for r in plan["deliveries"]],
+        [(r["start_frame"], r["end_frame"]) for r in plan["deliveries"]][1:],
+        strict=False,
+    ):
+        assert next_start == end + 1
+
+
+def test_v4_and_v1_agree_when_nothing_is_shared(sources_ep0: Sources) -> None:
+    """One unit, one host interval: both profiles hand it the whole interval."""
+    narration, shots = sources_ep0
+    v1 = build_episode_narration_delivery_plan_document(narration, shots)
+    v4 = build_episode_narration_delivery_plan_document(narration, shots, delivery_profile="v4")
+    assert slots_of(v4) == slots_of(v1)
+    assert v4["policy"] != v1["policy"]
+
+
+def test_the_v4_plan_passes_the_cross_check_under_the_v4_profile(
+    sources_ep1: Sources,
+) -> None:
+    """The source seal re-derives a v4 plan under the profile the plan declares.
+
+    Omitting the profile is not a v1 assumption: the gate reads the profile the
+    offered plan declares in its own policy field, so every downstream layer
+    re-verifies under the profile the plan was built with. That is safe because
+    the comparison stays byte-exact -- forcing the WRONG profile still refuses,
+    which is what this test pins.
+    """
+    from living_diorama.narration_delivery import validate_narration_delivery_plan_against_sources
+
+    narration, shots = sources_ep1
+    plan = build_episode_narration_delivery_plan_document(narration, shots, delivery_profile="v4")
+    assert (
+        validate_narration_delivery_plan_against_sources(
+            plan, narration, shots, delivery_profile="v4"
+        )
+        is plan
+    )
+    # Omitted profile: inferred from the plan's own declared policy.
+    assert validate_narration_delivery_plan_against_sources(plan, narration, shots) is plan
+    # Explicitly forcing the wrong profile still refuses -- the seal is exact.
+    with pytest.raises(ValueError, match="does not equal the deterministic derivation"):
+        validate_narration_delivery_plan_against_sources(
+            plan, narration, shots, delivery_profile="v1"
+        )

@@ -16,10 +16,13 @@ so.
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import Final, cast
 
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
+
+type JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+"""The JSON value shape this contract works in."""
 
 # --------------------------------------------------------------------------
 # The camera anchor catalogue
@@ -397,6 +400,55 @@ has a stated reason in the comments above -- a reviewer can disagree with a
 choice, which is the point of writing it down rather than computing it.
 """
 
+BEAT_ANCHORS_V4: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        # The law is sealed on the Golden Seal plaza, and Phase 17 animates its
+        # glow there -- but under the drone law every event view must BEGIN
+        # elevated. CAM_P16_CORE_CONTEXT (z=46, 36mm) looks at the Seal from the
+        # elevated drone band, and its focus point (-16, 6, 3) is literally the
+        # Golden Seal / district_a centre, so the law beat stays seal-centred
+        # and city-readable instead of standing at street level (z=6.2).
+        "LAW_CHANGE": "CAM_P16_CORE_CONTEXT",
+        "LAW_RESTORATION": "CAM_P16_CORE_CONTEXT",
+        # The wall stands on the scar. CAM_P16_SCAR_CONTEXT (z=24, 38mm) frames
+        # the wall from squarely inside the ideal drone band, its look_at
+        # (14, 0, 7) about five units from the wall's own look_at
+        # (14.2, -4.5, 7.6) at distance ~68.7 -- so the shot BEGINS elevated
+        # rather than climbing to altitude only at its end (z=3.2 -> 24).
+        "WALL_STATE_CHANGE": "CAM_P16_SCAR_CONTEXT",
+    }
+)
+STATIC_DRONE_ANCHOR: Final = "CAM_P16_SCAR_CONTEXT"
+"""The single pose the V5 absolutely-static drone lane holds for a whole episode.
+
+The Director approved this exact elevated wall-and-city framing: z=24, 38mm,
+looking at (14, 0, 7). It is a member of :data:`CAMERA_ANCHORS`, so naming it
+here binds the V5 lane to the reviewed catalogue without adding to it -- the
+catalogue digest is unchanged.
+"""
+
+ESTABLISHING_ANCHORS: Final = (ESTABLISHING_ANCHOR, STATIC_DRONE_ANCHOR)
+"""The closed set of anchors a neutral establishing shot may sit on.
+
+``CAM_HERO_WORLD`` remains the default neutral establishing anchor and the only
+one any pre-existing lane produces, so existing behaviour is unchanged.
+``CAM_P16_SCAR_CONTEXT`` is admitted because the V5 absolutely-static drone lane
+holds ONE pose for the whole episode, so its establishing shot necessarily
+shares that pose. Both are neutral elevated survey anchors that claim no
+emphasis, which is what the law actually protects. This is a closed set of
+exactly two, not a shape test -- a third anchor is still refused.
+"""
+
+"""The V4 lane's elevated anchors for the street-level event beat kinds.
+
+Deliberately a SEPARATE, additive table: :data:`BEAT_ANCHORS` is the frozen,
+reviewed V1 binding and must stay byte-identical. Only the beat kinds the
+drone law rejects (their V1 anchors sit at z<20) are re-bound here; every
+value is a member of :data:`CAMERA_ANCHORS`. The V4 lane applies this table
+AFTER the V1 plan is built, so the V1 planner, its merging and its reason
+codes are untouched.
+"""
+
 # --------------------------------------------------------------------------
 # Duration policy
 # --------------------------------------------------------------------------
@@ -464,15 +516,34 @@ each -- an anchor, or a stated reason there is none.
 """
 
 
-def anchor_for_beat(beat_kind: str) -> tuple[str, str]:
+def anchor_for_beat(beat_kind: str, camera_grammar: str = "v1") -> tuple[str, str]:
     """Return (anchor, reason code) for a beat kind.
 
     An unrecognised kind is never given a guessed viewpoint: it falls back to the
     neutral establishing anchor and says so in its reason code, so a future
     Phase 21 beat kind produces an honest, slightly-flatter plan rather than a
     confidently wrong one.
+
+    ``camera_grammar`` selects the binding table: ``"v4"`` consults the additive
+    elevated-anchor table :data:`BEAT_ANCHORS_V4`, every other value consults
+    the frozen V1 table :data:`BEAT_ANCHORS` -- so the default call behaves
+    exactly as it always has. The V1 planner always builds with the default;
+    only the V4 lane's policy re-check asks for the V4 table.
     """
-    anchor = BEAT_ANCHORS.get(beat_kind)
+    # V4 is an OVERLAY, not a replacement: it re-binds only the beat kinds whose
+    # V1 anchor sits below the drone law's altitude floor, and every other kind
+    # keeps its reviewed V1 anchor. Treating the small V4 table as the whole
+    # binding would send an un-rebound kind to the unknown-beat fallback and
+    # silently flatten it.
+    # V5 is the absolutely-static drone lane: one locked pose holds for the
+    # whole episode, so every known beat kind resolves to the same anchor. The
+    # frozen V1 table is still consulted for membership, so an unknown kind
+    # still takes the unknown-beat fallback rather than being silently bound.
+    if camera_grammar == "v5":
+        table: Mapping[str, str] = {kind: STATIC_DRONE_ANCHOR for kind in BEAT_ANCHORS}
+    else:
+        table = {**BEAT_ANCHORS, **BEAT_ANCHORS_V4} if camera_grammar == "v4" else BEAT_ANCHORS
+    anchor = table.get(beat_kind)
     if anchor is None:
         return ESTABLISHING_ANCHOR, REASON_UNKNOWN_BEAT_KIND
     return anchor, REASON_BEAT_KIND_RULE
@@ -486,3 +557,61 @@ def weight_for_emphasis(emphasis: str) -> int:
     level should quietly get the smallest share rather than break direction.
     """
     return EMPHASIS_WEIGHTS.get(emphasis, 1)
+
+
+# --------------------------------------------------------------------------
+# V2 movement camera identity (additive; never touches the V1 catalogue)
+# --------------------------------------------------------------------------
+
+CAMERA_MOVEMENT_PREFIX: Final = "CAM_MOVEMENT_"
+"""The object-name prefix of every V2 movement camera.
+
+Deliberately disjoint from every ``CAM_*`` anchor name in :data:`CAMERA_ANCHORS`,
+so a movement camera can never be mistaken for a world-built anchor. This is a
+NEW identity derived from the shot id; it is NOT a member of ``ANCHOR_NAMES`` and
+adding it there would change ``catalogue_sha256()``, so it is deliberately kept
+out of the V1 catalogue.
+"""
+
+
+def movement_camera_name(shot_id: str) -> str:
+    """Return the single new camera identity a movement shot earns.
+
+    Derived from the shot id alone, so both sides of the boundary -- the engine
+    and the Blender applier -- derive the same name for the same shot without
+    importing each other. The render plan binds this identity on every frame of
+    a non-STATIC movement shot, and the validators accept it in V2 mode only by
+    re-deriving it from the frame's own ``shot_id``: a forged identity that does
+    not match its shot id is refused.
+    """
+    return f"{CAMERA_MOVEMENT_PREFIX}{shot_id}"
+
+
+def movement_camera_records(plan: dict[str, JsonValue]) -> list[dict[str, str]]:
+    """Return the derived ``{shot_id, camera}`` list for a plan's movement shots.
+
+    Only non-STATIC movement shots earn a new camera; a STATIC block is a
+    deliberate hold on the fixed anchor and contributes nothing. The list keeps
+    the shot plan's own order, which is deterministic, and each record carries
+    exactly ``shot_id`` and the derived ``camera`` identity.
+    """
+    records: list[dict[str, str]] = []
+    for shot in cast(list[dict[str, JsonValue]], plan["shots"]):
+        movement = shot.get("camera_movement")
+        if not isinstance(movement, dict) or movement["movement_type"] == "STATIC":
+            continue
+        shot_id = cast(str, shot["shot_id"])
+        records.append({"shot_id": shot_id, "camera": movement_camera_name(shot_id)})
+    return records
+
+
+def movement_catalogue_sha256(plan: dict[str, JsonValue]) -> str:
+    """Return the SHA-256 of a plan's derived movement-camera catalogue.
+
+    Canonical bytes via :func:`dumps_canonical`, exactly as
+    :func:`catalogue_sha256` uses them: sorted keys, tight separators, one
+    trailing newline -- so the engine, the render-plan validator and the Blender
+    applier all derive the same digest from the same movement records, and a
+    render plan binds a movement catalogue that can be checked end to end.
+    """
+    return sha256_hex(dumps_canonical(movement_camera_records(plan), "movement camera catalogue"))

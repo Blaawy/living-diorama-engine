@@ -290,12 +290,18 @@ def _record_stone(
     return obj
 
 
-def apply_state_response(plan: dict, spec: dict) -> dict:
+def apply_state_response(plan: dict, spec: dict, *, visibility_profile: str = "full") -> dict:
     """Build the visible state-response layer from one plan.
 
     Args:
         plan: A State Response Plan.
         spec: A resolved state response spec.
+        visibility_profile: ``"full"`` (default) or ``"director_clear_air_v1"``.
+            ``"full"`` reproduces today's behaviour byte-for-byte: every channel
+            the plan declares is drawn. ``"director_clear_air_v1"`` declines to
+            draw the per-district air haze for the Director's final EP1 profile;
+            the district-air FACT is unchanged -- the plan is still computed and
+            reported in full -- only its visualisation is skipped.
 
     Returns:
         What was built: object, material and per-channel counts.
@@ -311,8 +317,14 @@ def apply_state_response(plan: dict, spec: dict) -> dict:
     built: dict[str, int] = {}
     for response in plan["responses"]:
         channel = response["channel"]
-        built[channel] = built.get(channel, 0) + 1
         if channel == "district_air":
+            if visibility_profile == "director_clear_air_v1":
+                # The district-air FACT is unchanged: the plan still computed it
+                # and the state-response plan still reports it. This profile
+                # only declines to DRAW the haze, so nothing is built for the
+                # channel here, and the truthful per-channel count below
+                # records zero built for it.
+                continue
             material = build_air_material(response["semantic_id"], response, spec["air"])
             obj = _air_volume(response, material, collection)
         elif channel == "memory_record":
@@ -326,6 +338,7 @@ def apply_state_response(plan: dict, spec: dict) -> dict:
                 f"the plan declares channel {channel!r}, which this applier does not build; "
                 "an unknown channel is refused, never skipped"
             )
+        built[channel] = built.get(channel, 0) + 1
         link_only(obj, collection)
 
     bpy.context.view_layer.update()

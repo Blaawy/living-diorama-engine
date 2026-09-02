@@ -12,13 +12,18 @@ from living_diorama.narration_delivery import (
     DELIVERY_ID_FORM,
     DELIVERY_PLAN_FORMAT,
     DELIVERY_POLICY_V1,
+    DELIVERY_POLICY_V4,
     DELIVERY_SCHEMA_VERSION,
     MIN_SLOT_FRAMES,
     PLACEMENT_ALLOCATED_UNSHOWN,
     PLACEMENT_CLASSES,
     PLACEMENT_SHOT_ANCHORED,
+    V4_REQUIRED_FRAMES_BASE,
+    V4_REQUIRED_FRAMES_PER_WORD,
     partition_equally,
+    partition_proportionally,
     playback_domain,
+    required_frames_for_word_count,
 )
 
 # ---- identity
@@ -39,6 +44,11 @@ def test_the_policy_identifier_is_pinned() -> None:
     assert DELIVERY_POLICY_V1 == "narration_delivery_policy_v1"
 
 
+def test_the_v4_policy_identifier_is_pinned() -> None:
+    """A proportional plan must never be mistaken for an equal one."""
+    assert DELIVERY_POLICY_V4 == "narration_delivery_policy_v4"
+
+
 def test_the_delivery_id_form_is_positional() -> None:
     """The identifier is derivable from the position, so it carries no freedom."""
     assert DELIVERY_ID_FORM % 1 == "delivery_0001"
@@ -55,6 +65,19 @@ def test_the_placement_classes_are_exactly_two() -> None:
 def test_the_slot_floor_is_one_frame() -> None:
     """The floor is structural existence, not a smuggled speaking-rate opinion."""
     assert MIN_SLOT_FRAMES == 1
+
+
+# ---- the v4 calibration formula
+
+
+def test_the_v4_required_frames_formula_is_pinned() -> None:
+    """The calibrated over-estimate: 24 base frames plus 6 per word."""
+    assert V4_REQUIRED_FRAMES_BASE == 24
+    assert V4_REQUIRED_FRAMES_PER_WORD == 6
+    assert required_frames_for_word_count(4) == 48
+    assert required_frames_for_word_count(15) == 114
+    assert required_frames_for_word_count(10) == 84
+    assert required_frames_for_word_count(0) == 24
 
 
 # ---- the playback domain
@@ -168,3 +191,98 @@ def test_the_refusal_names_the_span_and_the_count() -> None:
     """A refusal that names its numbers is a refusal somebody can act on."""
     with pytest.raises(ValueError, match=r"3 delivery slots .* 2 frames .*\[5, 6\]"):
         partition_equally(5, 6, 3)
+
+
+# ---- proportional partition (the v4 profile): shape
+
+
+def test_proportional_partition_splits_by_weight() -> None:
+    """The calibrated fold: weights 48 and 114 over 71 frames give 21 and 50."""
+    assert partition_proportionally(25, 95, [48, 114]) == [(25, 45), (46, 95)]
+
+
+def test_a_sole_claimant_takes_the_whole_span_under_any_weight() -> None:
+    """One claimant, one slot, every frame, whatever the weight."""
+    assert partition_proportionally(25, 144, [77]) == [(25, 144)]
+
+
+def test_the_largest_remainder_goes_to_the_largest_fractional_part() -> None:
+    """Weights 3 and 5 over 30 frames: surplus 28 splits 10.5 / 17.5, tie to index."""
+    assert partition_proportionally(1, 30, [3, 5]) == [(1, 12), (13, 30)]
+
+
+def test_an_exact_division_leaves_no_remainder() -> None:
+    """Weights 7, 3, 5, 9 over 100 frames divide the 96-frame surplus exactly."""
+    assert partition_proportionally(1, 100, [7, 3, 5, 9]) == [
+        (1, 29),
+        (30, 42),
+        (43, 63),
+        (64, 100),
+    ]
+
+
+def test_proportional_partition_is_deterministic_and_total() -> None:
+    """Largest-remainder rounding is a pure function: same input, same output."""
+    cases = [
+        (1, 100, [7, 3, 5, 9]),
+        (25, 95, [48, 114]),
+        (1, 32, [1, 1, 1]),
+        (1, 192, [48, 114, 84]),
+    ]
+    for first, last, weights in cases:
+        assert partition_proportionally(first, last, weights) == partition_proportionally(
+            first, last, weights
+        )
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "weights"),
+    [
+        (1, 192, [48, 114, 84]),
+        (25, 95, [48, 114]),
+        (1, 100, [7, 3, 5, 9]),
+        (10, 10, [5]),
+        (1, 7, [1, 1, 1]),
+        (1, 32, [1, 1, 1]),
+    ],
+)
+def test_proportional_slices_tile_the_span_exactly(
+    first: int, last: int, weights: list[int]
+) -> None:
+    """No frame dropped, none counted twice, order preserved, floor respected."""
+    slices = partition_proportionally(first, last, weights)
+    assert len(slices) == len(weights)
+    cursor = first
+    for start, end in slices:
+        assert start == cursor
+        assert end >= start
+        assert end - start + 1 >= MIN_SLOT_FRAMES
+        cursor = end + 1
+    assert cursor == last + 1
+
+
+# ---- proportional partition: refusals
+
+
+def test_zero_weights_are_refused() -> None:
+    """Partitioning with no claimants is a defect, not an empty schedule."""
+    with pytest.raises(ValueError, match="0 claimants"):
+        partition_proportionally(1, 10, [])
+
+
+def test_a_nonpositive_weight_is_refused() -> None:
+    """A weight below one cannot size a slot."""
+    with pytest.raises(ValueError, match="strictly positive weight"):
+        partition_proportionally(1, 10, [5, 0])
+
+
+def test_proportional_partition_refuses_more_claimants_than_frames() -> None:
+    """A slot below the structural floor is refused, never shrunk to fit."""
+    with pytest.raises(ValueError, match="cannot fit 3 delivery slots"):
+        partition_proportionally(1, 2, [24, 24, 24])
+
+
+def test_proportional_partition_refuses_an_empty_span() -> None:
+    """A span with no frames cannot host a slot of any size."""
+    with pytest.raises(ValueError, match="empty frame span"):
+        partition_proportionally(10, 9, [5])

@@ -241,3 +241,43 @@ def test_the_cli_never_calls_a_second_decoder() -> None:
     }
     assert "json.loads" not in calls
     assert "json.dumps" in calls
+
+
+# ---- the v4 delivery profile
+
+
+def test_the_command_writes_a_v4_plan_under_the_v4_profile(
+    inputs: Inputs, sources_ep1: Sources
+) -> None:
+    """``--delivery-profile v4`` writes a proportional plan that verifies as v4."""
+    argv = [*_argv(inputs), "--delivery-profile", "v4"]
+    assert build_narration_delivery_plan.main(argv) == 0
+    document = json.loads(inputs[2].read_text(encoding="utf-8"))
+    assert document["policy"] == "narration_delivery_policy_v4"
+    assert (
+        validate_narration_delivery_plan_against_sources(
+            document, *sources_ep1, delivery_profile="v4"
+        )
+        is not None
+    )
+
+
+def test_the_default_profile_matches_the_v1_derivation(
+    inputs: Inputs, sources_ep1: Sources
+) -> None:
+    """No flag and an explicit v1 write the same bytes as the historical derivation."""
+    build_narration_delivery_plan.main(_argv(inputs))
+    default_bytes = inputs[2].read_bytes()
+    assert default_bytes == build_episode_narration_delivery_plan_bytes(*sources_ep1)
+    assert default_bytes == build_episode_narration_delivery_plan_bytes(
+        *sources_ep1, delivery_profile="v1"
+    )
+
+
+def test_an_unknown_delivery_profile_is_refused(inputs: Inputs, capsys: Any) -> None:
+    """Argparse refuses a profile this build does not derive, before any build."""
+    with pytest.raises(SystemExit) as excinfo:
+        build_narration_delivery_plan.main([*_argv(inputs), "--delivery-profile", "v2"])
+    assert excinfo.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
+    assert not inputs[2].exists()

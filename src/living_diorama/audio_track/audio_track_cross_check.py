@@ -53,7 +53,7 @@ from living_diorama.audio_track.audio_track_spec import (
 )
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.voice.voice_cross_check import validate_episode_voice_plan_against_sources
 from living_diorama.voice_execution.voice_execution_binding import require_manifest_matches_plan
 from living_diorama.voice_execution.voice_execution_schema_v1 import (
@@ -128,6 +128,8 @@ def validate_episode_audio_track_plan_against_sources(
     shot_plan: object,
     story_plan: object,
     current_export: object,
+    *,
+    presentation_profile: str | None = None,
 ) -> dict[str, JsonValue]:
     """Verify an Episode Audio Track Plan against its actual sources.
 
@@ -147,6 +149,10 @@ def validate_episode_audio_track_plan_against_sources(
         shot_plan: Verification-only: an argument to the reused gate.
         story_plan: Verification-only: an argument to the reused gate.
         current_export: Verification-only: an argument to the reused gate.
+        presentation_profile: The presentation profile the reused Phase 27
+            gate verifies the presentation plan under, forwarded unchanged
+            to the reused Phase 28 gate. ``None`` preserves the existing
+            ``motion_windows``-driven v1/v2 inference.
 
     The named checks, in order:
 
@@ -194,12 +200,13 @@ def validate_episode_audio_track_plan_against_sources(
         shot_plan,
         story_plan,
         current_export,
+        presentation_profile=presentation_profile,
     )
     voice_manifest_doc = validate_episode_voice_manifest(voice_manifest)
     require_manifest_matches_plan(voice_manifest_doc, voice_plan)
 
     plan = validate_episode_audio_track_plan(audio_track_plan)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    presentation = validate_presentation_plan(presentation_plan)
 
     source = _document(plan["source"], "audio track plan source")
     _check_bindings(source, voice_manifest_doc, presentation)

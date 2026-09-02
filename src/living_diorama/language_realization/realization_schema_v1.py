@@ -10,6 +10,12 @@ nothing about time -- those live in the documents it binds, and stay there.
 The document shape is exact at every level this module governs. A key that is
 missing means the plan is incomplete; a key that is extra means it was written
 by something this contract does not describe. Both are refused, never repaired.
+Two top-level fields are optional rather than required: ``wording_profile``,
+which records which reviewed register the sentences were written under, and
+``viewer_guidance``, the spoken directions a ``v2`` plan carries. A document
+without ``wording_profile`` is read as ``v1`` and validates exactly as it did
+before the field existed; a document that declares it must name one of the
+reviewed profiles, and only a ``v2`` document may carry viewer guidance.
 
 This validator is deliberately self-contained: it proves everything the plan
 can prove about itself, the wording bans included. Whether the plan's claims
@@ -20,11 +26,19 @@ which takes those sources as arguments.
 
 from typing import Final, cast
 
+from living_diorama.language_realization.realization_guidance import (
+    VIEWER_GUIDANCE_GROUNDING_NONE,
+    VIEWER_GUIDANCE_GROUNDING_ROAD,
+    VIEWER_GUIDANCE_GROUNDING_WALL,
+)
 from living_diorama.language_realization.realization_spec import (
+    FORBIDDEN_V2_JARGON,
     REALIZATION_ID_FORM,
     REALIZATION_PLAN_FORMAT,
     REALIZATION_POLICY_V1,
     REALIZATION_SCHEMA_VERSION,
+    WORDING_PROFILE_V2,
+    WORDING_PROFILES,
 )
 from living_diorama.narration.narration_schema_v1 import (
     MODE_BASELINE,
@@ -55,7 +69,23 @@ SUPPORTED_STORY_SCHEMA_VERSION: Final = 1
 TOP_LEVEL_KEYS: Final = frozenset(
     {"accounting", "format", "policy", "realizations", "schema_version", "source"}
 )
-"""Exactly the top-level keys an episode language realization plan carries."""
+"""Exactly the required top-level keys an episode language realization plan carries.
+
+``wording_profile`` and ``viewer_guidance`` are the two optional top-level
+keys: absent, the former is read as ``v1``, and the latter is simply not
+carried. Both key sets -- with and without the optional fields -- are exact;
+anything else is refused.
+"""
+
+OPTIONAL_TOP_LEVEL_KEYS: Final = frozenset({"wording_profile", "viewer_guidance"})
+"""The top-level keys a plan may carry but is never required to.
+
+The wording register a plan was written under, and the viewer guidance lines a
+``v2`` plan carries. The V1 derivation omits both, so today's documents
+validate unchanged; a V2 derivation declares itself and its guidance. A plan
+that carries ``viewer_guidance`` without declaring the ``v2`` register is
+refused: guidance is a V2-only field.
+"""
 
 SOURCE_KEYS: Final = frozenset(
     {
@@ -81,7 +111,7 @@ digest it does not check would be a copy, not proof.
 """
 
 REALIZATION_KEYS: Final = frozenset({"realization_id", "realized_text", "unit_id"})
-"""Exactly the keys a realization record carries.
+"""Exactly the keys a V1 realization record carries.
 
 Deliberately no timing, no shot citation, no visibility, no audio
 configuration, and no copy of the source sentence: wording history stays
@@ -90,6 +120,37 @@ only new claim a record makes is its one reviewed human-facing sentence. The
 field is named ``realized_text`` rather than ``text`` so the boundary guard
 can ban every read of an upstream ``text`` key outright.
 """
+
+REALIZATION_KEYS_V2: Final = frozenset(
+    {"category", "event_id", "fact_id", "realization_id", "realized_text", "unit_id"}
+)
+"""Exactly the keys a V2 realization record carries: the V1 keys plus the binding.
+
+Every V2 record binds the sentence to what it restates: ``category`` (a
+narration record is always a fact, guidance living at the top level),
+``fact_id`` (the memory fact a fact-backed record restates, or ``null``), and
+``event_id`` (the export event index the record's beat cites, or ``null`` for
+an absence). A V1 record carries none of these, so today's documents validate
+unchanged.
+"""
+
+V2_RECORD_CATEGORIES: Final = ("fact", "guidance")
+"""The two reviewed record categories a V2 plan may declare.
+
+Every realization record in this build realizes a narration unit, so the
+planner always writes ``"fact"``; ``"guidance"`` is reserved for a future
+record class that this build does not produce.
+"""
+
+GUIDANCE_KEYS: Final = frozenset({"guidance_text", "grounding"})
+"""Exactly the keys one viewer guidance entry carries."""
+
+GUIDANCE_GROUNDINGS: Final = (
+    VIEWER_GUIDANCE_GROUNDING_NONE,
+    VIEWER_GUIDANCE_GROUNDING_ROAD,
+    VIEWER_GUIDANCE_GROUNDING_WALL,
+)
+"""The reviewed grounding tags a guidance entry may carry."""
 
 ACCOUNTING_KEYS: Final = frozenset({"fact_backed", "realizations_total", "template_backed"})
 """Exactly the keys the accounting block carries.
@@ -129,6 +190,28 @@ def _require_null(value: object, description: str, because: str) -> None:
         raise ValueError(f"{description} is {value!r}, but {because}")
 
 
+def _require_top_level_keys(document: dict[str, JsonValue], description: str) -> None:
+    """Verify the document carries exactly the required keys plus the optional ones.
+
+    Both directions matter, as they do for every governed level: a missing key
+    means the plan is incomplete, and an unexpected key means it was written by
+    something this contract does not describe. The two optional fields,
+    ``wording_profile`` and ``viewer_guidance``, are the only extra keys this
+    build will read.
+
+    Raises:
+        ValueError: If any required key is missing or any key other than the
+            optional fields is present.
+    """
+    present = set(document)
+    missing = sorted(set(TOP_LEVEL_KEYS) - present)
+    unexpected = sorted(present - set(TOP_LEVEL_KEYS) - set(OPTIONAL_TOP_LEVEL_KEYS))
+    if missing:
+        raise ValueError(f"{description} is missing required keys: {missing}")
+    if unexpected:
+        raise ValueError(f"{description} carries unexpected keys: {unexpected}")
+
+
 def _validate_realized_text(value: object, description: str) -> str:
     """Verify one realized sentence is present and safe to say, and return it.
 
@@ -158,10 +241,56 @@ def _validate_realized_text(value: object, description: str) -> str:
     return sentence
 
 
-def _validate_realization(value: object, description: str, position: int) -> None:
-    """Verify one realization record at its position."""
+def _validate_v2_vocabulary(text: str, description: str) -> None:
+    """Verify a V2 spoken string avoids the register's analytic vocabulary."""
+    hit = FORBIDDEN_V2_JARGON.search(text)
+    if hit is not None:
+        raise ValueError(
+            f"{description} uses {hit.group(0)!r}; the v2 register never speaks the "
+            "simulation's analytic vocabulary"
+        )
+
+
+def _validate_optional_identifier(value: object, description: str) -> None:
+    """Verify a binding identifier is either absent or a real identifier."""
+    if value is None:
+        return
+    require_identifier(value, description)
+
+
+def _validate_optional_int(value: object, description: str) -> None:
+    """Verify a binding index is either absent or a real exact integer."""
+    if value is None:
+        return
+    require_exact_int(value, description)
+
+
+def _validate_guidance_entry(value: object, description: str) -> None:
+    """Verify one viewer guidance entry: exact keys, safe text, reviewed grounding."""
+    entry = _require_document(value, description)
+    require_exact_keys(entry, GUIDANCE_KEYS, description)
+    guidance_text = _validate_realized_text(
+        entry.get("guidance_text"), f"{description} guidance_text"
+    )
+    _validate_v2_vocabulary(guidance_text, f"{description} guidance_text")
+    _require_member(entry.get("grounding"), GUIDANCE_GROUNDINGS, f"{description} grounding")
+
+
+def _validate_realization(
+    value: object,
+    description: str,
+    position: int,
+    wording_profile: str | None,
+) -> None:
+    """Verify one realization record at its position, under its register."""
     record = _require_document(value, description)
-    require_exact_keys(record, REALIZATION_KEYS, description)
+    if wording_profile == WORDING_PROFILE_V2:
+        require_exact_keys(record, REALIZATION_KEYS_V2, description)
+        _require_member(record.get("category"), V2_RECORD_CATEGORIES, f"{description} category")
+        _validate_optional_identifier(record.get("fact_id"), f"{description} fact_id")
+        _validate_optional_int(record.get("event_id"), f"{description} event_id")
+    else:
+        require_exact_keys(record, REALIZATION_KEYS, description)
 
     realization_id = require_identifier(
         record.get("realization_id"), f"{description} realization_id"
@@ -181,18 +310,26 @@ def _validate_realization(value: object, description: str, position: int) -> Non
             f"where the narration plan's unit is {expected_unit!r}; realization follows "
             "the narration plan's own order, one record per unit"
         )
-    _validate_realized_text(record.get("realized_text"), f"{description} realized_text")
+    sentence = _validate_realized_text(record.get("realized_text"), f"{description} realized_text")
+    if wording_profile == WORDING_PROFILE_V2:
+        _validate_v2_vocabulary(sentence, f"{description} realized_text")
 
 
 def validate_episode_language_realization_plan(value: object) -> dict[str, JsonValue]:
     """Verify a document's Episode Language Realization Plan V1 envelope.
 
-    Checks the exact key sets at every governed level, the format tag, schema
-    version and policy identity, the source binding (episode, mode, the digest
-    fields, and the rule that only a baseline has no previous episode), and
-    every realization record: that its identifiers agree with its position and
-    that its sentence clears the wording bans. The accounting block must agree
-    with the records actually present and close on its own arithmetic.
+    Checks the exact key sets at every governed level -- with ``wording_profile``
+    and ``viewer_guidance`` the two optional top-level fields, the former read
+    as ``v1`` when absent and the latter refused unless the document declares
+    the ``v2`` register -- the format tag, schema version and policy identity,
+    the source binding (episode, mode, the digest fields, and the rule that
+    only a baseline has no previous episode), every realization record: that
+    its identifiers agree with its position, that its sentence clears the
+    wording bans, and under ``v2`` that its category, fact and event bindings
+    are well-formed and its sentence avoids the register's vocabulary, and
+    every viewer guidance entry: safe text, reviewed grounding, and the
+    register's vocabulary ban. The accounting block must agree with the
+    records actually present and close on its own arithmetic.
 
     Raises:
         TypeError: If any value has the wrong Python type.
@@ -200,7 +337,20 @@ def validate_episode_language_realization_plan(value: object) -> dict[str, JsonV
             ordering or internal agreement is violated.
     """
     document = _require_document(value, "language realization plan")
-    require_exact_keys(document, TOP_LEVEL_KEYS, "language realization plan")
+    _require_top_level_keys(document, "language realization plan")
+
+    raw_wording_profile = document.get("wording_profile")
+    wording_profile: str | None = None
+    if raw_wording_profile is not None:
+        wording_profile = _require_member(
+            raw_wording_profile, WORDING_PROFILES, "language realization plan wording_profile"
+        )
+    viewer_guidance = document.get("viewer_guidance")
+    if viewer_guidance is not None and wording_profile != WORDING_PROFILE_V2:
+        raise ValueError(
+            "language realization plan carries viewer_guidance but declares wording "
+            f"profile {wording_profile!r}; viewer guidance is a v2-only field"
+        )
 
     tag = require_text(document.get("format"), "language realization plan format")
     if tag != REALIZATION_PLAN_FORMAT:
@@ -283,8 +433,16 @@ def validate_episode_language_realization_plan(value: object) -> dict[str, JsonV
         )
     for position, record in enumerate(realizations, start=1):
         _validate_realization(
-            record, f"language realization plan realizations[{position - 1}]", position
+            record,
+            f"language realization plan realizations[{position - 1}]",
+            position,
+            wording_profile,
         )
+
+    if viewer_guidance is not None:
+        guidance_list = _require_list(viewer_guidance, "language realization plan viewer_guidance")
+        for index, entry in enumerate(guidance_list):
+            _validate_guidance_entry(entry, f"language realization plan viewer_guidance[{index}]")
 
     accounting = _require_document(
         document.get("accounting"), "language realization plan accounting"

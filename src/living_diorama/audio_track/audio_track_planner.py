@@ -43,7 +43,7 @@ from living_diorama.audio_track.audio_track_spec import (
 from living_diorama.narration.narration_schema_v1 import UNIT_ID_FORM
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.voice_execution.voice_execution_schema_v1 import (
     validate_episode_voice_manifest,
 )
@@ -124,7 +124,7 @@ def build_episode_audio_track_plan_document(
             not join, or if the unit and window counts disagree.
     """
     manifest = validate_episode_voice_manifest(voice_manifest)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    presentation = validate_presentation_plan(presentation_plan)
 
     source = _require_join(manifest, presentation)
 

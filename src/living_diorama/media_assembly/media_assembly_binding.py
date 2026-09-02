@@ -22,6 +22,17 @@ validation cannot:
 **Why a separate module.** Standalone validation and relationship validation answer
 different questions and must not stand in for one another. Binding a digest proves two
 documents were paired, never that the pairing was honest about what it copied.
+
+The presentation plan is validated through the profile dispatcher
+(:func:`living_diorama.presentation.presentation_schema_v2.validate_presentation_plan`),
+so a V2 plan -- the V1 document plus the additive ``motion_windows`` block -- passes the
+same join and matching gates a V1 plan passes, and a V1 plan is still validated by the
+unchanged V1 code path.
+
+The render manifest is validated through the same keyword-only ``camera_profile`` the
+render phase itself uses: the caller decides the profile (V1 default, or ``"v2"`` for a
+render produced with ``camera_profile="v2"`` carrying ``movement_catalogue_sha256``) and
+passes it explicitly -- this module never inspects the document to guess.
 """
 
 from typing import cast
@@ -38,7 +49,7 @@ from living_diorama.narration_delivery.delivery_schema_v1 import (
 )
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.render_execution.render_execution_schema_v1 import (
     validate_episode_render_manifest,
 )
@@ -144,6 +155,7 @@ def require_assembly_sources_join(
     audio_composition_manifest_sha256: str,
     delivery_plan_sha256: str,
     shot_plan_sha256: str,
+    camera_profile: str = "v1",
 ) -> None:
     """Refuse unless the four bound documents, and their five captured digests, join exactly.
 
@@ -163,7 +175,7 @@ def require_assembly_sources_join(
 
     Args:
         render_manifest: The parsed, standalone-valid Episode Render Manifest V1.
-        presentation_plan: The parsed, standalone-valid Episode Presentation Plan V1.
+        presentation_plan: The parsed, standalone-valid Episode Presentation Plan V1 or V2.
         audio_composition_manifest: The parsed, standalone-valid Episode Audio Composition
             Manifest V1.
         delivery_plan: The parsed, standalone-valid Episode Narration Delivery Plan V1
@@ -175,13 +187,16 @@ def require_assembly_sources_join(
             manifest's own bytes.
         delivery_plan_sha256: The digest captured from the delivery witness's own bytes.
         shot_plan_sha256: The digest captured from the shot witness's own bytes.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the manifest
+            validator so a V2 manifest carrying movement-camera identities and the
+            movement-catalogue binding validates under the same profile it was built under.
 
     Raises:
         TypeError: If a value is of the wrong exact type.
         ValueError: On any contradiction between the four documents and the five digests.
     """
-    manifest = validate_episode_render_manifest(render_manifest)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    manifest = validate_episode_render_manifest(render_manifest, camera_profile=camera_profile)
+    presentation = validate_presentation_plan(presentation_plan)
     composition = validate_episode_audio_composition_manifest(audio_composition_manifest)
     delivery = validate_episode_narration_delivery_plan(delivery_plan)
 
@@ -299,6 +314,8 @@ def require_assembly_matches_sources(
     presentation_plan: object,
     audio_composition_manifest: object,
     delivery_plan: object,
+    *,
+    camera_profile: str = "v1",
 ) -> dict[str, JsonValue]:
     """Refuse unless the media assembly manifest tells the truth about the four documents.
 
@@ -310,10 +327,13 @@ def require_assembly_matches_sources(
     Args:
         media_assembly_manifest: The parsed Episode Media Assembly Manifest.
         render_manifest: The parsed Episode Render Manifest V1 it bound.
-        presentation_plan: The parsed Episode Presentation Plan V1 it bound.
+        presentation_plan: The parsed Episode Presentation Plan V1 or V2 it bound.
         audio_composition_manifest: The parsed Episode Audio Composition Manifest V1 it
             bound.
         delivery_plan: The parsed Episode Narration Delivery Plan V1 witness it bound.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the manifest
+            validator so a V2 manifest carrying movement-camera identities and the
+            movement-catalogue binding validates under the same profile it was built under.
 
     Returns:
         The validated media assembly manifest.
@@ -323,8 +343,8 @@ def require_assembly_matches_sources(
         ValueError: On any contradiction between the five documents.
     """
     manifest = validate_episode_media_assembly_manifest(media_assembly_manifest)
-    render = validate_episode_render_manifest(render_manifest)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    render = validate_episode_render_manifest(render_manifest, camera_profile=camera_profile)
+    presentation = validate_presentation_plan(presentation_plan)
     composition = validate_episode_audio_composition_manifest(audio_composition_manifest)
     delivery = validate_episode_narration_delivery_plan(delivery_plan)
 

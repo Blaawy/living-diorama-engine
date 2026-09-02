@@ -39,7 +39,7 @@ from living_diorama.language_realization.realization_spec import REALIZATION_ID_
 from living_diorama.narration.narration_schema_v1 import UNIT_ID_FORM
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.presentation.presentation_spec import WINDOW_ID_FORM
 from living_diorama.voice.voice_schema_v1 import JsonValue, validate_episode_voice_plan
 from living_diorama.voice.voice_spec import (
@@ -132,7 +132,7 @@ def build_episode_voice_plan_document(
             join, or if the unit and window counts disagree.
     """
     realization = validate_episode_language_realization_plan(realization_plan)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    presentation = validate_presentation_plan(presentation_plan)
 
     source = _require_join(realization, presentation)
 

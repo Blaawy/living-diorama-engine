@@ -54,6 +54,16 @@ may not import the engine -- pins the identical constant, and so the timeline pi
 below has its source digest sitting beside it.
 """
 
+DIRECTOR_V4_MOTION_TIME_SHA256: Final = (
+    "a821049b648c0d37a9bc5c6cbc74142cffb0c21a817ad3e2b10764dfeaa4079c"
+)
+"""The reviewed Director V4 Motion & Time Spec, restated beside the canonical one.
+
+The exact bytes of ``visual/blender/config/motion_time_director_v4.json`` in the
+locked tree this build was reviewed against; a repository test re-hashes the
+shipped file against this constant, so it cannot drift silently.
+"""
+
 CANONICAL_RESOLVED_TIMELINE: Final[Mapping[str, int]] = MappingProxyType(
     {
         "end_frame": 193,
@@ -83,6 +93,38 @@ neither Phase 22 nor this module. A repository test re-derives these values from
 the shipped ``motion_time_v1.json`` under Phase 17's own arithmetic and proves
 all three copies agree, so the pin cannot drift away from its source without
 failing loudly.
+"""
+
+DIRECTOR_V4_RESOLVED_TIMELINE: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "end_frame": 319,
+        "end_hold_frames": 18,
+        "fps": 24,
+        "start_frame": 1,
+        "start_hold_frames": 24,
+        "transition_end": 301,
+        "transition_frames": 276,
+        "transition_start": 25,
+    }
+)
+"""The resolved Director V4 clock: 314 playback frames at 24 fps (13.0833 s).
+
+Restated beside its source digest exactly as the canonical clock is, and proved
+against the shipped ``motion_time_director_v4.json`` by the same re-hash test.
+"""
+
+REVIEWED_CLOCKS: Final[Mapping[str, Mapping[str, int]]] = MappingProxyType(
+    {
+        CANONICAL_MOTION_TIME_SHA256: CANONICAL_RESOLVED_TIMELINE,
+        DIRECTOR_V4_MOTION_TIME_SHA256: DIRECTOR_V4_RESOLVED_TIMELINE,
+    }
+)
+"""The closed set of reviewed clocks: reviewed digest -> the clock it resolves to.
+
+A plan is admitted only when its bound digest is one of these AND the clock it
+restates is exactly what that digest resolves to -- a document cannot claim one
+clock while binding another, and any digest outside this closed set is refused
+outright, however internally consistent.
 """
 
 # ---------------------------------------------------------------------------
@@ -451,9 +493,34 @@ COMPOSITION_SOURCE_FILES: Final[Mapping[str, str]] = MappingProxyType(
 )
 """Which shipped file each binding is the digest of, for the re-hash test."""
 
+APPROVED_COMPOSITION_SOURCES_V4: Final[Mapping[str, str]] = MappingProxyType(
+    {**APPROVED_COMPOSITION_SOURCES, "motion_time_sha256": DIRECTOR_V4_MOTION_TIME_SHA256}
+)
+"""The same locked world, composed against the reviewed Director V4 clock.
 
-def composition_sources_document() -> dict[str, str]:
-    """Return the approved composition source bundle as a plain document."""
+Every world source is byte-identical to the canonical bundle -- the master
+scene, production world, presence, mobility and state-response documents are
+untouched. Only the Motion & Time binding differs, because the V4 lane is a
+longer clock over the same world, not a different world. Deriving it from the
+canonical mapping rather than restating six digests keeps the two bundles from
+drifting apart.
+"""
+
+APPROVED_COMPOSITION_SOURCE_SETS: Final = (
+    APPROVED_COMPOSITION_SOURCES,
+    APPROVED_COMPOSITION_SOURCES_V4,
+)
+"""The closed set of reviewed composition bundles a render plan may name."""
+
+
+def composition_sources_document(*, motion_time_sha256: str | None = None) -> dict[str, str]:
+    """Return the approved composition source bundle as a plain document.
+
+    ``motion_time_sha256`` selects which reviewed bundle to return; omitting it
+    returns the canonical one, so every existing caller is unchanged.
+    """
+    if motion_time_sha256 == DIRECTOR_V4_MOTION_TIME_SHA256:
+        return dict(APPROVED_COMPOSITION_SOURCES_V4)
     return dict(APPROVED_COMPOSITION_SOURCES)
 
 

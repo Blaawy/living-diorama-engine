@@ -233,7 +233,13 @@ def _capture_canonical(path: Path, description: str) -> tuple[bytes, dict[str, o
 
 
 def _probe_and_decode(
-    runner: Runner, media_bytes: bytes, channels: int, description: str
+    runner: Runner,
+    media_bytes: bytes,
+    channels: int,
+    description: str,
+    *,
+    ffprobe_path: str,
+    ffmpeg_path: str,
 ) -> tuple[dict[str, object], int]:
     """Pipe-probe and pipe-decode one captured MP4 observation; return streams + count.
 
@@ -241,16 +247,16 @@ def _probe_and_decode(
     decode-count law ``len(pcm) % (2 * channels) == 0`` runs before the normalized
     streams block is built.
     """
-    probe_stdout = _run_or_refuse(
-        runner, list(build_probe_command()), media_bytes, f"{description} probe"
-    )
+    probe_argv = [str(ffprobe_path)] + list(build_probe_command())[1:]
+    probe_stdout = _run_or_refuse(runner, probe_argv, media_bytes, f"{description} probe")
     try:
         probe = json.loads(probe_stdout)
     except ValueError as error:
         raise EncodeExecutionRefused(
             f"the {description} probe output is empty or not JSON: {error}"
         ) from error
-    pcm = _run_or_refuse(runner, list(build_decode_command()), media_bytes, f"{description} decode")
+    decode_argv = [str(ffmpeg_path)] + list(build_decode_command())[1:]
+    pcm = _run_or_refuse(runner, decode_argv, media_bytes, f"{description} decode")
     if len(pcm) % (2 * channels) != 0:
         raise EncodeExecutionRefused(
             f"the {description} decodes to {len(pcm)} PCM bytes, which is not divisible "
@@ -307,6 +313,8 @@ def _verify_existing_noop(
     audio_samples_total: int,
     width: int,
     height: int,
+    ffmpeg_path: str,
+    ffprobe_path: str,
 ) -> int:
     """Re-verify an existing final directory as a truthful no-op, and report it.
 
@@ -347,7 +355,14 @@ def _verify_existing_noop(
             f"{mp4_path} hashes to {sha256_hex(mp4_bytes)!r}, but the published manifest "
             f"records {video['sha256']!r}"
         )
-    streams, decoded = _probe_and_decode(runner, mp4_bytes, channels, "existing episode")
+    streams, decoded = _probe_and_decode(
+        runner,
+        mp4_bytes,
+        channels,
+        "existing episode",
+        ffprobe_path=ffprobe_path,
+        ffmpeg_path=ffmpeg_path,
+    )
     require_stream_facts(
         streams,
         fps=fps,
@@ -417,7 +432,16 @@ def run_encode(args: argparse.Namespace, runner: Runner) -> int:
             "the render manifest copy in the assembly does not hash to the assembly's "
             "bound render_manifest_sha256; this execution binds the one captured observation"
         )
-    validate_episode_render_manifest(render_manifest)
+    validate_episode_render_manifest(
+        render_manifest,
+        camera_profile=(
+            "v2"
+            if isinstance(render_manifest, dict)
+            and isinstance(render_manifest.get("source"), dict)
+            and "movement_catalogue_sha256" in render_manifest["source"]
+            else "v1"
+        ),
+    )
     audio = cast(dict[str, object], assembly["audio"])
     if sha256_hex(wav_bytes) != audio["sha256"]:
         raise EncodeExecutionRefused(
@@ -459,6 +483,8 @@ def run_encode(args: argparse.Namespace, runner: Runner) -> int:
             audio_samples_total=audio_samples_total,
             width=width,
             height=height,
+            ffmpeg_path=ffmpeg_path,
+            ffprobe_path=ffprobe_path,
         )
 
     # 11-12: fresh staging and the digest-verified audio snapshot the encoder consumes.
@@ -481,13 +507,19 @@ def run_encode(args: argparse.Namespace, runner: Runner) -> int:
             assembly_dir=str(assembly_dir),
             staging_dir=str(staging_dir),
         )
-        _run_or_refuse(runner, preflight_argv, None, "preflight encode")
+        preflight_spawn_argv = [str(ffmpeg_path)] + list(preflight_argv[1:])
+        _run_or_refuse(runner, preflight_spawn_argv, None, "preflight encode")
         preflight_path = staging_dir / PREFLIGHT_MEDIA_FILENAME
         fsync_file(preflight_path)
         preflight_mp4 = read_file_bytes(preflight_path)
         remove_owned_temporary(preflight_path, staging_dir=staging_dir)
         preflight_streams, preflight_decoded = _probe_and_decode(
-            runner, preflight_mp4, channels, "preflight"
+            runner,
+            preflight_mp4,
+            channels,
+            "preflight",
+            ffprobe_path=ffprobe_path,
+            ffmpeg_path=ffmpeg_path,
         )
         if preflight_decoded != audio_samples_total:
             raise EncodeExecutionRefused(
@@ -556,7 +588,14 @@ def run_encode(args: argparse.Namespace, runner: Runner) -> int:
 
         # 17-20: digest, probe, decode, and every frozen stream law on the capture.
         mp4_sha256 = sha256_hex(mp4_bytes)
-        streams, decoded = _probe_and_decode(runner, mp4_bytes, channels, "episode")
+        streams, decoded = _probe_and_decode(
+            runner,
+            mp4_bytes,
+            channels,
+            "episode",
+            ffprobe_path=ffprobe_path,
+            ffmpeg_path=ffmpeg_path,
+        )
         require_stream_facts(
             streams,
             fps=fps,

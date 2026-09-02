@@ -13,6 +13,14 @@ import pytest
 
 from living_diorama.cli.build_presentation_plan import main
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
+from living_diorama.presentation import (
+    build_episode_presentation_plan_bytes,
+    validate_episode_presentation_plan,
+    validate_episode_presentation_plan_against_sources,
+)
+from living_diorama.presentation.presentation_schema_v2 import (
+    validate_episode_presentation_plan_v2,
+)
 
 from .conftest import REPO_ROOT, build_presentation_sources
 
@@ -215,3 +223,98 @@ def test_the_cli_never_imports_story_or_render_packages() -> None:
     ):
         assert banned not in modules
         assert not any(module.startswith(banned + ".") for module in modules)
+
+
+# ------------------------------------------------------------ presentation profile wiring
+
+
+@pytest.mark.parametrize("flag", [None, ["--presentation-profile", "v1"]])
+def test_the_presentation_profile_flag_omitted_or_v1_reproduces_todays_bytes(
+    tmp_path: Path, flag: list[str] | None
+) -> None:
+    """The new flag is a pure pass-through: v1 (or omitted) is today's exact bytes."""
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths) + (flag or [])) == 0
+    payload = paths[6].read_bytes()
+    delivery, narration, _shots, realization, _story, _export = build_presentation_sources(1)
+    assert payload == build_episode_presentation_plan_bytes(delivery, narration, realization)
+    assert b"motion_windows" not in payload
+
+
+def test_the_presentation_profile_v2_flag_writes_a_genuine_v2_plan(tmp_path: Path) -> None:
+    """v2 output differs from v1, and only the existing V2 validator accepts it.
+
+    The CLI's own cross-check re-derived the same v2 bytes under
+    ``presentation_profile="v2"`` before writing, so byte equality closes every
+    degree of freedom for a v2 plan too -- and the V1 validator refuses the v2
+    document, proving genuine profile isolation.
+    """
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths) + ["--presentation-profile", "v2"]) == 0
+    payload = paths[6].read_bytes()
+    document = loads_canonical(payload, "plan")
+    assert "motion_windows" in document
+    assert validate_episode_presentation_plan_v2(document) is document
+    with pytest.raises(ValueError, match="motion_windows"):
+        validate_episode_presentation_plan(document)
+    delivery, narration, _shots, realization, _story, _export = build_presentation_sources(1)
+    assert payload == build_episode_presentation_plan_bytes(
+        delivery, narration, realization, presentation_profile="v2"
+    )
+    assert payload != build_episode_presentation_plan_bytes(delivery, narration, realization)
+
+
+def test_the_cross_check_defaults_to_v1_and_is_byte_identical_in_that_mode(
+    tmp_path: Path,
+) -> None:
+    """The new presentation_profile parameter defaults to v1 with no behavior change."""
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths)) == 0
+    document = loads_canonical(paths[6].read_bytes(), "plan")
+    delivery, narration, shots, realization, story, export = build_presentation_sources(1)
+    assert (
+        validate_episode_presentation_plan_against_sources(
+            document, delivery, narration, shots, realization, story, export
+        )
+        is document
+    )
+    assert (
+        validate_episode_presentation_plan_against_sources(
+            document,
+            delivery,
+            narration,
+            shots,
+            realization,
+            story,
+            export,
+            presentation_profile="v1",
+        )
+        is document
+    )
+
+
+def test_the_cross_check_under_v2_accepts_the_v2_plan_and_refuses_it_under_v1(
+    tmp_path: Path,
+) -> None:
+    """Profile isolation reaches the cross-check: a v2 plan verifies only under v2."""
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths) + ["--presentation-profile", "v2"]) == 0
+    document = loads_canonical(paths[6].read_bytes(), "plan")
+    delivery, narration, shots, realization, story, export = build_presentation_sources(1)
+    assert (
+        validate_episode_presentation_plan_against_sources(
+            document,
+            delivery,
+            narration,
+            shots,
+            realization,
+            story,
+            export,
+            presentation_profile="v2",
+        )
+        is document
+    )
+    with pytest.raises(ValueError):
+        validate_episode_presentation_plan_against_sources(
+            document, delivery, narration, shots, realization, story, export
+        )

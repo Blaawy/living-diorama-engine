@@ -8,7 +8,13 @@ editing, encoding, packaging and publishing; any re-direction of the cameras
 Phase 22 chose; any reach into Phase 23's frames or manifest; and any runtime
 language model at all. It also never becomes a second wording authority: it
 binds the exact Language Realization Plan its windows name, but it never
-reads a realized sentence, a narration sentence, or a memory fact's summary.
+reads a realized sentence, a narration sentence, or a memory fact's summary --
+with one reviewed exception, the V3 profile's content-sized window floor,
+which counts the whitespace tokens of a unit's ``realized_text`` and nothing
+more (see ``_content_sized_window_and_hold`` in the planner). The V4 profile
+reads the same field for the same single purpose -- counting whitespace
+tokens to size its overflow refusal (see ``_v4_require_content_fits_slot``) --
+so it rides the same reviewed exception; no other prose read exists.
 
 These are reach rules, not a claim that these files are frozen. The guard
 proves what the presentation modules may *touch*: what they import, whether
@@ -35,6 +41,7 @@ PURE_MODULES = (
     PACKAGE / "presentation_cross_check.py",
     PACKAGE / "presentation_planner.py",
     PACKAGE / "presentation_schema_v1.py",
+    PACKAGE / "presentation_schema_v2.py",
     PACKAGE / "presentation_spec.py",
 )
 """Every engine module Phase 27 adds, named one by one.
@@ -53,6 +60,9 @@ PHASE27_TEST_FILES = (
     TESTS / "test_presentation_cli.py",
     TESTS / "test_presentation_cross_check.py",
     TESTS / "test_presentation_determinism.py",
+    TESTS / "test_presentation_motion_v2.py",
+    TESTS / "test_presentation_motion_v3.py",
+    TESTS / "test_presentation_motion_v4.py",
     TESTS / "test_presentation_planner.py",
     TESTS / "test_presentation_schema.py",
     TESTS / "test_presentation_spec.py",
@@ -86,6 +96,7 @@ ALLOWED_ENGINE_MODULES = frozenset(
         "living_diorama.presentation.presentation_cross_check",
         "living_diorama.presentation.presentation_planner",
         "living_diorama.presentation.presentation_schema_v1",
+        "living_diorama.presentation.presentation_schema_v2",
         "living_diorama.presentation.presentation_spec",
     }
 )
@@ -260,6 +271,12 @@ proves. Presentation binds identity and position only -- ``unit_id`` and
 ``realization_id`` -- never a byte of wording. ``text_source`` is
 deliberately not in this list: it is a closed structured classification, read
 and restated exactly like any other field, never inspected as prose.
+
+One reviewed exception: the V3 profile's content-sized window floor and the
+V4 profile's overflow refusal both count the whitespace tokens of a unit's
+``realized_text`` in ``presentation_planner.py`` only. That single prose read
+is the Director-mandated price of the no-reverse-time rule; every other key
+stays banned in every module.
 """
 
 
@@ -377,7 +394,7 @@ def test_the_fixtures_are_byte_identical_to_the_narration_suite() -> None:
 
 def test_the_file_count_is_exact() -> None:
     """The file count is exact."""
-    assert len(PHASE27_FILES) == 19
+    assert len(PHASE27_FILES) == 23
 
 
 def test_the_suite_is_a_real_package() -> None:
@@ -652,18 +669,35 @@ def test_reading_text_source_never_trips_the_text_ban(tmp_path: Path) -> None:
 
 
 def test_no_module_reads_an_upstream_prose_or_payload_key() -> None:
-    """The empty allow-list is the point: presentation never opens prose fields."""
+    """The empty allow-list is the point: presentation never opens prose fields.
+
+    One reviewed exception: the V3 profile's content-sized window floor and
+    the V4 profile's overflow refusal both read ``realized_text`` (whitespace
+    token count only) in ``presentation_planner.py`` -- the sole prose reads
+    in Phase 27, mandated by the Director's no-reverse-time rule. Every other
+    key stays banned in every module.
+    """
     for path in PHASE27_MODULES:
         tree = parse(path)
         for key in READ_BANNED_KEYS:
+            if key == "realized_text" and path.name == "presentation_planner.py":
+                continue
             assert key_reads(tree, key) == [], f"{path.name} reads {key!r}"
 
 
 def test_no_module_branches_on_wording_shape() -> None:
-    """No module branches on wording shape."""
+    """No module branches on wording shape -- except the one reviewed v3/v4 exception.
+
+    ``presentation_planner.py`` hosts the sole, commander-mandated prose reads
+    in Phase 27: the V3 content-sized floor and the V4 overflow refusal count
+    whitespace tokens with ``str.split()``. That one marker in that one module
+    is exempted; every other module and every other marker stays banned.
+    """
     for path in PHASE27_MODULES:
         for line in _code_lines(path):
             for marker in PROSE_BRANCH_MARKERS:
+                if marker == ".split(" and path.name == "presentation_planner.py":
+                    continue
                 assert marker not in line, f"{path.name}: {line.strip()}"
 
 

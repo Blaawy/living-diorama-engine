@@ -371,7 +371,11 @@ def run_main(
 
     monkeypatch.setattr(executor, "audit_media_assembly_directory", assembly_audit)
     monkeypatch.setattr(executor, "audit_caption_serialization_directory", lambda path: [])
-    monkeypatch.setattr(executor, "validate_episode_render_manifest", lambda document: document)
+    monkeypatch.setattr(
+        executor,
+        "validate_episode_render_manifest",
+        lambda document, **_kwargs: document,
+    )
     ffmpeg_path = tmp_path / "ffmpeg"
     ffprobe_path = tmp_path / "ffprobe"
     ffmpeg_path.write_bytes(b"fake tool stand-in; the injected runner never executes it\n")

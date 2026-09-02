@@ -136,16 +136,41 @@ def audit_render_directory(render_dir: Path) -> list[str]:
     if not manifest_path.is_file():
         return [f"{manifest_path} is missing; this render never completed"]
 
+    raw_plan = loads_canonical(plan_path.read_bytes(), "render plan")
+    plan_source = raw_plan.get("source") if isinstance(raw_plan, dict) else None
+    plan_camera_profile = (
+        "v2"
+        if isinstance(plan_source, dict) and "movement_catalogue_sha256" in plan_source
+        else "v1"
+    )
     try:
-        plan = validate_episode_render_plan(loads_canonical(plan_path.read_bytes(), "render plan"))
+        plan = validate_episode_render_plan(raw_plan, camera_profile=plan_camera_profile)
     except (TypeError, ValueError) as error:
         return [f"render plan is invalid: {error}"]
+    raw_manifest = loads_canonical(manifest_path.read_bytes(), "render manifest")
+    manifest_source = raw_manifest.get("source") if isinstance(raw_manifest, dict) else None
+    manifest_camera_profile = (
+        "v2"
+        if isinstance(manifest_source, dict) and "movement_catalogue_sha256" in manifest_source
+        else "v1"
+    )
     try:
         manifest = validate_episode_render_manifest(
-            loads_canonical(manifest_path.read_bytes(), "render manifest")
+            raw_manifest, camera_profile=manifest_camera_profile
         )
     except (TypeError, ValueError) as error:
         return [f"render manifest is invalid: {error}"]
+
+    # The relationship checks re-validate both documents under one profile.
+    # V2 is strictly additive -- a V1 document is a valid V2 document -- so
+    # "v2 if EITHER document is v2" never turns a valid pair invalid. A pair
+    # that disagrees about whether the movement catalogue is present is caught
+    # by the source-block comparison inside the check below, the same
+    # comparison that catches every other copied-field disagreement, rather
+    # than silently picked one way.
+    pair_camera_profile = (
+        "v2" if plan_camera_profile == "v2" or manifest_camera_profile == "v2" else "v1"
+    )
 
     # Binding the plan by digest proves the two documents were paired. It does
     # not prove the manifest was honest about what it copied out of that plan --
@@ -154,7 +179,7 @@ def audit_render_directory(render_dir: Path) -> list[str]:
     # while the plan digest stayed untouched, and the document would still
     # validate against its own contract. So the comparison is done in full.
     try:
-        require_manifest_matches_plan(manifest, plan)
+        require_manifest_matches_plan(manifest, plan, camera_profile=pair_camera_profile)
     except (TypeError, ValueError) as error:
         problems.append(f"the manifest contradicts the render plan beside it: {error}")
 
@@ -178,13 +203,17 @@ def audit_render_directory(render_dir: Path) -> list[str]:
             problems.append(f"render checkpoint is invalid: {error}")
         else:
             try:
-                validate_render_checkpoint(checkpoint_document, plan)
+                validate_render_checkpoint(
+                    checkpoint_document, plan, camera_profile=plan_camera_profile
+                )
             except (TypeError, ValueError) as error:
                 problems.append(
                     f"the render checkpoint does not match its own render plan: {error}"
                 )
             try:
-                require_checkpoint_matches_manifest(checkpoint_document, manifest)
+                require_checkpoint_matches_manifest(
+                    checkpoint_document, manifest, camera_profile=manifest_camera_profile
+                )
             except (TypeError, ValueError) as error:
                 problems.append(
                     f"the render checkpoint contradicts the manifest beside it: {error}"

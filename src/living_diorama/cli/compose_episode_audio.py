@@ -94,8 +94,37 @@ def compose(
     story_path: Path,
     export_path: Path,
     output_root: Path,
+    *,
+    presentation_profile: str | None = None,
 ) -> Path:
-    """Compose one episode's audio track and return its published composition directory."""
+    """Compose one episode's audio track and return its published composition directory.
+
+    Args:
+        audio_track_path: The sealed Episode Audio Track Plan to compose.
+        voice_dir: The audited Phase 29 execution directory whose manifest the
+            plan places.
+        presentation_path: The Episode Presentation Plan the track plan places.
+        realization_path: The Episode Language Realization Plan the plan speaks.
+        delivery_path: The Episode Narration Delivery Plan the presentation
+            plan images. Verification-only.
+        narration_path: The Episode Narration Plan the presentation presents.
+            Verification-only.
+        shots_path: The Shot Direction Plan the delivery plan was cut against.
+            Verification-only.
+        story_path: The Episode Story Plan the realization plan was proven
+            against. Verification-only.
+        export_path: The render export the story and realization were derived
+            from. Verification-only.
+        output_root: Where to publish the composed directory.
+        presentation_profile: The presentation profile the reused Phase 30
+            source gate verifies the presentation plan under. ``None`` (the
+            default) preserves today's exact behavior: a presentation plan
+            carrying ``motion_windows`` is verified as V2, any other plan as
+            V1. Pass ``"v1"``, ``"v2"`` or ``"v3"`` to pin the profile
+            explicitly -- ``"v3"`` is required for the frozen, content-sized
+            V3 presentation plan, which carries no ``motion_windows`` and
+            would otherwise be re-derived as V1 and refused.
+    """
     # 0. THE FIRST STATEMENT: no filesystem query below output_root precedes this.
     _require_direct_parent(output_root)
 
@@ -153,6 +182,7 @@ def compose(
         shots,
         story,
         export,
+        presentation_profile=presentation_profile,
     )
 
     return publish_episode_audio(
@@ -195,6 +225,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--output-root", required=True, help="where to publish the composed directory"
     )
+    parser.add_argument(
+        "--presentation-profile",
+        choices=("v1", "v2", "v3", "v4"),
+        default=None,
+        help=(
+            "the presentation profile the reused Phase 30 source gate verifies the "
+            "presentation plan under; v1 reproduces today's bytes exactly, v2 verifies the "
+            "additive motion-window plan, v3 verifies the frozen, content-sized plan with no "
+            "motion windows; when the flag is omitted today's exact behavior is preserved"
+        ),
+    )
     namespace = parser.parse_args(argv)
 
     try:
@@ -209,6 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(namespace.story),
             Path(namespace.export),
             Path(namespace.output_root),
+            presentation_profile=namespace.presentation_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)

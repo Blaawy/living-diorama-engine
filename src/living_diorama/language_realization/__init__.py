@@ -41,6 +41,11 @@ shown.
 from living_diorama.language_realization.realization_cross_check import (
     validate_language_realization_plan_against_sources,
 )
+from living_diorama.language_realization.realization_guidance import (
+    VIEWER_GUIDANCE_POOL,
+    select_viewer_guidance,
+    validate_guidance_grounding,
+)
 from living_diorama.language_realization.realization_planner import (
     build_episode_language_realization_plan_bytes,
     build_episode_language_realization_plan_document,
@@ -52,30 +57,45 @@ from living_diorama.language_realization.realization_schema_v1 import (
 )
 from living_diorama.language_realization.realization_spec import (
     EVENT_REALIZATION_TEMPLATES,
+    EVENT_REALIZATION_TEMPLATES_V2,
     EXPLICIT_LABELS,
     FACT_REALIZATION_TEMPLATES,
+    FACT_REALIZATION_TEMPLATES_V2,
+    FORBIDDEN_V2_JARGON,
     REALIZATION_ID_FORM,
     REALIZATION_PLAN_FORMAT,
     REALIZATION_POLICY_V1,
     REALIZATION_SCHEMA_VERSION,
+    WORDING_PROFILE_V1,
+    WORDING_PROFILE_V2,
+    WORDING_PROFILES,
     district_label,
     law_label,
 )
 
 __all__ = [
     "EVENT_REALIZATION_TEMPLATES",
+    "EVENT_REALIZATION_TEMPLATES_V2",
     "EXPLICIT_LABELS",
     "FACT_REALIZATION_TEMPLATES",
+    "FACT_REALIZATION_TEMPLATES_V2",
+    "FORBIDDEN_V2_JARGON",
     "REALIZATION_ID_FORM",
     "REALIZATION_PLAN_FORMAT",
     "REALIZATION_POLICY_V1",
     "REALIZATION_SCHEMA_VERSION",
     "SUPPORTED_NARRATION_SCHEMA_VERSION",
     "SUPPORTED_STORY_SCHEMA_VERSION",
+    "VIEWER_GUIDANCE_POOL",
+    "WORDING_PROFILE_V1",
+    "WORDING_PROFILE_V2",
+    "WORDING_PROFILES",
     "build_episode_language_realization_plan_bytes",
     "build_episode_language_realization_plan_document",
     "district_label",
     "law_label",
+    "select_viewer_guidance",
     "validate_episode_language_realization_plan",
+    "validate_guidance_grounding",
     "validate_language_realization_plan_against_sources",
 ]

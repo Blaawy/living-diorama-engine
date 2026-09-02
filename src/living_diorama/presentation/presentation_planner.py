@@ -7,12 +7,17 @@ documents always produce the same bytes.
 
 What it decides is how many presentation frames the viewer sees each locked
 semantic playback frame for, and only from structure: each unit's already
-story-proven ``text_source`` classification, and the length of the delivery
-slot the unit already owns. What it never decides is what is said, when in
-*semantic* time a unit belongs, or what mattered. Wording stays in the
-realization plan and is never read here -- not carried, not measured, not
-counted; only its identity and position are named. The delivery plan's slots
-are never moved, resized or re-cut -- only imaged onto a second, longer clock.
+story-proven ``text_source`` classification and the length of the delivery
+slot the unit already owns (V1 and V2), or, under the V3 profile, the unit's
+own realized text length plus the same slot length. What it never decides is
+what is said, when in *semantic* time a unit belongs, or what mattered. For
+V1 and V2, wording stays in the realization plan and is never read here --
+not carried, not measured, not counted; only its identity and position are
+named. V3 is the one reviewed exception to that ban: it reads a unit's
+``realized_text`` only to count its whitespace-separated tokens, feeding the
+per-unit content-sized window floor the Director's absolute no-reverse-time
+rule requires. The delivery plan's slots are never moved, resized or re-cut
+-- only imaged onto a second, longer clock.
 
 This module performs the same lightweight join every upstream planner
 performs: it proves the three documents it receives actually name each other,
@@ -29,8 +34,33 @@ and this presentation layer's own cross-check runs both, in full, before this
 planner's derivation may be trusted with any upstream timing or classification
 truth. A caller that skips those two gates and calls this planner directly
 gets a plan that is only as trustworthy as the documents it was handed.
+
+Four presentation profiles are derived here. ``presentation_profile="v1"``
+(default) reproduces today's exact hold behavior byte for byte: every extra
+presentation position of a hold repeats the onset frame's identity.
+``presentation_profile="v2"`` derives the identical geometry -- same windows,
+same segments, same dwells, same total -- and additionally names, per held
+position, the already-rendered semantic frame to show: a deterministic
+ping-pong across the unit's own slot span (see ``motion_window_for_hold`` in
+``presentation_spec``). Nothing is re-rendered, and nothing outside a unit's
+own slot is ever shown: V2 changes only which locked, already-rendered frame a
+held position displays. ``presentation_profile="v3"`` replaces the fixed
+per-text-source window floors with a per-unit content-sized floor derived from
+the unit's own realized text (see :func:`_content_sized_window_and_hold`) and
+never emits ``motion_windows`` at all: every hold is the unchanged V1 frozen
+repeat of the onset frame -- a constant-value run, trivially non-decreasing,
+so presentation time never runs backward anywhere under V3, the Director's
+absolute rule. ``presentation_profile="v4"`` is the additive strict 1:1
+profile: a unit's window is exactly its delivery slot's own length,
+``hold_frames`` is always 0 and every ``dwell_frames`` is 1, so presentation
+frame N shows rendered frame N and ``presentation_frames_total`` equals the
+rendered playback count. V4 never stretches, holds, bounces or repeats, and
+refuses loudly when a unit's realized narration cannot fit its own slot (see
+:func:`_v4_require_content_fits_slot`) rather than papering over a world that
+is too short for the story.
 """
 
+import math
 from typing import Final, cast
 
 from living_diorama.language_realization.realization_schema_v1 import (
@@ -52,12 +82,16 @@ from living_diorama.presentation.presentation_schema_v1 import (
     JsonValue,
     validate_episode_presentation_plan,
 )
+from living_diorama.presentation.presentation_schema_v2 import (
+    validate_episode_presentation_plan_v2,
+)
 from living_diorama.presentation.presentation_spec import (
     PRESENTATION_PLAN_FORMAT,
     PRESENTATION_POLICY_V1,
     PRESENTATION_SCHEMA_VERSION,
     SEGMENT_ID_FORM,
     WINDOW_ID_FORM,
+    motion_window_for_hold,
     window_and_hold,
 )
 
@@ -72,6 +106,81 @@ _PRESENTATION_TIMELINE_KEYS_MATCH_DELIVERY: Final = DELIVERY_TIMELINE_KEYS
 ``presentation_schema_v1.PRESENTATION_TIMELINE_KEYS`` is this contract's own
 frozenset, restated key-for-key rather than imported; this module borrows the
 delivery plan's key set only long enough to copy the eight values across.
+"""
+
+_PRESENTATION_PROFILES: Final = ("v1", "v2", "v3", "v4")
+"""The closed set of presentation profiles this build derives."""
+
+V3_FRAMES_PER_WORD: Final = 12
+"""The V3 per-word speech allowance: 12 presentation frames per word.
+
+At the pinned 24 fps that is 0.5 s per word, i.e. 2.0 words per second. The
+commander-chosen rate, deliberately slower than every real measured EP1 Kokoro
+rate (2.70, 3.46 and 2.94 words/sec for the three real lines), so a V3 window
+always contains the real speech it must present with headroom. Calibrated, not
+guessed; do not change without the commander. V4's overflow refusal reuses the
+same rate on the unit's real realized text: the closest real quantity this
+layer may read.
+"""
+
+V3_COMPREHENSION_BUFFER_FRAMES: Final = 18
+"""The V3 fixed comprehension buffer: 18 presentation frames, 0.75 s at 24 fps.
+
+Added to every unit's content-sized window floor after the speech estimate, so
+a unit whose speech exactly fills its estimate still keeps a beat of breathing
+room before the next unit's slot begins. V4's refusal does not add this
+buffer: it compares the speech allowance itself, the "speech length in
+presentation frames" the no-stretch rule must refuse on.
+"""
+
+V4_OVERHEAD_FRAMES: Final = 24
+"""The V4 fixed speech lead-in/trail overhead: 24 presentation frames (1.0 s at 24 fps).
+
+V4's overflow refusal sizes a unit's speech allowance with the reviewed
+affine model ``V4_OVERHEAD_FRAMES + V4_FRAMES_PER_WORD * words``, because a
+pure per-word constant cannot fit the real measured Kokoro speech for the real
+EP1 realized text. The three Director-measured points, in presentation
+frame-equivalents (measured samples / 1000):
+
+* unit_0001 ``"We changed one rule."`` -- 4 words, 44.4 frames (11.10 fr/word);
+* unit_0002 ``"We built the wall between this side ..."`` -- 15 words,
+  111.0 frames (7.40 fr/word);
+* unit_0003 ``"The wall between this side ... changed."`` -- 10 words,
+  81.6 frames (8.16 fr/word).
+
+Every line carries a fixed lead-in/trail overhead, so a short utterance costs
+far more per word than a long one -- the per-word cost falls from 11.10 to
+7.40 fr/word across these three lines -- and a pure frames-per-word constant
+cannot fit both ends: at the old 12 frames/word the estimate over-shoots the
+long lines by ~1.6x (180 vs a real 111). The least-squares affine fit over
+the three points is ``frames = 20.4 + 6.06 * words``, predicting
+44.6 / 111.3 / 81.0 against the real 44.4 / 111.0 / 81.6 (residuals
++0.2 / +0.3 / -0.6). Rounded up with margin, the reviewed model is
+``24 + 6 * words``, predicting 48 / 114 / 84 against the real
+44.4 / 111.0 / 81.6 -- an over-estimate of 1.03x to 1.08x.
+
+The estimate must OVER-estimate real speech: this gate refuses a unit whose
+speech allowance exceeds its delivery slot, and V4 never stretches, so an
+under-estimate would let a too-long utterance through as silent dead-air
+corruption. The margin can be modest because the downstream audio-track layer
+independently verifies the real speech fits its window and refuses loudly
+otherwise (``voice_execution`` publishes nothing for an episode holding an
+unfit unit) -- so an under-estimate surfaces as a loud build error, never
+silent corruption.
+"""
+
+V4_FRAMES_PER_WORD: Final = 6
+"""The V4 per-word speech slope: 6 presentation frames per word after the overhead.
+
+The affine slope of the reviewed V4 speech model. See
+:data:`V4_OVERHEAD_FRAMES` for the three real measured EP1 points, the
+least-squares fit (``20.4 + 6.06 * words``) and why a pure per-word constant
+cannot fit both ends of the measured range. Paired with
+:data:`V4_OVERHEAD_FRAMES` the reviewed model always over-estimates the real
+measured speech (48 > 44.4, 114 > 111.0, 84 > 81.6); the margin is modest by
+design, because the downstream audio-track layer independently verifies the
+real speech fits its window and refuses loudly, so an under-estimate can
+never become silent corruption.
 """
 
 
@@ -148,8 +257,121 @@ def _require_join(
     }
 
 
+def _content_sized_window_and_hold(
+    slot_start: int, slot_end: int, realized_text: str
+) -> tuple[int, int]:
+    """Return the V3 ``(window_frames, hold_frames)`` pair for one delivery slot.
+
+    The V3 content-sized floor replaces the fixed per-text-source floors
+    (:data:`presentation_spec.WINDOW_PRESENTATION_FRAMES_TEMPLATE` and
+    :data:`presentation_spec.WINDOW_PRESENTATION_FRAMES_FACT`) with a per-unit
+    floor derived from the unit's own realized text: its whitespace-separated
+    token count at a commander-chosen 2.0 words/sec (12 frames per word), plus
+    a fixed 0.75 s comprehension buffer (18 frames), plus the slot's own
+    semantic length. The window is the greater of the slot length and that
+    floor; because the floor already contains the slot length, the window
+    always resolves to the floor -- the ``max`` is kept for defensive symmetry
+    with :func:`window_and_hold`'s formula shape. The hold is every frame of
+    the difference, on the slot's own onset frame, filled by the unchanged V1
+    frozen repeat -- a constant-value run, trivially non-decreasing, so V3
+    never reverses presentation time by construction.
+
+    Args:
+        slot_start: The delivery slot's first semantic frame, inclusive.
+        slot_end: The delivery slot's final semantic frame, inclusive.
+        realized_text: The unit's already-validated realized sentence. Only its
+            whitespace-separated token count is read -- length, never content.
+
+    Returns:
+        ``(window_frames, hold_frames)``, both non-negative integers with
+        ``window_frames == (slot_end - slot_start + 1) + hold_frames``.
+
+    Raises:
+        ValueError: If the slot is empty or inverted.
+    """
+    if slot_end < slot_start:
+        raise ValueError(f"delivery slot [{slot_start}, {slot_end}] is empty or inverted")
+    length = slot_end - slot_start + 1
+    word_count = len(realized_text.split())
+    content_estimate_frames = math.ceil(word_count * V3_FRAMES_PER_WORD)
+    floor = length + content_estimate_frames + V3_COMPREHENSION_BUFFER_FRAMES
+    window_frames = max(length, floor)
+    return window_frames, window_frames - length
+
+
+def _v4_identity_window_and_hold(slot_start: int, slot_end: int) -> tuple[int, int]:
+    """Return the V4 ``(window_frames, hold_frames)`` pair for one delivery slot.
+
+    V4 is the strict 1:1 presentation profile: a unit's window is exactly its
+    delivery slot's own inclusive length, and there is never a hold, so every
+    dwell is 1 and presentation frame N shows rendered frame N. No per-text-
+    source floor, no content-sized floor, no bounce and no ``motion_windows``
+    key exist under V4; the plan simply is the rendered timeline.
+
+    Args:
+        slot_start: The delivery slot's first semantic frame, inclusive.
+        slot_end: The delivery slot's final semantic frame, inclusive.
+
+    Returns:
+        ``(window_frames, hold_frames)`` with ``window_frames`` equal to the
+        slot's own length and ``hold_frames`` always 0.
+
+    Raises:
+        ValueError: If the slot is empty or inverted.
+    """
+    if slot_end < slot_start:
+        raise ValueError(f"delivery slot [{slot_start}, {slot_end}] is empty or inverted")
+    return slot_end - slot_start + 1, 0
+
+
+def _v4_require_content_fits_slot(
+    unit_id: str, slot_start: int, slot_end: int, realized_text: str
+) -> None:
+    """Refuse a V4 unit whose realized narration cannot fit its own delivery slot.
+
+    V4 never stretches, holds or repeats, so a unit whose content need exceeds
+    its slot is a loud build failure, never a papered-over freeze. The content
+    need is the unit's real realized sentence read at the calibrated affine
+    speech model -- a fixed lead-in/trail overhead
+    (:data:`V4_OVERHEAD_FRAMES`) plus a per-word slope
+    (:data:`V4_FRAMES_PER_WORD`) -- the closest real quantity this layer may
+    read; a measured voice duration exists only downstream in the voice layer
+    and is not available here. The available quantity is the delivery plan's
+    own inclusive slot span, exactly as V1-V3 read it.
+
+    Args:
+        unit_id: The narration unit's own identifier.
+        slot_start: The delivery slot's first semantic frame, inclusive.
+        slot_end: The delivery slot's final semantic frame, inclusive.
+        realized_text: The unit's already-validated realized sentence; only
+            its whitespace-separated token count is read.
+
+    Raises:
+        ValueError: If the unit's content need exceeds its slot, naming the
+            unit, its required frames, its available slot frames and the
+            shortfall.
+    """
+    if slot_end < slot_start:
+        raise ValueError(f"delivery slot [{slot_start}, {slot_end}] is empty or inverted")
+    slot_frames = slot_end - slot_start + 1
+    required_frames = V4_OVERHEAD_FRAMES + len(realized_text.split()) * V4_FRAMES_PER_WORD
+    if required_frames > slot_frames:
+        shortfall = required_frames - slot_frames
+        raise ValueError(
+            f"presentation_profile v4 refuses to stretch: unit {unit_id!r} requires "
+            f"{required_frames} presentation frames for its realized narration, but its "
+            f"delivery slot [{slot_start}, {slot_end}] offers only {slot_frames}; "
+            f"shortfall {shortfall} frames -- the rendered world is too short for this "
+            "unit, and v4 presents a strict 1:1 mapping rather than holding or freezing"
+        )
+
+
 def build_episode_presentation_plan_document(
-    delivery_plan: object, narration_plan: object, realization_plan: object
+    delivery_plan: object,
+    narration_plan: object,
+    realization_plan: object,
+    *,
+    presentation_profile: str = "v1",
 ) -> dict[str, JsonValue]:
     """Return the Episode Presentation Plan document for one directed episode.
 
@@ -158,18 +380,43 @@ def build_episode_presentation_plan_document(
             plan images onto the presentation clock.
         narration_plan: The Episode Narration Plan V1 whose units are
             presented, and whose ``text_source`` classification selects each
-            unit's window floor.
+            unit's window floor under V1 and V2.
         realization_plan: The Episode Language Realization Plan V1 whose
-            sentences this plan's windows name by identity, never by content.
+            sentences this plan's windows name by identity, never by content
+            -- except under V3 and V4, whose per-unit fit checks count the
+            whitespace tokens of each ``realized_text``.
+        presentation_profile: ``"v1"`` (default) derives today's exact plan --
+            every extra position of a hold repeats the onset frame's identity.
+            ``"v2"`` derives the identical geometry plus the additive
+            ``motion_windows`` block naming one already-rendered semantic frame
+            per held position (see :func:`motion_window_for_hold`). ``"v3"``
+            sizes each window from the unit's own realized text and never
+            emits ``motion_windows``; its holds are frozen repeats of the onset
+            frame (see :func:`_content_sized_window_and_hold`). ``"v4"``
+            presents the rendered timeline strictly 1:1 -- window equals slot,
+            hold 0, dwell 1 -- and refuses loudly when a unit's realized
+            narration cannot fit its own slot (see
+            :func:`_v4_require_content_fits_slot`).
 
     Returns:
-        A validated Episode Presentation Plan V1 document.
+        A validated Episode Presentation Plan document: V1 under the default
+        profile, V2 under ``"v2"``, and the plain V1 shape under ``"v3"`` and
+        ``"v4"`` (a V3 or V4 plan carries no ``motion_windows`` key, so it
+        validates under the unchanged V1 validator).
 
     Raises:
         TypeError: If any input has the wrong shape.
         ValueError: If any input fails its own contract, if the three do not
-            join, or if the unit and slot counts disagree.
+            join, if the unit and slot counts disagree, if
+            ``presentation_profile`` is not one of the closed profiles, if
+            a V2 hold's slot offers no safe motion, or if a V4 unit's realized
+            narration exceeds its delivery slot.
     """
+    if presentation_profile not in _PRESENTATION_PROFILES:
+        raise ValueError(
+            f"presentation_profile {presentation_profile!r} is not one of the closed "
+            f"profiles {list(_PRESENTATION_PROFILES)}"
+        )
     delivery = validate_episode_narration_delivery_plan(delivery_plan)
     narration = validate_episode_narration_plan(narration_plan)
     realization = validate_episode_language_realization_plan(realization_plan)
@@ -193,9 +440,16 @@ def build_episode_presentation_plan_document(
 
     # One hold value per semantic playback frame, keyed by the frame number.
     # A slot's own onset frame is the only frame that may ever carry a hold --
-    # every other playback frame's dwell is exactly 1.
+    # every other playback frame's dwell is exactly 1. Under the V2 profile
+    # each hold additionally names the ping-pong sequence that selects which
+    # already-rendered frame each held position shows; under V1 and V3 every
+    # held position repeats the onset frame itself (the frozen repeat), so a
+    # V3 hold is a constant-value run and can never run time backward. Under
+    # V4 no unit ever holds, so ``holds_by_frame`` stays empty and every dwell
+    # is exactly 1.
     holds_by_frame: dict[int, int] = {}
     windows_geometry: list[tuple[int, int, int]] = []  # (unit index, slot_start, window_frames)
+    motion_windows: list[JsonValue] = []
     for position, (unit, record) in enumerate(zip(units, deliveries, strict=True)):
         if record["unit_id"] != unit["unit_id"]:
             raise ValueError(
@@ -207,9 +461,34 @@ def build_episode_presentation_plan_document(
         slot_start = cast(int, record["start_frame"])
         slot_end = cast(int, record["end_frame"])
         text_source = cast(str, unit["text_source"])
-        window_frames, hold_frames = window_and_hold(slot_start, slot_end, text_source)
+        if presentation_profile == "v3":
+            window_frames, hold_frames = _content_sized_window_and_hold(
+                slot_start,
+                slot_end,
+                cast(str, realizations[position]["realized_text"]),
+            )
+        elif presentation_profile == "v4":
+            window_frames, hold_frames = _v4_identity_window_and_hold(slot_start, slot_end)
+            _v4_require_content_fits_slot(
+                cast(str, unit["unit_id"]),
+                slot_start,
+                slot_end,
+                cast(str, realizations[position]["realized_text"]),
+            )
+        else:
+            window_frames, hold_frames = window_and_hold(slot_start, slot_end, text_source)
         if hold_frames > 0:
             holds_by_frame[slot_start] = hold_frames
+            if presentation_profile == "v2":
+                motion_windows.append(
+                    {
+                        "onset_frame": slot_start,
+                        "semantic_frames": list(
+                            motion_window_for_hold(slot_start, slot_end, 1 + hold_frames)
+                        ),
+                        "window_id": WINDOW_ID_FORM % (position + 1),
+                    }
+                )
         windows_geometry.append((position, slot_start, window_frames))
 
     # Build the dwell-run segments left to right over the playback domain, and
@@ -298,19 +577,39 @@ def build_episode_presentation_plan_document(
         "timeline": cast(JsonValue, timeline),
         "windows": windows,
     }
+    if presentation_profile == "v2":
+        document["motion_windows"] = motion_windows
+        return validate_episode_presentation_plan_v2(document)
     return validate_episode_presentation_plan(document)
 
 
 def build_episode_presentation_plan_bytes(
-    delivery_plan: object, narration_plan: object, realization_plan: object
+    delivery_plan: object,
+    narration_plan: object,
+    realization_plan: object,
+    *,
+    presentation_profile: str = "v1",
 ) -> bytes:
     """Return the canonical Episode Presentation Plan bytes for the given sources.
 
     The returned bytes are the one canonical encoding of the plan: sorted
     keys, tight separators, no non-finite floats, and exactly one trailing
     newline.
+
+    Args:
+        delivery_plan: The Episode Narration Delivery Plan V1.
+        narration_plan: The Episode Narration Plan V1.
+        realization_plan: The Episode Language Realization Plan V1.
+        presentation_profile: ``"v1"`` (default) reproduces today's plan bytes
+            exactly; ``"v2"`` derives the additive motion-window plan;
+            ``"v3"`` derives the frozen, content-sized plan (no
+            ``motion_windows``); ``"v4"`` derives the strict 1:1 plan (no
+            ``motion_windows``), refusing any unit that cannot fit its slot.
+
+    Raises:
+        TypeError, ValueError: As :func:`build_episode_presentation_plan_document`.
     """
     document = build_episode_presentation_plan_document(
-        delivery_plan, narration_plan, realization_plan
+        delivery_plan, narration_plan, realization_plan, presentation_profile=presentation_profile
     )
     return dumps_canonical(document, "presentation plan")

@@ -42,8 +42,12 @@ PHASE22_MODULES = PURE_MODULES + BLENDER_MODULES
 ALLOWED_ENGINE_MODULES = frozenset(
     {
         "living_diorama.cinematic",
+        "living_diorama.cinematic.camera_direction_v4",
+        "living_diorama.cinematic.camera_direction_v5",
+        "living_diorama.cinematic.camera_movement_planner",
         "living_diorama.cinematic.cinematic_cross_check",
         "living_diorama.cinematic.cinematic_schema_v1",
+        "living_diorama.cinematic.cinematic_schema_v2",
         "living_diorama.cinematic.cinematic_spec",
         "living_diorama.cinematic.shot_planner",
         "living_diorama.persistence.json_codec",
@@ -58,6 +62,11 @@ It consumes a verified story plan through ``living_diorama.story`` and validates
 with the persistence vocabulary. It may not reach past those into live simulation,
 and it may not reach into ``living_diorama.render`` either -- Phase 21 already
 read the export, and this layer takes Phase 21's word for what mattered.
+
+``camera_movement_planner`` and ``cinematic_schema_v2`` are the V2 edit layer the
+CLI and the cross-check thread through: they assign and validate the optional
+``camera_movement`` blocks, purely and deterministically, over the locked V1
+document.
 """
 
 FORBIDDEN_ENGINE_ROOTS = frozenset(

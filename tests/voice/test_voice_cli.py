@@ -15,6 +15,8 @@ import pytest
 
 from living_diorama.cli.build_voice_plan import main
 from living_diorama.persistence.json_codec import dumps_canonical, loads_canonical
+from living_diorama.presentation import build_episode_presentation_plan_bytes
+from living_diorama.voice import build_episode_voice_plan_bytes
 
 from .conftest import REPO_ROOT, build_voice_sources
 
@@ -23,6 +25,7 @@ CLI_SOURCE = REPO_ROOT / "src" / "living_diorama" / "cli" / "build_voice_plan.py
 
 def _write_inputs(tmp_path: Path) -> list[Path]:
     """Write the seven canonical ep1 input documents and return all eight paths."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
     realization, presentation, delivery, narration, shots, story, export = build_voice_sources(1)
     paths = [
         tmp_path / "realization.json",
@@ -44,8 +47,8 @@ def _write_inputs(tmp_path: Path) -> list[Path]:
     return paths
 
 
-def _argv(paths: list[Path]) -> list[str]:
-    return [
+def _argv(paths: list[Path], *, presentation_profile: str | None = None) -> list[str]:
+    args = [
         "--realization",
         str(paths[0]),
         "--presentation",
@@ -63,6 +66,9 @@ def _argv(paths: list[Path]) -> list[str]:
         "--output",
         str(paths[7]),
     ]
+    if presentation_profile is not None:
+        args += ["--presentation-profile", presentation_profile]
+    return args
 
 
 def test_the_command_writes_a_verified_plan(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
@@ -78,6 +84,75 @@ def test_the_command_writes_a_verified_plan(tmp_path: Path, capsys: pytest.Captu
     assert counts["episode"] == 1
     assert counts["mode"] == "transition"
     assert counts["bytes"] == len(payload)
+
+
+def test_the_default_omitted_flag_reproduces_todays_bytes_exactly(tmp_path: Path) -> None:
+    """No flag (and an explicit v1) reproduce today's exact voice plan bytes.
+
+    A genuine regression guard: the CLI's whole write path -- the reused
+    Phase 27 gate included -- must emit byte-for-byte the same document the
+    library derives for a V1 presentation plan, before and after this flag
+    exists.
+    """
+    realization, presentation, *_ = build_voice_sources(1)
+    expected = build_episode_voice_plan_bytes(realization, presentation)
+
+    paths = _write_inputs(tmp_path)
+    assert main(_argv(paths)) == 0
+    assert paths[7].read_bytes() == expected
+
+    explicit = _write_inputs(tmp_path / "explicit")
+    assert main(_argv(explicit, presentation_profile="v1")) == 0
+    assert explicit[7].read_bytes() == expected
+
+
+def test_the_v3_presentation_profile_flag_accepts_a_real_v3_presentation_plan(
+    tmp_path: Path,
+) -> None:
+    """``--presentation-profile v3`` admits the real frozen, content-sized plan.
+
+    A real V3 presentation plan carries no ``motion_windows``, so under the
+    default (v1) derivation the reused Phase 27 gate re-derives V1 bytes and
+    refuses; the explicit v3 flag makes the gate re-derive the plan it was
+    actually built under, and the voice plan is written.
+    """
+    realization, _presentation, delivery, narration, _shots, _story, _export = build_voice_sources(
+        1
+    )
+    v3_document = loads_canonical(
+        build_episode_presentation_plan_bytes(
+            delivery, narration, realization, presentation_profile="v3"
+        ),
+        "presentation plan",
+    )
+
+    paths = _write_inputs(tmp_path)
+    paths[1].write_bytes(dumps_canonical(v3_document, "presentation"))
+    assert main(_argv(paths, presentation_profile="v3")) == 0
+    assert paths[7].read_bytes() == build_episode_voice_plan_bytes(realization, v3_document)
+
+
+def test_without_the_flag_a_v3_presentation_plan_is_still_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    """Omitting the flag keeps today's refusal of a V3 plan, leaving no output."""
+    realization, _presentation, delivery, narration, _shots, _story, _export = build_voice_sources(
+        1
+    )
+    v3_document = loads_canonical(
+        build_episode_presentation_plan_bytes(
+            delivery, narration, realization, presentation_profile="v3"
+        ),
+        "presentation plan",
+    )
+
+    paths = _write_inputs(tmp_path)
+    paths[1].write_bytes(dumps_canonical(v3_document, "presentation"))
+    assert main(_argv(paths)) == 1
+    err = capsys.readouterr().err
+    assert "does not equal the deterministic derivation" in err
+    assert "Traceback" not in err
+    assert not paths[7].exists()
 
 
 def test_an_existing_output_is_never_overwritten(

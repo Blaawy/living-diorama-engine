@@ -845,8 +845,17 @@ def build_motion_scene(
     after_path: str | Path,
     motion_spec_path: str | Path,
     style: str = "dna",
+    *,
+    lighting_profile: str = "dna",
 ) -> dict:
     """Build the world, plan the motion, verify it, and animate it. One call.
+
+    ``lighting_profile`` selects an ADDITIVE lighting lane on top of the
+    style's own lighting (mirroring the ``camera_profile`` precedent):
+    ``"dna"`` (default) adds nothing, ``"dna_daylight"`` applies the
+    Director-revision late-morning daylight lane. The lane never touches
+    exposure/view transform/look, which stay pinned by the render-profile
+    digest.
 
     Returns a report holding the plan, the union verification, the motion
     metrics, and the geography snapshot taken before any F-curve existed.
@@ -855,7 +864,7 @@ def build_motion_scene(
     import build_production_world
 
     require_supported_blender()
-    build_master_scene.build_master_scene(spec_path, style=style)
+    build_master_scene.build_master_scene(spec_path, style=style, lighting_profile=lighting_profile)
     production = build_production_world.add_production_world(
         spec_path, production_path, style=style
     )
@@ -895,6 +904,11 @@ def main() -> None:
     parser.add_argument("--after", required=True)
     parser.add_argument("--motion", required=True)
     parser.add_argument("--style", default="dna")
+    parser.add_argument(
+        "--lighting-profile",
+        default="dna",
+        help="lighting lane: 'dna' (default, today's exact lighting) or 'dna_daylight'",
+    )
     parser.add_argument("--save", default="")
     arguments = parser.parse_args(argv)
     report = build_motion_scene(
@@ -904,6 +918,7 @@ def main() -> None:
         arguments.after,
         arguments.motion,
         style=arguments.style,
+        lighting_profile=arguments.lighting_profile,
     )
     metrics = report["metrics"]
     print(

@@ -11,7 +11,9 @@ import pytest
 from living_diorama.cinematic import (
     build_shot_direction_plan_document,
     validate_shot_direction_plan,
+    validate_shot_direction_plan_v2,
 )
+from living_diorama.cinematic.camera_movement_planner import plan_camera_movements
 
 
 @pytest.fixture
@@ -335,6 +337,22 @@ def test_two_adjacent_shots_on_one_anchor_are_refused(plan: dict[str, Any]) -> N
         validate_shot_direction_plan(plan)
 
 
+def test_adjacent_shots_sharing_a_non_drone_anchor_are_still_refused(
+    plan: dict[str, Any],
+) -> None:
+    """The V2 repeat exception is closed: any non-drone shared anchor is refused.
+
+    The static-drone lane may repeat its one locked pose across shots (it never
+    cuts); every OTHER anchor shared by adjacent shots is still a cut to the
+    camera you are already on. Real camera_movement blocks put the plan on the
+    V2 code path, where the exception lives; V1 has no exception at all.
+    """
+    v2 = plan_camera_movements(plan)
+    v2["shots"][2]["camera_anchor_id"] = v2["shots"][1]["camera_anchor_id"]
+    with pytest.raises(ValueError, match="never share an anchor"):
+        validate_shot_direction_plan_v2(v2)
+
+
 def test_a_broken_loop_is_refused(plan: dict[str, Any]) -> None:
     """The Phase 17 loop is frame-equivalent, so the camera must match at both ends.
 
@@ -399,6 +417,20 @@ def test_an_establishing_shot_on_another_anchor_is_refused(
     plan["shots"][0]["camera_anchor_id"] = "CAM_P16_ROADS"
     with pytest.raises(ValueError, match="the neutral anchor is"):
         validate_shot_direction_plan(plan)
+
+
+def test_a_third_establishing_anchor_is_still_refused(plan: dict[str, Any]) -> None:
+    """The establishing-anchor law is a closed set of two, never a shape test.
+
+    Real camera_movement blocks put the plan on the V2 code path -- without one
+    the V2 validator delegates to V1, whose single-anchor message cannot prove
+    the two-member set. A THIRD anchor, neither CAM_HERO_WORLD nor the
+    static-drone anchor, is still refused.
+    """
+    v2 = plan_camera_movements(plan)
+    v2["shots"][0]["camera_anchor_id"] = "CAM_P16_URBAN"
+    with pytest.raises(ValueError, match="permitted neutral anchors are"):
+        validate_shot_direction_plan_v2(v2)
 
 
 def test_an_establishing_shot_with_emphasis_is_refused(plan: dict[str, Any]) -> None:

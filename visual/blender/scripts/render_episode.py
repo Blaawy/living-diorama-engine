@@ -20,14 +20,32 @@ without either reaching across the boundary.
 
 Usage::
 
-    blender --background --factory-startup --python render_episode.py -- \\
-        --render-plan episode_render_plan.json --shot-plan shot_plan.json \\
-        --catalogue catalogue.json --spec master_scene_v1.json \\
-        --production production_world_v1.json --motion motion_time_v1.json \\
-        --presence population_presence_v1.json \\
-        --mobility daily_life_mobility_v1.json \\
-        --state-response state_response_v1.json \\
-        --before before.json --after after.json --output-root renders/
+    blender --background --factory-startup --python render_episode.py -- \
+        --render-plan episode_render_plan.json --shot-plan shot_plan.json \
+        --catalogue catalogue.json --spec master_scene_v1.json \
+        --production production_world_v1.json --motion motion_time_v1.json \
+        --presence population_presence_v1.json \
+        --mobility daily_life_mobility_v1.json \
+        --state-response state_response_v1.json \
+        --before before.json --after after.json --output-root renders/ \
+        --camera-profile v1
+
+``--camera-profile`` defaults to ``v1``. Under ``v2`` the executor accepts
+movement-camera identities and the movement-catalogue binding that the V2
+planner emits, exactly as the engine validator does; V1 behaviour is unchanged.
+
+``--lighting-profile`` defaults to ``dna`` and reproduces today's exact
+lighting byte-for-byte. Under ``dna_daylight`` the composed world is lit by
+the Director-revision late-morning daylight lane; the lane never touches
+exposure/view transform/look, which stay pinned by the render-profile digest.
+
+``--visibility-profile`` defaults to ``full`` and reproduces today's exact
+presentation byte-for-byte. Under ``director_clear_air_v1`` the per-district
+air haze is not DRAWN. This is a presentation policy, not a change of fact:
+the state-response document is untouched and digest-pinned, the plan still
+computes the district-air response in full, and the census still reports it
+truthfully -- the renderer simply declines to visualise that haze for the
+Director's final EP1 profile.
 """
 
 import argparse
@@ -93,6 +111,63 @@ def canonical_bytes(document: object) -> bytes:
 def sha256_hex(payload: bytes) -> str:
     """Return the lowercase hexadecimal SHA-256 digest of some bytes."""
     return hashlib.sha256(payload).hexdigest()
+
+
+CAMERA_PREFIX = "CAM_MOVEMENT_"
+"""The object-name prefix of every V2 movement camera, restated.
+
+Phase 22's movement applier derives movement camera identities from shot ids
+with this exact prefix, and the engine's ``cinematic_spec.movement_camera_name``
+derives the same string; this executor may not import either, so the identity is
+restated here in the same style as ``canonical_bytes`` and ``sha256_hex``, and a
+pure test in ``test_production_boundary.py`` pins all the derivations equal.
+"""
+
+MOVEMENT_CATALOGUE_SOURCE_KEY = "movement_catalogue_sha256"
+"""The optional V2-only source key binding a plan's movement-camera catalogue.
+
+Mirrors ``render_execution_schema_v1.MOVEMENT_CATALOGUE_SOURCE_KEY``: accepted
+on ``plan["source"]`` only when present, and only under
+``camera_profile == "v2"`` -- never in V1 mode.
+"""
+
+
+def _movement_camera_name(shot_id: str) -> str:
+    """Return the single new camera identity a movement shot earns, restated.
+
+    Identical string to ``apply_camera_movement.movement_camera_name`` and the
+    engine's ``cinematic_spec.movement_camera_name``; a pinned equality test in
+    ``test_production_boundary.py`` proves all the copies agree.
+    """
+    return f"{CAMERA_PREFIX}{shot_id}"
+
+
+def _is_movement_shot(shot) -> bool:
+    """Return whether a shot carries a non-STATIC ``camera_movement`` block.
+
+    The same signal ``render_planner._is_movement_shot`` uses: only a movement
+    type other than ``STATIC`` earns a new camera identity, because a STATIC
+    block is a deliberate hold on the fixed anchor.
+    """
+    movement = shot.get("camera_movement")
+    return movement is not None and movement["movement_type"] != "STATIC"
+
+
+def _movement_camera_records(shot_plan) -> list:
+    """Return the derived ``{shot_id, camera}`` records of a plan's movement shots.
+
+    Mirrors ``cinematic_spec.movement_camera_records`` using this file's own
+    ``_movement_camera_name``, keeping the shot plan's own order; a pure test
+    pins the derived digest equal to the engine's ``movement_catalogue_sha256``.
+    """
+    records = []
+    for shot in shot_plan["shots"]:
+        if not _is_movement_shot(shot):
+            continue
+        records.append(
+            {"shot_id": shot["shot_id"], "camera": _movement_camera_name(shot["shot_id"])}
+        )
+    return records
 
 
 def read_json_document(path: Path, description: str) -> dict:
@@ -296,6 +371,11 @@ membership, so this side must too, and it cannot import the engine to do it --
 so the set is restated, exactly as the render profile digest and the composition
 sources above it are, and a pure test proves this frozenset equals
 ``cinematic_spec.ANCHOR_NAMES``.
+
+Under ``camera_profile == "v2"`` a frame of a movement shot may carry the
+DERIVED movement camera identity instead; that identity is never added to this
+set (adding it would change the approved catalogue), it is accepted per-frame
+by re-deriving it from the frame's own ``shot_id``.
 """
 
 CANONICAL_MOTION_TIME_SHA256 = "bfcbfcfd8d2b33f0ca8a0bc51655a1028babc601a73cdd42ca3c8caf3f9da673"
@@ -317,6 +397,39 @@ keep the canonical Motion & Time digest, and satisfy every arithmetic rule
 below. Phase 22's own applier pins the identical dict for this reason; the
 executor pins it too, because a render plan's timeline is a copy of a source and
 never a second reading of it.
+"""
+
+DIRECTOR_V4_MOTION_TIME_SHA256 = "a821049b648c0d37a9bc5c6cbc74142cffb0c21a817ad3e2b10764dfeaa4079c"
+DIRECTOR_V4_RESOLVED_TIMELINE = {
+    "end_frame": 319,
+    "end_hold_frames": 18,
+    "fps": 24,
+    "start_frame": 1,
+    "start_hold_frames": 24,
+    "transition_end": 301,
+    "transition_frames": 276,
+    "transition_start": 25,
+}
+"""The reviewed Director V4 clock: 318 playback frames at 24 fps (13.25 s).
+
+The canonical clock renders 192 playback frames (8.04 s), which is shorter than
+EP1's own narration (9.875 s of real measured speech). Presenting a longer
+episode over it therefore forced the presentation layer to stretch -- first
+with reverse playback, then with multi-second frozen frame repeats, both
+rejected. This clock is long enough that presentation maps 1:1 onto genuinely
+rendered frames, so nothing is ever reversed or held.
+"""
+
+REVIEWED_CLOCKS = {
+    CANONICAL_MOTION_TIME_SHA256: CANONICAL_RESOLVED_TIMELINE,
+    DIRECTOR_V4_MOTION_TIME_SHA256: DIRECTOR_V4_RESOLVED_TIMELINE,
+}
+"""The closed set of reviewed clocks this executor renders.
+
+A plan is accepted only when its bound digest is one of these AND the clock it
+restates is exactly the clock that digest resolves to -- so a document can
+never claim one clock while binding another. This is a closed set, never a
+shape test: a self-consistent but unreviewed clock is still refused.
 """
 
 MAXIMUM_SEMANTIC_FRAME = 9999
@@ -381,7 +494,7 @@ def _plain_name(value, description):
     return value
 
 
-def require_valid_render_plan(plan):
+def require_valid_render_plan(plan, *, camera_profile: str = "v1"):
     """Validate every load-bearing rule of Episode Render Plan V1, closed.
 
     The engine owns this contract, and the engine's validator is the reference
@@ -390,6 +503,12 @@ def require_valid_render_plan(plan):
     built it" is not a boundary. So the contract is restated here in the
     standard library, and a pure test drives both implementations over the same
     mutations to prove they refuse the same things.
+
+    ``camera_profile`` is ``"v1"`` (default) or ``"v2"``. Under V2 only, the
+    optional ``movement_catalogue_sha256`` source key is accepted when present,
+    and a frame of a movement shot may carry the derived movement camera
+    identity (re-derived from the frame's own shot id, so a forged identity is
+    still refused). V1 accepts neither, byte-for-byte as before.
 
     Nothing is written to disk before this returns.
 
@@ -404,7 +523,10 @@ def require_valid_render_plan(plan):
 
     # --- source
     source = plan["source"]
-    _exact_keys(source, PLAN_SOURCE_KEYS, "render plan source")
+    expected_source_keys = PLAN_SOURCE_KEYS
+    if camera_profile == "v2" and MOVEMENT_CATALOGUE_SOURCE_KEY in source:
+        expected_source_keys = PLAN_SOURCE_KEYS | {MOVEMENT_CATALOGUE_SOURCE_KEY}
+    _exact_keys(source, expected_source_keys, "render plan source")
     if source["shot_plan_format"] != SHOT_PLAN_FORMAT:
         raise PlanRefused(f"render plan names shot plan format {source['shot_plan_format']!r}")
     if _exact_int(source["shot_plan_schema_version"], "shot_plan_schema_version") != 1:
@@ -418,6 +540,11 @@ def require_valid_render_plan(plan):
         "render_profile_sha256",
     ):
         _digest(source[key], f"render plan source {key}")
+    if camera_profile == "v2" and MOVEMENT_CATALOGUE_SOURCE_KEY in source:
+        _digest(
+            source[MOVEMENT_CATALOGUE_SOURCE_KEY],
+            f"render plan source {MOVEMENT_CATALOGUE_SOURCE_KEY}",
+        )
     mode = source["mode"]
     episode = _exact_int(source["episode"], "render plan source episode", minimum=0)
     previous = source["previous_episode"]
@@ -438,15 +565,23 @@ def require_valid_render_plan(plan):
     if source["render_profile_sha256"] != RENDER_PROFILE_SHA256:
         raise PlanRefused("the render plan's profile binding is not the approved profile digest")
 
-    # --- composition sources, pinned absolutely
+    # --- composition sources, pinned absolutely to one of the reviewed bundles
     sources = plan["composition_sources"]
     _exact_keys(sources, frozenset(APPROVED_COMPOSITION_SOURCES), "render plan composition_sources")
-    for key, expected in sorted(APPROVED_COMPOSITION_SOURCES.items()):
-        if _digest(sources[key], f"composition_sources {key}") != expected:
-            raise PlanRefused(
-                f"render plan names composition source {key} {sources[key]}, but this build "
-                f"composes from {expected}"
-            )
+    for key in sorted(APPROVED_COMPOSITION_SOURCES):
+        _digest(sources[key], f"composition_sources {key}")
+    # Every reviewed bundle names the same world; only the Motion & Time binding
+    # differs, because a reviewed clock is a longer clock over that same world.
+    approved_bundle = {
+        **APPROVED_COMPOSITION_SOURCES,
+        "motion_time_sha256": source["motion_time_sha256"],
+    }
+    if source["motion_time_sha256"] not in REVIEWED_CLOCKS or dict(sources) != approved_bundle:
+        raise PlanRefused(
+            f"render plan names composition sources {dict(sources)}, which are not one of "
+            f"the reviewed locked bundles this build composes from "
+            f"(admissible clocks: {', '.join(sorted(REVIEWED_CLOCKS))})"
+        )
     if sources["motion_time_sha256"] != source["motion_time_sha256"]:
         raise PlanRefused("the render plan binds two different Motion Time documents")
 
@@ -475,13 +610,18 @@ def require_valid_render_plan(plan):
         or clock["end_frame"] != clock["transition_end"] + clock["end_hold_frames"]
     ):
         raise PlanRefused("the render plan's timeline disagrees with its own phases")
-    if source["motion_time_sha256"] == CANONICAL_MOTION_TIME_SHA256 and (
-        clock != CANONICAL_RESOLVED_TIMELINE
-    ):
+    bound_clock = source["motion_time_sha256"]
+    if bound_clock not in REVIEWED_CLOCKS:
         raise PlanRefused(
-            f"the render plan binds the canonical Phase 17 clock, which resolves to "
-            f"{CANONICAL_RESOLVED_TIMELINE}, but restates {clock}; a self-consistent "
-            "alternative under the canonical digest is a hand-edited clock"
+            f"the render plan binds Phase 17 clock {bound_clock}, which is not one of "
+            f"the reviewed clocks this executor renders "
+            f"(admissible: {', '.join(sorted(REVIEWED_CLOCKS))})"
+        )
+    if clock != REVIEWED_CLOCKS[bound_clock]:
+        raise PlanRefused(
+            f"the render plan binds Phase 17 clock {bound_clock}, which resolves to "
+            f"{REVIEWED_CLOCKS[bound_clock]}, but restates {clock}; a self-consistent "
+            "alternative under a reviewed digest is a hand-edited clock"
         )
 
     # --- emission, derived from the clock rather than believed
@@ -566,11 +706,20 @@ def require_valid_render_plan(plan):
             if type(value) is not str or not value or value != value.strip():
                 raise PlanRefused(f"{where} {key} must be a non-blank name, got {value!r}")
         if entry["camera_anchor_id"] not in APPROVED_CAMERA_ANCHORS:
-            raise PlanRefused(
-                f"{where} names camera anchor {entry['camera_anchor_id']!r}, which is not an "
-                "approved anchor; Phase 23 renders the cameras Phase 22 selected and knows "
-                "no others"
-            )
+            # V2 only: a frame of a movement shot may carry the derived movement
+            # camera identity, re-derived from the frame's OWN shot id so a
+            # forged identity that does not match its shot is still refused. The
+            # APPROVED set is never replaced, only supplemented -- exactly how
+            # the engine validator supplements ANCHOR_NAMES under V2.
+            movement_identity = camera_profile == "v2" and entry[
+                "camera_anchor_id"
+            ] == _movement_camera_name(entry["shot_id"])
+            if not movement_identity:
+                raise PlanRefused(
+                    f"{where} names camera anchor {entry['camera_anchor_id']!r}, which is not an "
+                    "approved anchor; Phase 23 renders the cameras Phase 22 selected and knows "
+                    "no others"
+                )
         beats = entry["source_beat_ids"]
         if type(beats) is not list:
             raise PlanRefused(f"{where} source_beat_ids must be a list, got {beats!r}")
@@ -609,7 +758,7 @@ def require_plan_matches_direction(plan, shot_plan):
     return require_plan_matches_shot_plan(plan, shot_plan)
 
 
-def require_plan_matches_shot_plan(plan, shot_plan):
+def require_plan_matches_shot_plan(plan, shot_plan, *, camera_profile: str = "v1"):
     """Refuse unless the render plan agrees with its direction, everywhere.
 
     Binding a shot plan by digest proves the two documents were paired. It does
@@ -621,6 +770,11 @@ def require_plan_matches_shot_plan(plan, shot_plan):
     So all of it is compared. The witness frame is derived from the shot windows
     exactly as every playback frame is, because the one frame nobody watches
     must not be the one frame whose direction can be written freely.
+
+    ``camera_profile`` is ``"v1"`` (default) or ``"v2"``. Under V2 only, the
+    expected camera of a movement shot's frames is the derived movement
+    identity, exactly as the V2 planner writes it; V1 expects the shot's own
+    fixed anchor, byte-for-byte as before.
 
     The engine owns this contract and its validator is the reference
     implementation, but this side may not import the engine, so the rules are
@@ -665,10 +819,13 @@ def require_plan_matches_shot_plan(plan, shot_plan):
 
     directed = {}
     for shot in shots:
+        expected_anchor = shot["camera_anchor_id"]
+        if camera_profile == "v2" and _is_movement_shot(shot):
+            expected_anchor = _movement_camera_name(shot["shot_id"])
         for frame in range(shot["start_frame"], shot["end_frame"] + 1):
             directed[frame] = (
                 shot["shot_id"],
-                shot["camera_anchor_id"],
+                expected_anchor,
                 list(shot["source_beat_ids"]),
             )
     for entry in plan["frames"]:
@@ -744,6 +901,37 @@ def require_approved_catalogue(plan, catalogue):
             f"for catalogue {declared}"
         )
     return catalogue
+
+
+def require_approved_movement_catalogue(plan, shot_plan):
+    """Refuse a movement-camera catalogue that is not the one this render was planned for.
+
+    V2 only, mirroring :func:`require_approved_catalogue` for the fixed
+    catalogue. The movement catalogue is never shipped as a file: it is DERIVED
+    from the shot plan's own movement shots -- one ``{shot_id, camera}`` record
+    per non-STATIC movement shot, under the derived ``CAM_MOVEMENT_`` identity --
+    and the render plan binds its digest under ``movement_catalogue_sha256``.
+    This preflight recomputes the same digest from the same canonical bytes the
+    engine uses, so a plan binding a forged or stale movement catalogue is
+    refused before minutes are spent composing a world for it.
+
+    Raises:
+        PlanRefused: If the plan binds no movement catalogue, or binds one that
+            is not the digest of this shot plan's derived movement records.
+    """
+    declared = plan["source"].get(MOVEMENT_CATALOGUE_SOURCE_KEY)
+    if declared is None:
+        raise PlanRefused(
+            "the render plan binds no movement_catalogue_sha256; a V2 render plan must "
+            "bind the digest of its movement camera catalogue"
+        )
+    observed = sha256_hex(canonical_bytes(_movement_camera_records(shot_plan)))
+    if observed != declared:
+        raise PlanRefused(
+            f"the shot plan's movement camera catalogue hashes to {observed}, but this render "
+            f"was planned for catalogue {declared}"
+        )
+    return observed
 
 
 def apply_render_profile(bpy_module, profile: dict) -> dict:
@@ -1338,6 +1526,12 @@ def verify_active_camera(bpy_module, frame: int, expected: str) -> None:
     frame change. Asking the scene which camera it actually has -- rather than
     trusting that the markers were written correctly -- is what makes a frame's
     recorded camera a fact about the image instead of a copy of the plan.
+
+    Under V2 the same mechanism makes the movement camera active once the plan
+    names it: the movement applier binds a ``P22_MOVE_`` marker with the
+    movement camera, exactly as this phase binds its own markers, so no change
+    is needed here -- the expected name comes straight from the plan's frame
+    record, which under V2 already carries the derived movement identity.
 
     Raises:
         RuntimeError: If the scene has no camera or the wrong one.
@@ -1976,6 +2170,7 @@ def execute_render(
     plan: dict,
     render_dir: Path,
     limit: int | None = None,
+    camera_profile: str = "v1",
 ) -> dict:
     """Render every planned frame that is not already proven present.
 
@@ -1986,6 +2181,9 @@ def execute_render(
         limit: Stop after this many freshly rendered frames. Used by the
             interruption tests to produce a genuinely partial render; a
             production run passes nothing.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the
+            re-validation so a V2 plan with movement identities is re-checked
+            under the same profile that admitted it.
 
     Returns:
         The render result: per-frame facts, what was skipped, what was
@@ -1997,7 +2195,7 @@ def execute_render(
         RenderDirectoryRefused: If the directory cannot be resumed truthfully.
         RuntimeError: On any disagreement between the plan and the scene.
     """
-    require_render_plan(plan)
+    require_valid_render_plan(plan, camera_profile=camera_profile)
     plan_digest = sha256_hex(canonical_bytes(plan))
 
     # The environment is established BEFORE the directory is surveyed, because
@@ -2147,6 +2345,38 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="stop after this many freshly rendered frames (interruption testing only)",
     )
+    parser.add_argument(
+        "--camera-profile",
+        default="v1",
+        help="camera profile: 'v1' (default) or 'v2' (movement camera identities accepted)",
+    )
+    parser.add_argument(
+        "--mobility-profile",
+        choices=("v1", "v2"),
+        default="v1",
+        help="mobility profile: 'v1' (default) or 'v2' (open-trajectory pedestrian planning)",
+    )
+    parser.add_argument(
+        "--traffic-profile",
+        choices=("v1", "v2"),
+        default="v1",
+        help="traffic profile: 'v1' (default) or 'v2' (bounded-arc vehicle planning)",
+    )
+    parser.add_argument(
+        "--lighting-profile",
+        choices=("dna", "dna_daylight"),
+        default="dna",
+        help="lighting lane: 'dna' (default, today's exact lighting) or 'dna_daylight' "
+        "(Director-revision late-morning daylight; never touches exposure/view transform/look)",
+    )
+    parser.add_argument(
+        "--visibility-profile",
+        choices=("full", "director_clear_air_v1"),
+        default="full",
+        help="visibility lane: 'full' (default, today's exact presentation) or "
+        "'director_clear_air_v1' (declines to DRAW the per-district air haze; the "
+        "district-air fact itself is unchanged and still planned and reported)",
+    )
     return parser
 
 
@@ -2157,11 +2387,17 @@ def main() -> int:
 
     argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
     arguments = _build_parser().parse_args(argv)
+    camera_profile = arguments.camera_profile
+    if camera_profile not in ("v1", "v2"):
+        raise SystemExit(f"unknown camera profile {camera_profile!r}; expected 'v1' or 'v2'")
 
     # Everything is checked before anything is composed, rendered or written.
     # The order is the contract: a malformed or foreign plan must not create so
     # much as a directory.
-    plan = require_valid_render_plan(read_json_document(Path(arguments.render_plan), "render plan"))
+    plan = require_valid_render_plan(
+        read_json_document(Path(arguments.render_plan), "render plan"),
+        camera_profile=camera_profile,
+    )
 
     # The shot plan is identified by its EXACT bytes before it is parsed, so a
     # re-formatted or re-ordered copy of the same data -- a different file, with
@@ -2170,7 +2406,7 @@ def main() -> int:
     shot_plan_path = Path(arguments.shot_plan)
     require_shot_plan_bytes(plan, shot_plan_path.read_bytes())
     shot_plan = read_json_document(shot_plan_path, "shot direction plan")
-    require_plan_matches_shot_plan(plan, shot_plan)
+    require_plan_matches_shot_plan(plan, shot_plan, camera_profile=camera_profile)
 
     # A catalogue preflight, not a replacement for Phase 22's own semantic
     # check: that still runs over the composed scene. This one only refuses a
@@ -2178,6 +2414,8 @@ def main() -> int:
     # for it.
     catalogue = read_json_document(Path(arguments.catalogue), "camera catalogue")
     require_approved_catalogue(plan, catalogue)
+    if camera_profile == "v2" and MOVEMENT_CATALOGUE_SOURCE_KEY in plan["source"]:
+        require_approved_movement_catalogue(plan, shot_plan)
 
     # Every document the composed world is built from is checked by its RAW
     # bytes. Canonicalising first would accept a pretty-printed or re-ordered
@@ -2239,14 +2477,24 @@ def main() -> int:
         state_response_path=Path(arguments.state_response),
         before_path=before_path,
         after_path=after_path,
+        mobility_profile=arguments.mobility_profile,
+        traffic_profile=arguments.traffic_profile,
+        lighting_profile=arguments.lighting_profile,
+        visibility_profile=arguments.visibility_profile,
     )
     census = episode_scene.census_composed_world(
         bpy, expected, expect_state_response_motion=plan["source"]["mode"] != "baseline"
     )
-    episode_scene.direct_episode_world(bpy, shot_plan, catalogue)
+    episode_scene.direct_episode_world(bpy, shot_plan, catalogue, camera_profile=camera_profile)
 
     render_dir = Path(arguments.output_root).resolve() / plan["destination"]["render_id"]
-    result = execute_render(bpy, plan=plan, render_dir=render_dir, limit=arguments.limit)
+    result = execute_render(
+        bpy,
+        plan=plan,
+        render_dir=render_dir,
+        limit=arguments.limit,
+        camera_profile=camera_profile,
+    )
 
     print(f"LD_P23_RENDER_DIR {render_dir}")
     print(f"LD_P23_COMPOSITION {json.dumps(census, sort_keys=True)}")

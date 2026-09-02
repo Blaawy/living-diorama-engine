@@ -19,7 +19,8 @@ from typing import Any
 
 import pytest
 
-from living_diorama.cinematic import resolve_motion_time_binding
+from living_diorama.cinematic import build_shot_direction_plan_document, resolve_motion_time_binding
+from living_diorama.cinematic.cinematic_spec import catalogue_sha256
 from living_diorama.story import build_episode_story_plan_document
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -194,3 +195,119 @@ def story_ep1_to_ep2(_raw_exports: dict[int, dict[str, Any]]) -> dict[str, Any]:
     return build_episode_story_plan_document(
         copy.deepcopy(_raw_exports[2]), copy.deepcopy(_raw_exports[1])
     )
+
+
+@pytest.fixture
+def plan_ep1(story_ep0_to_ep1: dict[str, Any], motion_time: bytes) -> dict[str, Any]:
+    """The genuine four-shot episode 0 -> 1 shot direction plan."""
+    return build_shot_direction_plan_document(story_ep0_to_ep1, motion_time)
+
+
+def synthetic_720_shot_plan() -> dict[str, Any]:
+    """A synthetic-but-structurally-identical 720-frame transition shot plan.
+
+    Same top-level shape, same eight-key shots, same closed vocabularies, same
+    tiling/adjacency/loop-closure rules as a genuine V1 plan -- but on a
+    720-frame clock whose digest is synthetic, so the repo's validator (which
+    pins the canonical 193-frame clock) refuses it only at the source-digest
+    step. That is the one deliberate deviation, and it is stated here.
+    """
+
+    def beat(shot_id, anchor, start, end, beats, reason, emphasis):
+        return {
+            "camera_anchor_id": anchor,
+            "emphasis": emphasis,
+            "end_frame": end,
+            "kind": "BEAT",
+            "reason_code": reason,
+            "shot_id": shot_id,
+            "source_beat_ids": beats,
+            "start_frame": start,
+        }
+
+    shots = [
+        {
+            "camera_anchor_id": "CAM_HERO_WORLD",
+            "emphasis": None,
+            "end_frame": 24,
+            "kind": "ESTABLISHING",
+            "reason_code": "NEUTRAL_ESTABLISHING",
+            "shot_id": "shot_0001",
+            "source_beat_ids": [],
+            "start_frame": 1,
+        },
+        beat("shot_0002", "CAM_SEAL_DETAIL", 25, 120, ["beat_0001"], "BEAT_KIND_RULE", "PRIMARY"),
+        beat(
+            "shot_0003", "CAM_SCAR_DETAIL", 121, 192, ["beat_0002"], "BEAT_KIND_RULE", "SECONDARY"
+        ),
+        beat("shot_0004", "CAM_HERO_SCAR", 193, 288, ["beat_0003"], "BEAT_KIND_RULE", "PRIMARY"),
+        beat("shot_0005", "CAM_P16_URBAN", 289, 384, ["beat_0004"], "BEAT_KIND_RULE", "PRIMARY"),
+        beat(
+            "shot_0006", "CAM_HERO_WORLD", 385, 456, ["beat_0005"], "UNKNOWN_BEAT_KIND", "SECONDARY"
+        ),
+        beat(
+            "shot_0007",
+            "CAM_SEAL_DETAIL",
+            457,
+            552,
+            ["beat_0006", "beat_0007"],
+            "ADJACENT_SAME_ANCHOR_MERGED",
+            "PRIMARY",
+        ),
+        beat("shot_0008", "CAM_P16_URBAN", 553, 600, ["beat_0008"], "BEAT_KIND_RULE", "SECONDARY"),
+        beat(
+            "shot_0009",
+            "CAM_P16_SCAR_CONTEXT",
+            601,
+            648,
+            ["beat_0009"],
+            "BEAT_KIND_RULE",
+            "PRIMARY",
+        ),
+        {
+            "camera_anchor_id": "CAM_HERO_WORLD",
+            "emphasis": None,
+            "end_frame": 720,
+            "kind": "ESTABLISHING",
+            "reason_code": "NEUTRAL_ESTABLISHING",
+            "shot_id": "shot_0010",
+            "source_beat_ids": [],
+            "start_frame": 649,
+        },
+    ]
+    return {
+        "format": "living_diorama_shot_direction_plan",
+        "schema_version": 1,
+        "shots": shots,
+        "source": {
+            "catalogue_sha256": catalogue_sha256(),
+            "episode": 1,
+            "mode": "transition",
+            "motion_time_format": "living_diorama_motion_time",
+            "motion_time_schema_version": 1,
+            # Synthetic clock digest: the 720-frame timeline is not the repo's
+            # canonical 193-frame Phase 17 clock, so its digest cannot be the
+            # pinned canonical one. Stated, never hidden.
+            "motion_time_sha256": "ab" * 32,
+            "previous_episode": 0,
+            "story_plan_sha256": "cd" * 32,
+            "story_schema_version": 1,
+        },
+        "timeline": {
+            "end_frame": 720,
+            "end_hold_frames": 47,
+            "fps": 24,
+            "start_frame": 1,
+            "start_hold_frames": 24,
+            "transition_end": 673,
+            "transition_frames": 648,
+            "transition_start": 25,
+        },
+        "unshown": [],
+    }
+
+
+@pytest.fixture
+def synthetic_720() -> dict[str, Any]:
+    """The synthetic-but-structurally-identical 720-frame EP1-scale plan."""
+    return synthetic_720_shot_plan()

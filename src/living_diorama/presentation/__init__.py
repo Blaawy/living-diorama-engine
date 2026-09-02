@@ -5,8 +5,9 @@ viewer see each locked semantic playback frame, so that every narration
 unit's Phase 25 delivery slot receives sufficient deterministic viewer-facing
 capacity? It answers from structure alone -- each unit's already
 story-proven ``text_source`` classification and the length of the slot it
-already owns -- and binds every answer back to the exact delivery plan,
-narration plan and language realization plan it read.
+already owns (V1 and V2), or, under the V3 profile, the unit's own realized
+text length plus that same slot length -- and binds every answer back to the
+exact delivery plan, narration plan and language realization plan it read.
 
 PRESENTATION MAY EXTEND HOW LONG THE VIEWER SEES LOCKED SEMANTIC TRUTH. IT
 DECIDES NOTHING ELSE.
@@ -25,22 +26,27 @@ Narration Delivery Plan, the Episode Narration Plan it schedules, and the
 Episode Language Realization Plan built from that same narration. It must
 never reach into live simulation, never import ``living_diorama.story``,
 ``living_diorama.render``, ``living_diorama.render_execution`` or
-``living_diorama.memory``, never read a narration unit's ``text``, a
-realization's ``realized_text``, or a memory fact's ``summary``, never mutate
-its inputs, and never call a model or a network service at runtime. Before
-any upstream timing or classification truth becomes authoritative, this
-layer's cross-check reuses -- in full, unweakened -- the two locked upstream
-source-verification gates that already own those proofs: Phase 25's, against
-the actual narration and shot plans, and Phase 26's, against the actual story
-plan and render export. The Shot Direction Plan, Episode Story Plan and
-Render Export travel through this layer only as arguments to those two
-gates; none of the three is ever bound in this plan's own source block or
-consumed by its own derivation.
+``living_diorama.memory``, never read a narration unit's ``text`` or a memory
+fact's ``summary``, never mutate its inputs, and never call a model or a
+network service at runtime. It also never reads a realization's
+``realized_text`` -- with one reviewed exception: the V3 profile's
+content-sized window floor counts the whitespace tokens of each
+``realized_text``, the Director-mandated price of the absolute no-reverse-time
+rule. Before any upstream timing or classification truth becomes
+authoritative, this layer's cross-check reuses -- in full, unweakened -- the
+two locked upstream source-verification gates that already own those proofs:
+Phase 25's, against the actual narration and shot plans, and Phase 26's,
+against the actual story plan and render export. The Shot Direction Plan,
+Episode Story Plan and Render Export travel through this layer only as
+arguments to those two gates; none of the three is ever bound in this plan's
+own source block or consumed by its own derivation.
 
-The one presentation policy has exactly two tunable constants -- a window
-floor for a template-backed unit and one for a fact-backed unit -- fixed at
-review time in ``presentation_spec``, and is part of this contract's schema
-version.
+The V1/V2 policy has exactly two tunable constants -- a window floor for a
+template-backed unit and one for a fact-backed unit -- fixed at review time in
+``presentation_spec``, and is part of this contract's schema version. The V3
+profile replaces those floors with two different commander-chosen constants
+(12 frames per word and an 18-frame comprehension buffer) defined in the
+planner.
 
 Downstream layers (voice realization, caption projection, audio and episode
 assembly) consume the plan this package produces and are not part of it. A
@@ -64,6 +70,7 @@ from living_diorama.presentation.presentation_schema_v1 import (
     SUPPORTED_REALIZATION_SCHEMA_VERSION,
     validate_episode_presentation_plan,
 )
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.presentation.presentation_spec import (
     MAX_PRESENTATION_FRAME,
     PRESENTATION_PLAN_FORMAT,
@@ -95,6 +102,7 @@ __all__ = [
     "build_episode_presentation_plan_document",
     "validate_episode_presentation_plan",
     "validate_episode_presentation_plan_against_sources",
+    "validate_presentation_plan",
     "window_and_hold",
     "window_frames_for_text_source",
 ]

@@ -22,7 +22,7 @@ was about a different episode.
 
 from typing import Final, cast
 
-from living_diorama.cinematic import validate_shot_direction_plan
+from living_diorama.cinematic import validate_shot_direction_plan_v2
 from living_diorama.narration.narration_facts import fact_summary_for_evidence
 from living_diorama.narration.narration_schema_v1 import (
     NARRATION_PLAN_FORMAT,
@@ -250,7 +250,7 @@ def build_episode_narration_plan_document(
             sentence would make a causal or visual claim.
     """
     story = validate_episode_story_plan(story_plan)
-    shots = validate_shot_direction_plan(shot_plan)
+    shots = validate_shot_direction_plan_v2(shot_plan)
     export = cast(dict[str, JsonValue], validate_render_export(current_export))
 
     source = _require_join(story, shots, export)

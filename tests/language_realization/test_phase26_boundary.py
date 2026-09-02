@@ -19,6 +19,7 @@ PURE_MODULES = (
     PACKAGE / "__init__.py",
     PACKAGE / "realization_atoms.py",
     PACKAGE / "realization_cross_check.py",
+    PACKAGE / "realization_guidance.py",
     PACKAGE / "realization_planner.py",
     PACKAGE / "realization_schema_v1.py",
     PACKAGE / "realization_spec.py",
@@ -43,6 +44,7 @@ PHASE26_TEST_FILES = (
     TESTS / "test_realization_planner.py",
     TESTS / "test_realization_schema.py",
     TESTS / "test_realization_spec.py",
+    TESTS / "test_realization_wording_v2.py",
 )
 
 PHASE26_FIXTURES = (
@@ -60,6 +62,7 @@ ALLOWED_ENGINE_MODULES = frozenset(
         "living_diorama.language_realization",
         "living_diorama.language_realization.realization_atoms",
         "living_diorama.language_realization.realization_cross_check",
+        "living_diorama.language_realization.realization_guidance",
         "living_diorama.language_realization.realization_planner",
         "living_diorama.language_realization.realization_schema_v1",
         "living_diorama.language_realization.realization_spec",
@@ -338,7 +341,7 @@ def test_the_guard_covers_every_fixture_this_phase_ships() -> None:
 
 def test_the_file_count_is_exact() -> None:
     """An inventory that grows silently is not an inventory."""
-    assert len(PHASE26_FILES) == 21
+    assert len(PHASE26_FILES) == 23
 
 
 def test_the_fixtures_are_byte_identical_to_the_narration_suite() -> None:

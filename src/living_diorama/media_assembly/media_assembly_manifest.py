@@ -11,6 +11,16 @@ completeness claim while holding a partial result.
 document is never parsed by Phase 33 anywhere, so there is no document to hash it from --
 only the digest already captured, and already proven by
 :func:`living_diorama.media_assembly.media_assembly_binding.require_assembly_sources_join`.
+
+The presentation plan is validated through the profile dispatcher
+(:func:`living_diorama.presentation.presentation_schema_v2.validate_presentation_plan`), so
+a V2 plan binds into a manifest exactly as a V1 plan does; the manifest records the plan's
+own (unchanged) ``schema_version`` either way.
+
+The render manifest is validated through the same keyword-only ``camera_profile`` the
+render phase itself uses: the caller decides the profile (V1 default, or ``"v2"`` for a
+render produced with ``camera_profile="v2"`` carrying ``movement_catalogue_sha256``) and
+passes it explicitly -- this module never inspects the document to guess.
 """
 
 from typing import cast
@@ -33,7 +43,7 @@ from living_diorama.narration_delivery.delivery_schema_v1 import (
 )
 from living_diorama.persistence.json_codec import dumps_canonical
 from living_diorama.persistence.schema.state_hash import sha256_hex
-from living_diorama.presentation.presentation_schema_v1 import validate_episode_presentation_plan
+from living_diorama.presentation.presentation_schema_v2 import validate_presentation_plan
 from living_diorama.render_execution.render_execution_schema_v1 import (
     validate_episode_render_manifest,
 )
@@ -55,14 +65,15 @@ def build_episode_media_assembly_manifest_document(
     clock: dict[str, int],
     frames: tuple[dict[str, object], ...],
     audio: dict[str, object],
+    camera_profile: str = "v1",
 ) -> dict[str, JsonValue]:
     """Return the manifest for one completed media assembly.
 
     Args:
         render_manifest: The parsed, gate-verified Phase 23 render manifest this assembly
             bound. Its own digest is bound into the manifest.
-        presentation_plan: The parsed, gate-verified Phase 27 presentation plan this
-            assembly bound.
+        presentation_plan: The parsed, gate-verified Phase 27 presentation plan (V1 or V2)
+            this assembly bound.
         audio_composition_manifest: The parsed, gate-verified Phase 31 audio composition
             manifest this assembly bound.
         delivery_plan: The parsed, gate-verified Phase 25 delivery witness this assembly
@@ -74,6 +85,9 @@ def build_episode_media_assembly_manifest_document(
             record must carry exactly the five ``FRAME_KEYS``.
         audio: What the assembly measured about the carried track. Exactly the six
             ``AUDIO_KEYS``.
+        camera_profile: ``"v1"`` (default) or ``"v2"``, threaded into the render manifest
+            validator so a V2 manifest carrying movement-camera identities and the
+            movement-catalogue binding validates under the same profile it was built under.
 
     Returns:
         The complete, validated manifest document.
@@ -84,8 +98,8 @@ def build_episode_media_assembly_manifest_document(
             result's keys are not exactly ``AUDIO_KEYS``, or if any bound document is
             invalid.
     """
-    render = validate_episode_render_manifest(render_manifest)
-    presentation = validate_episode_presentation_plan(presentation_plan)
+    render = validate_episode_render_manifest(render_manifest, camera_profile=camera_profile)
+    presentation = validate_presentation_plan(presentation_plan)
     composition = validate_episode_audio_composition_manifest(audio_composition_manifest)
     delivery = validate_episode_narration_delivery_plan(delivery_plan)
 
@@ -176,6 +190,7 @@ def build_episode_media_assembly_manifest_bytes(
     clock: dict[str, int],
     frames: tuple[dict[str, object], ...],
     audio: dict[str, object],
+    camera_profile: str = "v1",
 ) -> bytes:
     """Return the canonical bytes of one episode media assembly manifest."""
     return dumps_canonical(
@@ -188,6 +203,7 @@ def build_episode_media_assembly_manifest_bytes(
             clock=clock,
             frames=frames,
             audio=audio,
+            camera_profile=camera_profile,
         ),
         "episode media assembly manifest",
     )

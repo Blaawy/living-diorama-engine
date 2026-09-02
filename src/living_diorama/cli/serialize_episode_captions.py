@@ -114,6 +114,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--output-root", required=True, help="where to publish the captions directory"
     )
+    parser.add_argument(
+        "--presentation-profile",
+        choices=("v1", "v2", "v3", "v4"),
+        default=None,
+        help=(
+            "the presentation profile the reused Phase 27 gate inside the Phase 32 "
+            "verification re-derives the presentation plan under; v1 reproduces today's "
+            "bytes exactly, v2 verifies the additive motion-window plan, v3 verifies the "
+            "frozen, content-sized plan with no motion windows; when the flag is omitted "
+            "today's exact behavior is preserved"
+        ),
+    )
     namespace = parser.parse_args(argv)
 
     try:
@@ -147,6 +159,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             story_plan=story,
             current_export=export,
             output_root=Path(namespace.output_root),
+            presentation_profile=namespace.presentation_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)

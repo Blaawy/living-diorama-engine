@@ -25,6 +25,13 @@ that returns to where it began. Neither goes anywhere, and that is deliberate:
 going somewhere would be a claim about a person or a journey this world does
 not model.
 
+The V2 traffic profile (``traffic_profile="v2"``) keeps that geometry -- the
+same closed circuits are the only real roads vehicles use -- but changes how
+much of a circuit's real geometry a vehicle SHOWS moving: a V2 vehicle drives a
+bounded arc (``presentation_arc_fraction`` of its circuit) instead of a full
+lap, so it never returns to a screen position it already occupied. V1 is
+untouched byte-for-byte.
+
 WHY THE COLLISION PROOF IS REBUILT FROM SCRATCH
 -----------------------------------------------
 A validator that asked the generator whether the generator was right would
@@ -48,8 +55,10 @@ import json
 import math
 
 import pedestrian_mobility as walking
+import pedestrian_mobility_v2
 import vehicle_kit
 from mobility_spec import mobility_seed, pedestrian_route_length
+from mobility_traffic_v2 import plan_vehicle_traffic_v2
 from pedestrian_topology import build_presence_occupancy, street_occupancy_shapes
 from population_presence_spec import FIGURE_AXES
 from spatial_occupancy import circle, rect, shape_gap
@@ -72,6 +81,28 @@ PRESENTATION_STATEMENT = (
     "driver, owner, passenger, cargo or history."
 )
 """The sentence every manifest must carry, so the claim is never overstated."""
+
+V2_PRESENTATION_ARC_FRACTION = 0.75
+"""The bounded arc each V2 traffic vehicle drives in ONE presentation clip.
+
+A V2 vehicle on a circuit of length ``L`` travels exactly
+``V2_PRESENTATION_ARC_FRACTION * L`` metres over the canonical 8-second clip
+instead of V1's full lap. 0.75 is strictly below 1.0, so the arc never wraps
+past its own start: the vehicle starts at its slot phase and stops 75% of a
+lap later, a genuine "enters, drives, exits" presentation on the circuit's
+real road geometry, and no V2 vehicle ever revisits a screen position it has
+already occupied within one clip (see the no-repeat test in
+``test_mobility_traffic_v2.py``).
+
+The fraction is a single deterministic constant, deliberately NOT drawn per
+vehicle: every vehicle on one circuit must cover the same distance in the same
+time, so their mutual headway stays exactly as constant as V1's. A per-vehicle
+draw would give same-circuit vehicles different speeds and let a faster car
+catch a slower one inside the clip. At 75% of the locked 4-10 m/s circuit band
+the real average speed is 3.0-7.5 m/s (11-27 km/h), plausible city traffic,
+and it is REPORTED as the vehicle's real speed -- the honest distance/time
+figure -- rather than masked as the full-lap number.
+"""
 
 
 class MobilityPlanError(ValueError):
@@ -512,7 +543,13 @@ def vehicle_route_slots(circuits: list[dict]) -> list[dict]:
 
 
 def plan_vehicle_mobility(
-    mobility_spec: dict, timeline: dict, master_spec: dict, graph: dict, fabric_plan: dict
+    mobility_spec: dict,
+    timeline: dict,
+    master_spec: dict,
+    graph: dict,
+    fabric_plan: dict,
+    *,
+    traffic_profile: str = "v1",
 ) -> dict:
     """The city's ambient traffic: which circuits, how many, and what they are.
 
@@ -520,16 +557,49 @@ def plan_vehicle_mobility(
     cannot carry it at the declared pitch, this raises with the capacity it
     actually found and the reason each rejected circuit was rejected; it never
     quietly ships fewer vehicles and calls the target met.
+
+    ``traffic_profile`` selects which candidate set the lane network is asked
+    to carry. ``"v1"`` (the default) reproduces today's behaviour byte-for-byte
+    through the existing ``plan_vehicle_lanes`` gate. ``"v2"`` feeds the SAME
+    gate a LARGER candidate set -- closed circuits AND open out-and-back routes
+    -- via ``mobility_traffic_v2.plan_vehicle_traffic_v2``, which reuses the
+    existing pairwise gate (shared lane claims plus ``worst_body_gap``)
+    unchanged and asks the existing exact-search selection to prefer a set that
+    contains an open route (``prefer_open_routes=True``); V1 never passes that
+    preference, so V1's selection stays byte-for-byte today's.
+
+    The OTHER V2 difference is presentation, not selection. With
+    ``traffic_profile="v2"`` every vehicle drives a bounded ARC of its circuit
+    (``presentation_arc_fraction``, see ``V2_PRESENTATION_ARC_FRACTION``)
+    instead of V1's full lap, so no V2 vehicle ever revisits a screen position
+    within one clip. The arc needs no wheel-closure solve: the real wheel
+    rolls the arc's real distance at the geometric radius, and the collision
+    proof reads the same arc distance (see ``mobility_collisions``), so the
+    engine, the proof and the Blender keyframing all agree on one number.
     """
     entry = mobility_spec["vehicles"]
-    lanes = plan_vehicle_lanes(
-        master_spec,
-        graph,
-        fabric_plan["ground"],
-        mobility_spec,
-        vehicle_kit.widest_vehicle() / 2.0,
-        timeline,
-    )
+    if traffic_profile == "v1":
+        lanes = plan_vehicle_lanes(
+            master_spec,
+            graph,
+            fabric_plan["ground"],
+            mobility_spec,
+            vehicle_kit.widest_vehicle() / 2.0,
+            timeline,
+        )
+    elif traffic_profile == "v2":
+        lanes = plan_vehicle_traffic_v2(
+            master_spec,
+            graph,
+            fabric_plan["ground"],
+            mobility_spec,
+            vehicle_kit.widest_vehicle() / 2.0,
+            timeline,
+        )
+    else:
+        raise MobilityPlanError(
+            f"unknown traffic_profile {traffic_profile!r}; expected 'v1' or 'v2'"
+        )
     slots = vehicle_route_slots(lanes["circuits"])
     target = int(entry["target_count"])
     if target > len(slots):
@@ -553,45 +623,68 @@ def plan_vehicle_mobility(
         paint = vehicle_kit.PAINT_FAMILIES[rng.randrange(len(vehicle_kit.PAINT_FAMILIES))]
         size = vehicle_kit.vehicle_dimensions(archetype)
         circuit = circuits[slot["circuit"]]
-        # A wheel must be in the same state on the first and last frame MODULO
-        # FULL REVOLUTIONS, so the revolution count has to be a whole number.
-        # It will not be for a geometric radius: this circuit rolls a 0.372m
-        # wheel 32.85 times. The answer is the distinction every tyre already
-        # has -- a ROLLING radius, slightly under the geometric one because a
-        # loaded tyre deflects. Rounding the revolutions and solving for the
-        # rolling radius closes the loop exactly. The spec permits at most five
-        # percent drift; the canonical fourteen remain under two percent.
-        travelled = circuit["length"] * mobility_spec["cycle"]["vehicle_cycles"]
-        exact = travelled / (2.0 * math.pi * size["wheel_radius"])
-        turns = max(1, int(math.floor(exact + 0.5)))
-        rolling = travelled / (2.0 * math.pi * turns)
-        drift = abs(rolling / size["wheel_radius"] - 1.0)
-        if drift > float(entry["rolling_radius_tolerance"]):
-            raise MobilityPlanError(
-                f"closing {slot['slot']}'s wheels on {turns} whole revolutions needs a "
-                f"{rolling:.4f}m rolling radius against a {size['wheel_radius']}m wheel, "
-                f"{drift:.1%} off the declared tolerance"
-            )
-        vehicles.append(
-            {
-                "slot": slot["slot"],
-                "circuit": slot["circuit"],
-                "circuit_index": slot["index"],
-                "phase": round(slot["phase"], 9),
-                "archetype": archetype,
-                "paint": paint,
-                "length": size["length"],
-                "width": size["width"],
-                "height": size["height"],
-                "wheel_radius": size["wheel_radius"],
-                "rolling_radius": round(rolling, 9),
-                "rolling_radius_drift": round(drift, 9),
-                "speed": circuit["speed"],
-                "route_length": circuit["length"],
-                "cycles": mobility_spec["cycle"]["vehicle_cycles"],
-                "wheel_turns": turns,
-            }
-        )
+        if traffic_profile == "v2":
+            # V2 presentation: the vehicle drives a bounded ARC of its circuit
+            # (V2_PRESENTATION_ARC_FRACTION of the full length), never a full
+            # lap, so there is no loop to close and no wheel-closure contract.
+            # The real wheel simply rolls continuously over the arc's real
+            # distance at its geometric radius -- no rolling-radius solve,
+            # because nothing has to match up modulo a full loop. Every
+            # vehicle on a circuit shares the SAME arc fraction (deliberately
+            # never a per-vehicle draw), which keeps all of them at the same
+            # speed and preserves V1's constant same-circuit headway exactly.
+            arc_fraction = V2_PRESENTATION_ARC_FRACTION
+            arc_distance = circuit["length"] * arc_fraction
+            turns = arc_distance / (2.0 * math.pi * size["wheel_radius"])
+            rolling = size["wheel_radius"]
+            drift = 0.0
+            speed = circuit["speed"] * arc_fraction
+        else:
+            # V1 byte-for-byte: a wheel must be in the same state on the first
+            # and last frame MODULO FULL REVOLUTIONS, so the revolution count
+            # has to be a whole number. It will not be for a geometric radius:
+            # this circuit rolls a 0.372m wheel 32.85 times. The answer is the
+            # distinction every tyre already has -- a ROLLING radius, slightly
+            # under the geometric one because a loaded tyre deflects. Rounding
+            # the revolutions and solving for the rolling radius closes the
+            # loop exactly. The spec permits at most five percent drift; the
+            # canonical fourteen remain under two percent.
+            travelled = circuit["length"] * mobility_spec["cycle"]["vehicle_cycles"]
+            exact = travelled / (2.0 * math.pi * size["wheel_radius"])
+            turns = max(1, int(math.floor(exact + 0.5)))
+            rolling = travelled / (2.0 * math.pi * turns)
+            drift = abs(rolling / size["wheel_radius"] - 1.0)
+            if drift > float(entry["rolling_radius_tolerance"]):
+                raise MobilityPlanError(
+                    f"closing {slot['slot']}'s wheels on {turns} whole revolutions needs a "
+                    f"{rolling:.4f}m rolling radius against a {size['wheel_radius']}m wheel, "
+                    f"{drift:.1%} off the declared tolerance"
+                )
+            arc_fraction = 1.0
+            arc_distance = circuit["length"]
+            speed = circuit["speed"]
+        vehicle = {
+            "slot": slot["slot"],
+            "circuit": slot["circuit"],
+            "circuit_index": slot["index"],
+            "phase": round(slot["phase"], 9),
+            "archetype": archetype,
+            "paint": paint,
+            "length": size["length"],
+            "width": size["width"],
+            "height": size["height"],
+            "wheel_radius": size["wheel_radius"],
+            "rolling_radius": round(rolling, 9),
+            "rolling_radius_drift": round(drift, 9),
+            "speed": circuit["speed"] if traffic_profile == "v1" else round(speed, 6),
+            "route_length": circuit["length"],
+            "cycles": mobility_spec["cycle"]["vehicle_cycles"],
+            "wheel_turns": turns if traffic_profile == "v1" else round(turns, 9),
+        }
+        if traffic_profile == "v2":
+            vehicle["presentation_arc_fraction"] = arc_fraction
+            vehicle["arc_distance"] = round(arc_distance, 9)
+        vehicles.append(vehicle)
     by_archetype: dict[str, int] = {}
     for vehicle in vehicles:
         by_archetype[vehicle["archetype"]] = by_archetype.get(vehicle["archetype"], 0) + 1
@@ -659,6 +752,10 @@ def _mover_tracks(plan: dict, timeline: dict) -> dict:
             "length": entry["route_length"],
             "cycles": entry["cycles"],
             "phase": entry["phase"],
+            # V2 vehicles carry their own bounded arc; V1 defaults to a full
+            # lap (arc_fraction 1.0), so the proof below reads ONE number and
+            # never forks on which traffic profile produced the plan.
+            "arc_fraction": float(entry.get("presentation_arc_fraction", 1.0)),
             "half_length": entry["length"] / 2.0,
             "half_width": entry["width"] / 2.0,
         }
@@ -697,6 +794,13 @@ def mobility_collisions(
     routes that never overlap in SPACE are still safe, but two that cross are
     only safe if they never cross at the same TIME, and only a walk through the
     timeline can tell the difference.
+
+    V2 vehicles are proven on their BOUNDED ARC: each vehicle's distance is
+    ``phase * length + arc_fraction * length * (frame - start) / span``, the
+    same number the Blender-side per-vehicle ``eval_time`` keyframing renders
+    (see ``apply_mobility.build_vehicle_arc_path``), so this proof is proving
+    the actual V2 motion, not the old full-loop assumption. V1 vehicles have
+    ``arc_fraction == 1.0`` and reduce to today's exact formula.
     """
     tracks = _mover_tracks(plan, timeline)
     stationary = [
@@ -733,8 +837,9 @@ def mobility_collisions(
         placed_vehicles = {}
         for slot in vehicle_ids:
             entry = tracks["vehicles"][slot]
+            arc = entry.get("arc_fraction", 1.0)
             distance = entry["phase"] * entry["length"] + frame_distance(
-                frame, timeline, entry["length"], entry["cycles"]
+                frame, timeline, entry["length"] * arc, entry["cycles"]
             )
             placed_vehicles[slot] = sample_loop(entry["stations"], distance)
 
@@ -830,14 +935,41 @@ def plan_daily_life_mobility(
     production_spec: dict,
     graph: dict,
     fabric_plan: dict,
+    *,
+    mobility_profile: str = "v1",
 ) -> dict:
     """The whole moving city, as one document that explains itself.
 
+    ``mobility_profile`` selects the pedestrian document shape. ``"v1"``
+    (the default) reproduces today's closed-loop presentation mobility
+    byte-for-byte. ``"v2"`` returns the additive open-trajectory pedestrian
+    document from :mod:`pedestrian_mobility_v2` instead -- a self-contained
+    plan with no vehicle circuits and no loop collision proof, since the
+    open-trajectory schema does not share V1's closed-loop shape. Vehicle
+    traffic profile selection is independent and unaffected by this
+    parameter; see :func:`plan_vehicle_mobility`'s own ``traffic_profile``.
+
     Raises:
-        MobilityPlanError: If the city cannot carry the declared traffic, if a
+        MobilityPlanError: If ``mobility_profile`` is not ``"v1"`` or
+            ``"v2"``, if the city cannot carry the declared traffic, if a
             route cannot be proven safe, or if the finished plan's own
             collision proof fails.
     """
+    if mobility_profile == "v2":
+        return pedestrian_mobility_v2.plan_daily_life_mobility_v2(
+            presence_plan,
+            presence_spec,
+            mobility_spec,
+            timeline,
+            master_spec,
+            production_spec,
+            graph,
+            fabric_plan,
+        )
+    if mobility_profile != "v1":
+        raise MobilityPlanError(
+            f"unknown mobility_profile {mobility_profile!r}; expected 'v1' or 'v2'"
+        )
     pedestrians = plan_pedestrian_mobility(
         presence_plan,
         mobility_spec,
@@ -941,7 +1073,6 @@ def validate_mobility_plan(plan: dict, presence_plan: dict, mobility_spec: dict)
         errors.append(f"plan schema_version is {plan.get('schema_version')!r}")
     if plan.get("statement") != PRESENTATION_STATEMENT:
         errors.append("the plan does not carry the presentation-mobility statement verbatim")
-
     known = {proxy["slot"]: proxy for proxy in presence_plan["proxies"]}
     pedestrians = plan["pedestrians"]
     if pedestrians["total_proxies"] != len(known):
@@ -1059,23 +1190,43 @@ def validate_mobility_plan(plan: dict, presence_plan: dict, mobility_spec: dict)
                 errors.append(
                     f"{vehicle['slot']} claims {field} {vehicle[field]}, the kit builds {size[key]}"
                 )
-        travelled = circuit["length"] * vehicle["cycles"]
-        if vehicle["wheel_turns"] != int(vehicle["wheel_turns"]):
-            errors.append(
-                f"{vehicle['slot']} claims {vehicle['wheel_turns']} wheel turns, which is not "
-                "a whole number; its wheels would not close the loop"
-            )
-        rolled = 2.0 * math.pi * vehicle["rolling_radius"] * vehicle["wheel_turns"]
-        if abs(rolled - travelled) > 1.0e-6:
-            errors.append(
-                f"{vehicle['slot']} rolls {rolled:.6f}m on {vehicle['wheel_turns']} turns of a "
-                f"{vehicle['rolling_radius']}m wheel, over a {travelled:.6f}m circuit"
-            )
-        drift = abs(vehicle["rolling_radius"] / size["wheel_radius"] - 1.0)
-        if drift > mobility_spec["vehicles"]["rolling_radius_tolerance"] + 1.0e-9:
-            errors.append(
-                f"{vehicle['slot']} rolling radius is {drift:.1%} from its geometric wheel"
-            )
+        arc_fraction = float(vehicle.get("presentation_arc_fraction", 1.0))
+        if not 0.0 < arc_fraction <= 1.0:
+            errors.append(f"{vehicle['slot']} claims an arc fraction {arc_fraction} outside (0, 1]")
+        travelled = circuit["length"] * vehicle["cycles"] * arc_fraction
+        if arc_fraction < 1.0:
+            # V2 bounded arc: no whole-revolution closure contract. The real
+            # wheel rolls the arc's real distance at the geometric radius, so
+            # there is nothing to solve for -- the plan's own numbers must
+            # simply agree with each other.
+            rolled = 2.0 * math.pi * vehicle["rolling_radius"] * vehicle["wheel_turns"]
+            if abs(rolled - travelled) > 1.0e-6:
+                errors.append(
+                    f"{vehicle['slot']} rolls {rolled:.6f}m on {vehicle['wheel_turns']} turns "
+                    f"of a {vehicle['rolling_radius']}m wheel, over a {travelled:.6f}m arc"
+                )
+            if abs(float(vehicle["rolling_radius"]) - size["wheel_radius"]) > 1.0e-9:
+                errors.append(
+                    f"{vehicle['slot']} uses a {vehicle['rolling_radius']}m rolling radius that "
+                    "is not its real wheel; a bounded arc needs no rolling-radius solve"
+                )
+        else:
+            if vehicle["wheel_turns"] != int(vehicle["wheel_turns"]):
+                errors.append(
+                    f"{vehicle['slot']} claims {vehicle['wheel_turns']} wheel turns, which is not "
+                    "a whole number; its wheels would not close the loop"
+                )
+            rolled = 2.0 * math.pi * vehicle["rolling_radius"] * vehicle["wheel_turns"]
+            if abs(rolled - travelled) > 1.0e-6:
+                errors.append(
+                    f"{vehicle['slot']} rolls {rolled:.6f}m on {vehicle['wheel_turns']} turns of a "
+                    f"{vehicle['rolling_radius']}m wheel, over a {travelled:.6f}m circuit"
+                )
+            drift = abs(vehicle["rolling_radius"] / size["wheel_radius"] - 1.0)
+            if drift > mobility_spec["vehicles"]["rolling_radius_tolerance"] + 1.0e-9:
+                errors.append(
+                    f"{vehicle['slot']} rolling radius is {drift:.1%} from its geometric wheel"
+                )
         seen_phase.setdefault(vehicle["circuit"], []).append(vehicle["phase"])
     for circuit_id, phases in sorted(seen_phase.items()):
         circuit = circuits[circuit_id]

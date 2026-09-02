@@ -10,6 +10,8 @@ import pytest
 from living_diorama.cli import compose_episode_audio
 from living_diorama.persistence.json_codec import dumps_canonical
 
+from .conftest import build_manifest, write_voice_directory
+
 
 def _write(path, document, description) -> None:
     """Write."""
@@ -344,3 +346,71 @@ def test_cli_direct_output_root_verified_no_op(
     assert compose_episode_audio.main(args) == 0
     capsys.readouterr()
     assert compose_episode_audio.main(args) == 0  # verified no-op, still exit 0
+
+
+# ---------------------------------------------------------------------------
+# The --presentation-profile flag: a real v3 presentation plan end to end
+# ---------------------------------------------------------------------------
+
+
+def _v3_chain(tmp_path, sources_ep1):
+    """Build a fully v3-consistent chain; return (v3_sources, v3_track, v3_voice_dir)."""
+    from living_diorama.audio_track import build_episode_audio_track_plan_document
+    from living_diorama.presentation import build_episode_presentation_plan_document
+    from living_diorama.voice import build_episode_voice_plan_document
+
+    realization, _presentation, delivery, narration, shots, story, export = sources_ep1
+    v3_presentation = build_episode_presentation_plan_document(
+        delivery, narration, realization, presentation_profile="v3"
+    )
+    v3_voice_plan = build_episode_voice_plan_document(realization, v3_presentation)
+    v3_manifest = build_manifest(v3_voice_plan, patterned=True)
+    v3_voice_dir = write_voice_directory(
+        tmp_path / "voice", v3_voice_plan, v3_manifest, patterned=True
+    )
+    v3_track = build_episode_audio_track_plan_document(v3_manifest, v3_presentation)
+    v3_sources = (realization, v3_presentation, delivery, narration, shots, story, export)
+    return v3_sources, v3_track, v3_voice_dir
+
+
+def test_the_v3_presentation_profile_flag_accepts_a_real_v3_presentation_plan(
+    tmp_path, sources_ep1, capsys
+) -> None:
+    """``--presentation-profile v3`` admits the real frozen, content-sized plan.
+
+    A real V3 presentation plan carries no ``motion_windows``, so under the
+    default (v1) derivation the reused Phase 30 gate re-derives V1 bytes and
+    refuses; the explicit v3 flag makes the gate re-derive the plan it was
+    actually built under, and the composition is published.
+    """
+    v3_sources, v3_track, v3_voice_dir = _v3_chain(tmp_path, sources_ep1)
+    root = _write_all_sources(tmp_path, v3_sources, None)
+    plan_path = _write_audio_track_plan(tmp_path, v3_track)
+    output_root = tmp_path / "audio_tracks"
+    exit_code = compose_episode_audio.main(
+        _all_args(tmp_path, root, plan_path, v3_voice_dir, output_root)
+        + ["--presentation-profile", "v3"]
+    )
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["episode"] == 1
+    assert summary["speech_spans_total"] == 3
+
+
+def test_without_the_flag_a_v3_presentation_plan_is_still_refused(
+    tmp_path, sources_ep1, capsys
+) -> None:
+    """Omitting the flag keeps today's refusal of a V3 plan, publishing nothing."""
+    v3_sources, v3_track, v3_voice_dir = _v3_chain(tmp_path, sources_ep1)
+    root = _write_all_sources(tmp_path, v3_sources, None)
+    plan_path = _write_audio_track_plan(tmp_path, v3_track)
+    output_root = tmp_path / "audio_tracks"
+    exit_code = compose_episode_audio.main(
+        _all_args(tmp_path, root, plan_path, v3_voice_dir, output_root)
+    )
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "does not equal the deterministic derivation" in captured.err
+    assert "Traceback" not in captured.err
+    assert not output_root.exists()

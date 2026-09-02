@@ -18,10 +18,10 @@ Six inputs, not three, because this plan's own geometry depends on two facts
 this command must prove before trusting them: that the delivery plan's slots
 are true of the actual narration and shot plans, and that the narration
 plan's ``text_source`` classification -- which selects every window's floor
--- is true of the actual story plan and render export. The shot plan, story
-plan and render export are never bound in the presentation plan itself; they
-exist only so the two locked upstream source-verification gates this command
-runs can prove what this plan consumes.
+under the v1 and v2 profiles -- is true of the actual story plan and render
+export. The shot plan, story plan and render export are never bound in the
+presentation plan itself; they exist only so the two locked upstream
+source-verification gates this command runs can prove what this plan consumes.
 
 The command is a thin shell around ``living_diorama.presentation``: it holds
 no frame of its own, and every refusal comes from the contract rather than
@@ -94,8 +94,29 @@ def build(
     story_path: Path,
     export_path: Path,
     output_path: Path,
+    *,
+    presentation_profile: str = "v1",
 ) -> int:
-    """Write the presentation plan for the given sources and return its byte length."""
+    """Write the presentation plan for the given sources and return its byte length.
+
+    Args:
+        delivery_path: The Episode Narration Delivery Plan the presentation is timed to.
+        narration_path: The Episode Narration Plan bound into the presentation.
+        shots_path: The Shot Direction Plan the presentation frames are drawn from.
+        realization_path: The Episode Language Realization Plan the delivery is bound to.
+        story_path: The Episode Story Plan the whole chain is bound to.
+        export_path: The render export the story plan is bound to.
+        output_path: Where to write the presentation plan; refused if it already exists.
+        presentation_profile: ``"v1"`` (the default) reproduces today's plan
+            bytes exactly; ``"v2"`` derives the additive motion-window plan;
+            ``"v3"`` derives the frozen, content-sized plan with no
+            ``motion_windows``; ``"v4"`` derives the strict 1:1 plan with no
+            ``motion_windows``, refusing any unit whose realized narration
+            cannot fit its slot. Threaded into both the planner and the
+            cross-check, so a V2 plan is byte-verified under the V2 validator
+            before it is written and a V3 or V4 plan under the plain V1
+            validator.
+    """
     if output_path.exists():
         raise FileExistsError(
             f"presentation plan destination {output_path} already exists; plans are never "
@@ -108,7 +129,9 @@ def build(
     story = _read_canonical(story_path, "episode story plan")
     export = _read_canonical(export_path, "render export")
 
-    payload = build_episode_presentation_plan_bytes(delivery, narration, realization)
+    payload = build_episode_presentation_plan_bytes(
+        delivery, narration, realization, presentation_profile=presentation_profile
+    )
     # The plan file must never exist without every one of its bindings having
     # been proven -- the two locked upstream gates included. This re-derives
     # the plan from its three bound sources and separately re-runs the Phase
@@ -125,6 +148,7 @@ def build(
         realization,
         story,
         export,
+        presentation_profile=presentation_profile,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(payload)
@@ -159,6 +183,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="the render export the story and realization were derived from",
     )
     parser.add_argument("--output", required=True, help="where to write the presentation plan")
+    parser.add_argument(
+        "--presentation-profile",
+        choices=("v1", "v2", "v3", "v4"),
+        default="v1",
+        help=(
+            "the presentation profile to derive under; v1 (the default) reproduces "
+            "today's bytes exactly, v2 derives the additive motion-window plan, v3 "
+            "derives the frozen, content-sized plan with no motion windows, v4 derives "
+            "the strict 1:1 plan with no motion windows and refuses any unit that "
+            "cannot fit its slot"
+        ),
+    )
     namespace = parser.parse_args(argv)
 
     try:
@@ -170,6 +206,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(namespace.story),
             Path(namespace.export),
             Path(namespace.output),
+            presentation_profile=namespace.presentation_profile,
         )
     except (OSError, TypeError, ValueError) as error:
         # OSError covers the deliberate FileExistsError/FileNotFoundError

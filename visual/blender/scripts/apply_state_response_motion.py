@@ -146,12 +146,23 @@ def _key_presence(directive: dict) -> int:
     return written
 
 
-def apply_state_response_motion(motion_plan: dict, timeline: dict) -> dict:
+def apply_state_response_motion(
+    motion_plan: dict, timeline: dict, *, visibility_profile: str = "full"
+) -> dict:
     """Write every Phase 20 directive onto the standing static layer.
 
     Args:
         motion_plan: A state response motion plan.
         timeline: The resolved Phase 20 timeline.
+        visibility_profile: ``"full"`` (default) or ``"director_clear_air_v1"``.
+            ``"full"`` reproduces today's behaviour byte-for-byte: every
+            directive the plan declares is written. ``"director_clear_air_v1"``
+            declines to draw the per-district air haze for the Director's final
+            EP1 profile; the air FACT is unchanged -- the motion plan still
+            reports its directives -- only its visualisation is skipped, so the
+            air-material directives are not keyed (the static applier under
+            this lane never built the materials they drive, and keying them
+            would be refused).
 
     Returns:
         What was written: curve, key and per-channel counts.
@@ -165,6 +176,16 @@ def apply_state_response_motion(motion_plan: dict, timeline: dict) -> dict:
     by_channel: dict[str, int] = {}
     for directive in motion_plan["directives"]:
         channel = directive["channel"]
+        if (
+            visibility_profile == "director_clear_air_v1"
+            and directive["target"]["kind"] == "material_node_value"
+        ):
+            # The district-air FACT is unchanged: the motion plan still reports
+            # its air directives. This profile only declines to DRAW the haze,
+            # so the static applier never built the air materials they drive,
+            # and _key_air would refuse them; they are skipped here instead,
+            # and the truthful per-channel count below records zero for air.
+            continue
         if directive["target"]["kind"] == "material_node_value":
             keys += _key_air(directive)
         elif directive["target"]["kind"] == "object_presence":
