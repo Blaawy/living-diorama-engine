@@ -121,7 +121,8 @@
                 "string",
                 "null"
               ],
-              "pattern": "^[0-9a-f]{64}$"
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "REQUIRED when source is 'simulation': sha256 of the ruled trajectory record. The record is what makes a fabricated tripinfo detectable (cross-artefact consistency)."
             },
             "run_id": {
               "type": "string"
@@ -145,7 +146,8 @@
               "then": {
                 "required": [
                   "source",
-                  "rule_manifest_sha256"
+                  "rule_manifest_sha256",
+                  "rule_id"
                 ]
               }
             },
@@ -164,8 +166,16 @@
                 "required": [
                   "source",
                   "simulation_result_sha256",
-                  "extractor"
-                ]
+                  "extractor",
+                  "run_id",
+                  "record_sha256"
+                ],
+                "properties": {
+                  "record_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
               }
             }
           ]
@@ -471,7 +481,18 @@
           "const": "measured_effect"
         },
         "metric": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "trips_completed",
+            "avg_duration_s",
+            "avg_route_length_m",
+            "avg_waiting_time_s",
+            "avg_time_loss_s",
+            "walks_completed",
+            "avg_walk_length_m",
+            "avg_walk_duration_s"
+          ],
+          "description": "Closed set. A measured_effect naming any other metric is a forgery by definition."
         },
         "baseline_value": {
           "type": "number"

@@ -24,6 +24,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -100,24 +101,36 @@ def verify_rule_manifest(doc: dict[str, Any]) -> None:
 # --- simulation result ----------------------------------------------------
 
 
-def seal_simulation_result(doc: dict[str, Any]) -> dict[str, Any]:
-    for f in ("run_id", "episode_number", "arm", "seed", "artifacts"):
+_RESULT_REQUIRED = ("run_id", "episode_number", "arm", "seed", "sumo_version", "artifacts")
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _check_result_shape(doc: dict[str, Any]) -> None:
+    for f in _RESULT_REQUIRED:
         if f not in doc:
             raise EvidenceError(f"simulation_result is missing required field {f!r}")
+    if doc["arm"] not in ("baseline", "ruled"):
+        raise EvidenceError(f"simulation_result.arm must be 'baseline' or 'ruled', got {doc['arm']!r}")
+    arts = doc.get("artifacts")
+    if not isinstance(arts, dict) or not arts:
+        raise EvidenceError("simulation_result.artifacts must name at least one sealed artefact")
+    for name, meta in arts.items():
+        if not isinstance(meta, dict) or not isinstance(meta.get("sha256"), str) \
+                or not _HEX64_RE.match(meta["sha256"]):
+            raise EvidenceError(f"artifact {name!r} must carry a 64-hex sha256")
+        rel = str(meta.get("file", name))
+        if rel.startswith(("/", "\\")) or ".." in Path(rel).parts or ":" in rel:
+            raise EvidenceError(f"artifact {name!r} file path must be relative and traversal-free")
+
+
+def seal_simulation_result(doc: dict[str, Any]) -> dict[str, Any]:
+    _check_result_shape(doc)
     return _seal(doc, "result_hash", SIMULATION_RESULT_VERSION)
 
 
 def verify_simulation_result(doc: dict[str, Any]) -> None:
     _verify(doc, "result_hash", SIMULATION_RESULT_VERSION, "simulation_result")
-    for f in ("run_id", "episode_number", "arm", "seed", "artifacts"):
-        if f not in doc:
-            raise EvidenceError(f"simulation_result is missing required field {f!r}")
-    arts = doc.get("artifacts")
-    if not isinstance(arts, dict) or not arts:
-        raise EvidenceError("simulation_result.artifacts must name at least one sealed artefact")
-    for name, meta in arts.items():
-        if not isinstance(meta, dict) or "sha256" not in meta:
-            raise EvidenceError(f"artifact {name!r} must carry a sha256")
+    _check_result_shape(doc)
 
 
 def sha256_file(path: str | Path) -> str:

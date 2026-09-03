@@ -322,6 +322,84 @@ def run_simulation(
     return result
 
 
+def seal_run_result(
+    *,
+    baseline: RunResult,
+    ruled: RunResult,
+    out_dir: str | Path,
+    episode_number: int,
+    seed: int,
+    sumo_version: str,
+    applied_at_sim_second: float,
+    baseline_prefix: str = "baseline",
+    ruled_prefix: str = "ruled",
+    baseline_record_dir: str = "record_baseline",
+    ruled_record_dir: str = "record_ruled",
+) -> dict[str, Any]:
+    """Seal a `simulation_result` MACHINE-SIDE, from the runs that produced it.
+
+    The adversarial review's top finding was that `seal_simulation_result` has
+    no key, so a caller could seal a hand-written tripinfo. This function is the
+    trust boundary the ledger states but cannot enforce alone: the result is
+    built here, from `RunResult`s the simulator actually returned, and it
+    refuses unless both runs were clean. Nothing in this function accepts a
+    metric, a delta, or a claim -- only artefact locations and run identity.
+    """
+    import json
+
+    from .evidence import seal_simulation_result, sha256_file
+
+    if not baseline.clean or not ruled.clean:
+        raise ClosureError(
+            f"refusing to seal a result over unclean runs: baseline.clean={baseline.clean} "
+            f"ruled.clean={ruled.clean}"
+        )
+    out = Path(out_dir)
+    paths = {
+        "baseline_tripinfo": f"{baseline_prefix}.tripinfo.xml",
+        "ruled_tripinfo": f"{ruled_prefix}.tripinfo.xml",
+        "baseline_record_manifest": f"{baseline_record_dir}/record_manifest.json",
+        "baseline_record_frames": f"{baseline_record_dir}/frames.bin",
+        "ruled_record_manifest": f"{ruled_record_dir}/record_manifest.json",
+        "ruled_record_frames": f"{ruled_record_dir}/frames.bin",
+    }
+    artifacts = {}
+    for name, rel in paths.items():
+        p = out / rel
+        if not p.exists():
+            raise ClosureError(f"cannot seal: artefact {name!r} missing at {p}")
+        artifacts[name] = {"file": rel, "sha256": sha256_file(p)}
+
+    doc = {
+        "schema_version": "simulation_result_v1",
+        "run_id": ruled_prefix,
+        "episode_number": int(episode_number),
+        "arm": "ruled",
+        "seed": int(seed),
+        "sumo_version": sumo_version,
+        "applied_at_sim_second": float(applied_at_sim_second),
+        "runs": {
+            "baseline": {"exit_code": baseline.exit_code, "steps": baseline.steps,
+                         "outputs_valid": baseline.outputs_valid},
+            "ruled": {"exit_code": ruled.exit_code, "steps": ruled.steps,
+                      "outputs_valid": ruled.outputs_valid,
+                      "reroute_requests": ruled.reroute_requests,
+                      "reroute_successes": ruled.reroute_successes,
+                      "routes_actually_changed": ruled.routes_actually_changed,
+                      "routes_unchanged": ruled.routes_unchanged,
+                      "reroute_failures": ruled.reroute_failures,
+                      "lanes_closed": list(ruled.lanes_closed)},
+        },
+        "artifacts": artifacts,
+        "result_hash": "",
+    }
+    sealed = seal_simulation_result(doc)
+    (out / "simulation_result.json").write_text(
+        json.dumps(sealed, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    return sealed
+
+
 def summarise_tripinfo(path: str | Path) -> dict[str, Any]:
     """Aggregate a tripinfo file. Every value is a SUMO measurement."""
     trips: list[tuple[float, float, float, float]] = []

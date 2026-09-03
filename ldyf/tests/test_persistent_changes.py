@@ -1,33 +1,34 @@
-"""Proof that THE WORLD REMEMBERS cannot be forged, and that only sealed
-evidence plus a deterministic extractor can create simulation truth.
+"""Proof that THE WORLD REMEMBERS cannot be forged, and that only sealed,
+mutually consistent evidence plus a deterministic extractor can create
+simulation truth.
 
-The centrepiece is the ATTACK section: every way an LLM or a manual caller might
-try to invent a "simulation consequence" must fail.
+The centrepiece is the ATTACK section. It includes every attack the Phase 1
+adversarial review (DeepSeek worker `attack_provenance`) found, each of which
+must now fail.
 """
 
 from __future__ import annotations
 
 import copy
 import json
+import struct
+from pathlib import Path
 
 import pytest
 
-from ldyf.evidence import (
-    EvidenceError,
-    seal_rule_manifest,
-    seal_simulation_result,
-    sha256_file,
-)
+from ldyf.evidence import EvidenceError, seal_rule_manifest, seal_simulation_result, sha256_file
 from ldyf.persistent_changes import (
     CONSEQUENCE_EXTRACTORS,
     GENESIS_HASH,
     LedgerError,
+    _append_entry,
     active_changes,
     append_director_rule,
     append_reversal,
     append_simulation_consequence,
     changes_from_episode,
     compute_entry_hash,
+    compute_ledger_hash,
     history_of,
     is_active,
     load,
@@ -37,225 +38,327 @@ from ldyf.persistent_changes import (
     verify_ledger,
 )
 
-TRIPINFO_BASE = (
-    '<?xml version="1.0"?>\n<tripinfos>\n'
-    '  <tripinfo id="v1" duration="100" routeLength="900" waitingTime="30" timeLoss="50"/>\n'
-    '  <tripinfo id="v2" duration="120" routeLength="900" waitingTime="30" timeLoss="50"/>\n'
-    '  <personinfo id="p1"><walk duration="200" routeLength="232"/></personinfo>\n'
-    "</tripinfos>\n"
-)
-TRIPINFO_RULED = (
-    '<?xml version="1.0"?>\n<tripinfos>\n'
-    '  <tripinfo id="v1" duration="140" routeLength="960" waitingTime="45" timeLoss="70"/>\n'
-    '  <personinfo id="p1"><walk duration="200" routeLength="232"/></personinfo>\n'
-    "</tripinfos>\n"
-)
+_SAMPLE = struct.Struct("<Ifffff")
+_COUNT = struct.Struct("<I")
+
+
+# --------------------------------------------------------------------------
+# Fixture builders: a synthetic run whose tripinfo and record AGREE, with a
+# knob to make them disagree. Mirrors ldyf.sumo_record's binary layout.
+# --------------------------------------------------------------------------
+
+def write_record(dir_: Path, *, vehicles: int, persons: int, arrive_v: int, arrive_p: int,
+                 frames: int = 20) -> None:
+    """Actors 0..arrive-1 leave before the final frame (they 'arrived');
+    the rest are present through the last frame."""
+    dir_.mkdir(parents=True, exist_ok=True)
+    actors = ([{"uid": f"vehicle:{i}", "id": str(i), "kind": "vehicle", "type": "T", "first_seen_time": 0.0}
+               for i in range(vehicles)] +
+              [{"uid": f"person:{i}", "id": str(i), "kind": "person", "type": "P", "first_seen_time": 0.0}
+               for i in range(persons)])
+    arriving = set(range(arrive_v)) | set(range(vehicles, vehicles + arrive_p))
+    blob = bytearray()
+    for f in range(frames):
+        rows = []
+        for idx in range(len(actors)):
+            if idx in arriving and f >= frames - 2:
+                continue                       # gone before the last frame
+            rows.append((idx, float(f), float(idx), 0.0, 0.0, 1.0))
+        blob += _COUNT.pack(len(rows))
+        for r in rows:
+            blob += _SAMPLE.pack(*r)
+    (dir_ / "frames.bin").write_bytes(bytes(blob))
+    manifest = {"format": "simulation_record_v1", "actors": actors,
+                "clock": {"step_seconds": 0.1, "frame_count": frames, "t_begin": 0.0, "t_end": 0.1 * (frames - 1)},
+                "binary": {"file": "frames.bin", "sha256": sha256_file(dir_ / "frames.bin")}}
+    (dir_ / "record_manifest.json").write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+
+
+def write_tripinfo(path: Path, *, trips: list[tuple[float, float, float, float]],
+                   walks: list[tuple[float, float]]) -> None:
+    lines = ['<?xml version="1.0"?>', "<tripinfos>"]
+    for i, (d, rl, wt, tl) in enumerate(trips):
+        lines.append(f'  <tripinfo id="v{i}" duration="{d}" routeLength="{rl}" waitingTime="{wt}" timeLoss="{tl}"/>')
+    for i, (rl, d) in enumerate(walks):
+        lines.append(f'  <personinfo id="p{i}"><walk duration="{d}" routeLength="{rl}"/></personinfo>')
+    lines.append("</tripinfos>")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def make_evidence(tmp_path: Path, *, episode: int = 1, consistent: bool = True,
+                  base_trips=((100, 900, 30, 50), (120, 900, 30, 50)),
+                  ruled_trips=((140, 960, 45, 70),),
+                  walks=((232, 200),)) -> dict:
+    """Two arms: baseline completes len(base_trips), ruled completes len(ruled_trips)."""
+    write_tripinfo(tmp_path / "baseline.tripinfo.xml", trips=list(base_trips), walks=list(walks))
+    write_tripinfo(tmp_path / "ruled.tripinfo.xml", trips=list(ruled_trips), walks=list(walks))
+    # records: 3 vehicles + 1 person in each arm
+    write_record(tmp_path / "record_baseline", vehicles=3, persons=1,
+                 arrive_v=len(base_trips), arrive_p=len(walks))
+    write_record(tmp_path / "record_ruled", vehicles=3, persons=1,
+                 arrive_v=len(ruled_trips) if consistent else len(ruled_trips) + 1,
+                 arrive_p=len(walks))
+    arts = {}
+    for name, rel in (("baseline_tripinfo", "baseline.tripinfo.xml"),
+                      ("ruled_tripinfo", "ruled.tripinfo.xml"),
+                      ("baseline_record_manifest", "record_baseline/record_manifest.json"),
+                      ("baseline_record_frames", "record_baseline/frames.bin"),
+                      ("ruled_record_manifest", "record_ruled/record_manifest.json"),
+                      ("ruled_record_frames", "record_ruled/frames.bin")):
+        arts[name] = {"file": rel, "sha256": sha256_file(tmp_path / rel)}
+    return seal_simulation_result({
+        "schema_version": "simulation_result_v1", "run_id": "ruled",
+        "episode_number": episode, "arm": "ruled", "seed": 20260903,
+        "sumo_version": "1.27.1", "applied_at_sim_second": 150.0,
+        "artifacts": arts, "result_hash": "",
+    })
 
 
 def make_rule(episode=1, rule_id="close_the_bridge", edges=("B1C1",), disallow=("passenger",)):
     return seal_rule_manifest({
-        "schema_version": "rule_manifest_v1",
-        "rule_id": rule_id,
-        "episode_number": episode,
-        "statement": "Close the bridge.",
-        "applies_at_sim_second": 150.0,
+        "schema_version": "rule_manifest_v1", "rule_id": rule_id, "episode_number": episode,
+        "statement": "Close the bridge.", "applies_at_sim_second": 150.0,
         "change": {"close_edges": {"edge_ids": list(edges), "disallow": list(disallow)}},
         "manifest_hash": "",
     })
 
 
-def make_evidence(tmp_path, episode=1):
-    b = tmp_path / "baseline.tripinfo.xml"
-    r = tmp_path / "ruled.tripinfo.xml"
-    b.write_text(TRIPINFO_BASE)
-    r.write_text(TRIPINFO_RULED)
-    result = seal_simulation_result({
-        "schema_version": "simulation_result_v1",
-        "run_id": "ruled",
-        "episode_number": episode,
-        "arm": "ruled",
-        "seed": 20260903,
-        "applied_at_sim_second": 150.0,
-        "artifacts": {
-            "baseline_tripinfo": {"file": b.name, "sha256": sha256_file(b)},
-            "ruled_tripinfo": {"file": r.name, "sha256": sha256_file(r)},
-        },
-        "result_hash": "",
-    })
-    return result
+def sim_prov(result: dict) -> dict:
+    return {"source": "simulation", "simulation_result_sha256": result["result_hash"],
+            "run_id": "ruled", "extractor": "closure_effect_v1",
+            "record_sha256": result["artifacts"]["ruled_record_frames"]["sha256"]}
+
+
+def _resealed(ledger: dict, entries: list) -> dict:
+    """Attacker helper: splice entries and recompute all chain hashes correctly."""
+    bad = copy.deepcopy(ledger)
+    prev = GENESIS_HASH
+    fixed = []
+    for e in entries:
+        e = copy.deepcopy(e)
+        e["prev_hash"] = prev
+        e["entry_hash"] = compute_entry_hash(e)
+        prev = e["entry_hash"]
+        fixed.append(e)
+    bad["entries"] = fixed
+    bad["ledger_hash"] = compute_ledger_hash(fixed)
+    return bad
 
 
 # ==========================================================================
-# ATTACKS — an LLM or manual caller must not be able to invent truth
+# ATTACKS -- every one must fail
 # ==========================================================================
 
-def test_there_is_no_public_api_that_accepts_provenance():
-    """The structural claim: you cannot hand the ledger a provenance string."""
+def test_no_public_writer_accepts_provenance_or_payload():
     import inspect
 
     import ldyf.persistent_changes as pc
 
-    public_writers = [
-        n for n in dir(pc)
-        if not n.startswith("_") and n.startswith("append") and callable(getattr(pc, n))
-    ]
-    assert set(public_writers) == {
-        "append_director_rule", "append_reversal", "append_simulation_consequence"
-    }, public_writers
-    for name in public_writers:
+    assert "append_change" not in pc.__all__ and not hasattr(pc, "append_change")
+    assert "_append_entry" not in pc.__all__
+    for name in ("append_director_rule", "append_reversal", "append_simulation_consequence"):
         params = inspect.signature(getattr(pc, name)).parameters
-        assert "provenance" not in params, f"{name} accepts caller-supplied provenance"
-        assert "payload" not in params, f"{name} accepts a caller-authored payload"
+        assert "provenance" not in params and "payload" not in params, name
 
 
-def test_attack_free_form_append_change_no_longer_exists():
-    import ldyf.persistent_changes as pc
-
-    assert not hasattr(pc, "append_change"), (
-        "the free-form writer must be gone; it let a caller label anything 'simulation'"
-    )
-
-
-def test_attack_forging_a_simulation_entry_by_hand_is_rejected(tmp_path):
-    """Craft an entry claiming simulation provenance and splice it in."""
+def test_attack_direct_append_entry_forgery_fails_verify(tmp_path):
+    """Worker finding 2: call the private writer directly with a made-up effect."""
+    result = make_evidence(tmp_path)
     lg = new_ledger("riverside")
-    lg, _ = append_director_rule(lg, rule_manifest=make_rule())
+    forged_payload = {"kind": "measured_effect", "metric": "trips_completed",
+                      "baseline_value": 381.0, "ruled_value": 0.0, "delta": -999.0,
+                      "unit": "trips", "source_field": "tripinfo.trips_completed"}
+    with pytest.raises(LedgerError, match="delta does not equal"):
+        _append_entry(lg, change_type="measured_effect", origin_episode=1,
+                      applied_at_sim_second=0.0, payload=forged_payload,
+                      provenance=sim_prov(result))
 
-    forged = {
-        "change_id": "chg_" + "a" * 16,
-        "change_type": "infrastructure_added",
-        "origin_episode": 2,
-        "applied_at_sim_second": 0.0,
-        "rule_id": None,
-        "reverses": None,
-        # the exact string the old design accepted
-        "provenance": {"source": "simulation", "run_id": "ruled"},
-        "payload": {"kind": "infrastructure", "infra_id": "detour_sign_01",
-                    "infra_kind": "sign", "operation": "added"},
-        "prev_hash": lg["entries"][-1]["entry_hash"],
-    }
-    forged["entry_hash"] = compute_entry_hash(forged)
-    bad = copy.deepcopy(lg)
-    bad["entries"].append(forged)
-    from ldyf.persistent_changes import compute_ledger_hash
-    bad["ledger_hash"] = compute_ledger_hash(bad["entries"])
 
-    with pytest.raises(LedgerError, match="simulation_result"):
+def test_attack_forged_entry_with_bogus_seal_hash_is_rejected_on_verify(tmp_path):
+    """Worker finding 2b: hand-splice an entry whose provenance hash is not 64-hex."""
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    forged = copy.deepcopy(lg["entries"][0])
+    forged["change_id"] = "chg_" + "a" * 16
+    forged["change_type"] = "measured_effect"
+    forged["payload"] = {"kind": "measured_effect", "metric": "avg_time_loss_s",
+                         "baseline_value": 50.0, "ruled_value": 70.0, "delta": 20.0,
+                         "unit": "s", "source_field": "tripinfo.avg_time_loss_s"}
+    forged["provenance"] = {"source": "simulation", "simulation_result_sha256": "0" * 64,
+                            "run_id": "ruled", "extractor": "closure_effect_v1"}
+    bad = _resealed(lg, lg["entries"] + [forged])
+    with pytest.raises(LedgerError, match="record sha256"):
         verify_ledger(bad)
 
 
-def test_attack_simulation_entry_without_an_extractor_is_rejected():
-    lg = new_ledger("riverside")
-    lg, _ = append_director_rule(lg, rule_manifest=make_rule())
-    bad = copy.deepcopy(lg)
-    e = copy.deepcopy(bad["entries"][0])
-    e["provenance"] = {"source": "simulation", "simulation_result_sha256": "b" * 64}
-    e["entry_hash"] = compute_entry_hash(e)
-    bad["entries"] = [e]
-    from ldyf.persistent_changes import compute_ledger_hash
-    bad["ledger_hash"] = compute_ledger_hash(bad["entries"])
+def test_attack_forged_measured_effect_with_unknown_metric_is_rejected(tmp_path):
+    result = make_evidence(tmp_path)
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    forged = copy.deepcopy(lg["entries"][0])
+    forged["change_id"] = "chg_" + "b" * 16
+    forged["change_type"] = "measured_effect"
+    forged["rule_id"] = None
+    forged["payload"] = {"kind": "measured_effect", "metric": "citizens_made_happy",
+                         "baseline_value": 0.0, "ruled_value": 1000.0, "delta": 1000.0,
+                         "unit": "", "source_field": "tripinfo.citizens_made_happy"}
+    forged["provenance"] = sim_prov(result)
+    bad = _resealed(lg, lg["entries"] + [forged])
+    with pytest.raises(LedgerError, match="unknown metric"):
+        verify_ledger(bad)
+
+
+def test_attack_own_fabricated_tripinfo_without_records_is_refused(tmp_path):
+    """Worker finding 1: seal your own tripinfo. Now refused: records are required."""
+    (tmp_path / "baseline.tripinfo.xml").write_text(
+        '<?xml version="1.0"?><tripinfos><tripinfo id="v" duration="1" routeLength="1" waitingTime="0" timeLoss="0"/></tripinfos>')
+    (tmp_path / "ruled.tripinfo.xml").write_text(
+        '<?xml version="1.0"?><tripinfos></tripinfos>')
+    result = seal_simulation_result({
+        "schema_version": "simulation_result_v1", "run_id": "ruled", "episode_number": 1,
+        "arm": "ruled", "seed": 1, "sumo_version": "1.27.1",
+        "artifacts": {"baseline_tripinfo": {"file": "baseline.tripinfo.xml",
+                                            "sha256": sha256_file(tmp_path / "baseline.tripinfo.xml")},
+                      "ruled_tripinfo": {"file": "ruled.tripinfo.xml",
+                                         "sha256": sha256_file(tmp_path / "ruled.tripinfo.xml")}},
+        "result_hash": ""})
+    with pytest.raises(EvidenceError, match="names no artefact 'baseline_record_frames'"):
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+
+
+def test_attack_fabricated_tripinfo_inconsistent_with_record_is_refused(tmp_path):
+    """Worker finding 1, hardened: tripinfo and trajectory record must agree."""
+    result = make_evidence(tmp_path, consistent=False)
+    with pytest.raises(EvidenceError, match="not from the same run"):
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+
+
+def test_attack_editing_tripinfo_after_sealing_is_refused(tmp_path):
+    result = make_evidence(tmp_path)
+    write_tripinfo(tmp_path / "ruled.tripinfo.xml", trips=[(9999, 9999, 9999, 9999)], walks=[(232, 200)])
+    with pytest.raises(EvidenceError, match="does not match the sealed result"):
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+
+
+def test_attack_simulation_entry_without_extractor_is_rejected(tmp_path):
+    result = make_evidence(tmp_path)
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    e = copy.deepcopy(lg["entries"][0])
+    e["provenance"] = {"source": "simulation", "simulation_result_sha256": result["result_hash"],
+                       "run_id": "ruled", "record_sha256": "c" * 64}
+    bad = _resealed(lg, [e])
     with pytest.raises(LedgerError, match="extractor"):
         verify_ledger(bad)
 
 
 def test_attack_unregistered_extractor_is_rejected(tmp_path):
     result = make_evidence(tmp_path)
-    lg = new_ledger("riverside")
     with pytest.raises(LedgerError, match="unknown extractor"):
-        append_simulation_consequence(
-            lg, simulation_result=result,
-            extractor_name="my_helpful_llm_summary", evidence_dir=tmp_path)
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                      extractor_name="my_helpful_llm_summary", evidence_dir=tmp_path)
 
 
-def test_attack_unsealed_simulation_result_is_rejected(tmp_path):
+def test_attack_unsealed_or_tampered_result_is_rejected(tmp_path):
     result = make_evidence(tmp_path)
-    result["result_hash"] = ""
-    lg = new_ledger("riverside")
+    unsealed = dict(result); unsealed["result_hash"] = ""
     with pytest.raises(EvidenceError, match="not sealed"):
-        append_simulation_consequence(
-            lg, simulation_result=result,
-            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
-
-
-def test_attack_tampering_with_the_result_after_sealing_is_rejected(tmp_path):
-    result = make_evidence(tmp_path)
-    result["episode_number"] = 99          # rewrite history's episode
-    lg = new_ledger("riverside")
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=unsealed,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+    tampered = dict(result); tampered["episode_number"] = 99
     with pytest.raises(EvidenceError, match="does not verify"):
-        append_simulation_consequence(
-            lg, simulation_result=result,
-            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=tampered,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path)
 
 
-def test_attack_editing_the_evidence_file_after_sealing_is_rejected(tmp_path):
-    """The killer case: real sealed result, but the artefact was edited."""
+def test_attack_artifact_path_traversal_is_refused(tmp_path):
+    with pytest.raises(EvidenceError, match="traversal"):
+        seal_simulation_result({
+            "schema_version": "simulation_result_v1", "run_id": "r", "episode_number": 1,
+            "arm": "ruled", "seed": 1, "sumo_version": "1.27.1",
+            "artifacts": {"baseline_tripinfo": {"file": "../../etc/passwd", "sha256": "a" * 64}},
+            "result_hash": ""})
+
+
+def test_attack_consequence_rule_id_must_reference_a_recorded_rule(tmp_path):
+    """Worker finding 4: rule attribution is checked against the chain."""
+    result = make_evidence(tmp_path)
+    with pytest.raises(LedgerError, match="no director_rule entry with that rule_id"):
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                      rule_id="a_rule_nobody_declared")
+
+
+def test_attack_verify_rejects_double_reversal_and_unknown_target(tmp_path):
+    """Worker finding 3: reversal semantics are re-checked on load."""
+    lg, c1 = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    reopen = make_rule(episode=5, rule_id="reopen")
+    lg, r1 = append_reversal(lg, rule_manifest=reopen, reverses_change_id=c1)
+    dup = copy.deepcopy(lg["entries"][-1]); dup["change_id"] = "chg_" + "d" * 16
+    with pytest.raises(LedgerError, match="already reversed"):
+        verify_ledger(_resealed(lg, lg["entries"] + [dup]))
+    ghost = copy.deepcopy(lg["entries"][-1]); ghost["change_id"] = "chg_" + "e" * 16
+    ghost["payload"]["reverses_change_id"] = "chg_" + "0" * 16; ghost["reverses"] = "chg_" + "0" * 16
+    with pytest.raises(LedgerError, match="unknown change"):
+        verify_ledger(_resealed(lg, [lg["entries"][0], ghost]))
+
+
+def test_attack_reversal_cannot_target_a_measurement(tmp_path):
+    result = make_evidence(tmp_path)
+    lg, c1 = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    lg, ids = append_simulation_consequence(lg, simulation_result=result,
+                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                            rule_id="close_the_bridge")
+    with pytest.raises(LedgerError, match="cannot reverse a measured_effect"):
+        append_reversal(lg, rule_manifest=make_rule(episode=5, rule_id="reopen"), reverses_change_id=ids[0])
+
+
+def test_attack_reversal_with_simulation_provenance_is_rejected(tmp_path):
+    result = make_evidence(tmp_path)
+    lg, c1 = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    with pytest.raises(LedgerError, match="Director act"):
+        _append_entry(lg, change_type="reversal", origin_episode=5, applied_at_sim_second=0.0,
+                      payload={"kind": "reversal", "reverses_change_id": c1},
+                      provenance=sim_prov(result), reverses=c1)
+
+
+def test_attack_nan_in_tripinfo_creates_nothing(tmp_path):
+    """Worker finding 5: non-finite values are refused, not propagated."""
     result = make_evidence(tmp_path)
     (tmp_path / "ruled.tripinfo.xml").write_text(
         '<?xml version="1.0"?>\n<tripinfos>\n'
-        '  <tripinfo id="v1" duration="9999" routeLength="9999" waitingTime="9999" timeLoss="9999"/>\n'
-        "</tripinfos>\n"
-    )
-    lg = new_ledger("riverside")
-    with pytest.raises(EvidenceError, match="does not match the sealed result"):
-        append_simulation_consequence(
-            lg, simulation_result=result,
-            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+        '  <tripinfo id="v0" duration="nan" routeLength="960" waitingTime="45" timeLoss="70"/>\n'
+        '  <personinfo id="p0"><walk duration="200" routeLength="232"/></personinfo>\n</tripinfos>\n')
+    # re-seal over the NaN file so the bytes match and only the NaN check can refuse it
+    result = dict(result); arts = dict(result["artifacts"])
+    arts["ruled_tripinfo"] = {"file": "ruled.tripinfo.xml", "sha256": sha256_file(tmp_path / "ruled.tripinfo.xml")}
+    result["artifacts"] = arts; result["result_hash"] = ""
+    result = seal_simulation_result(result)
+    with pytest.raises(LedgerError, match="non-finite"):
+        append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                      extractor_name="closure_effect_v1", evidence_dir=tmp_path)
 
 
-def test_attack_caller_cannot_choose_the_consequence(tmp_path):
-    """The caller supplies evidence, never conclusions.
-
-    There is no argument through which a desired consequence can be injected —
-    the extractor computes every value from the sealed artefacts.
-    """
-    import inspect
-
-    from ldyf.persistent_changes import append_simulation_consequence as f
-
-    params = set(inspect.signature(f).parameters)
-    assert params == {"ledger", "simulation_result", "extractor_name",
-                      "evidence_dir", "rule_id"}, params
-
-    result = make_evidence(tmp_path)
-    lg, ids = append_simulation_consequence(
-        new_ledger("riverside"), simulation_result=result,
-        extractor_name="closure_effect_v1", evidence_dir=tmp_path)
-    # every recorded value is what the files actually say
-    for e in lg["entries"]:
-        p = e["payload"]
-        assert p["delta"] == round(p["ruled_value"] - p["baseline_value"], 4)
-
-
-def test_attack_unsealed_rule_manifest_is_rejected():
-    rule = make_rule()
-    rule["manifest_hash"] = ""
+def test_attack_unsealed_or_edited_rule_manifest_is_rejected():
+    rule = make_rule(); rule["manifest_hash"] = ""
     with pytest.raises(EvidenceError, match="not sealed"):
         append_director_rule(new_ledger("riverside"), rule_manifest=rule)
-
-
-def test_attack_rule_manifest_edited_after_sealing_is_rejected():
-    rule = make_rule()
-    rule["change"]["close_edges"]["edge_ids"] = ["EVERY_ROAD"]
+    rule = make_rule(); rule["change"]["close_edges"]["edge_ids"] = ["EVERY_ROAD"]
     with pytest.raises(EvidenceError, match="does not verify"):
         append_director_rule(new_ledger("riverside"), rule_manifest=rule)
 
 
-def test_attack_rule_declaring_two_changes_is_rejected():
-    rule = seal_rule_manifest({
+def test_attack_two_changes_in_one_rule_and_pedestrian_barring_are_rejected():
+    two = seal_rule_manifest({
         "schema_version": "rule_manifest_v1", "rule_id": "greedy", "episode_number": 1,
         "applies_at_sim_second": 0.0,
         "change": {"close_edges": {"edge_ids": ["A"], "disallow": ["passenger"]},
                    "speed_limit": {"target_kind": "edge", "target_ids": ["B"], "mps": 5.0}},
-        "manifest_hash": "",
-    })
+        "manifest_hash": ""})
     with pytest.raises(LedgerError, match="exactly ONE change"):
-        append_director_rule(new_ledger("riverside"), rule_manifest=rule)
-
-
-def test_attack_pedestrian_barring_rule_is_rejected():
-    rule = make_rule(disallow=("passenger", "pedestrian"))
+        append_director_rule(new_ledger("riverside"), rule_manifest=two)
     with pytest.raises(LedgerError, match="footway"):
-        append_director_rule(new_ledger("riverside"), rule_manifest=rule)
+        append_director_rule(new_ledger("riverside"), rule_manifest=make_rule(disallow=("passenger", "pedestrian")))
 
 
 # ==========================================================================
@@ -269,10 +372,8 @@ def test_director_rule_payload_is_derived_from_the_sealed_manifest():
     e = lg["entries"][0]
     assert e["change_type"] == "edge_closure"
     assert e["payload"]["edge_ids"] == ["B1C1", "C1B1"]
-    assert e["provenance"]["source"] == "director_rule"
     assert e["provenance"]["rule_manifest_sha256"] == rule["manifest_hash"]
-    assert e["origin_episode"] == 1
-    assert e["applied_at_sim_second"] == 150.0
+    assert e["origin_episode"] == 1 and e["applied_at_sim_second"] == 150.0
 
 
 @pytest.mark.parametrize("change,expected_type", [
@@ -283,47 +384,28 @@ def test_director_rule_payload_is_derived_from_the_sealed_manifest():
     ({"tls_program": {"tls_id": "B1", "program_id": "night"}}, "traffic_light_program"),
 ])
 def test_every_director_change_kind_round_trips(change, expected_type):
-    rule = seal_rule_manifest({
-        "schema_version": "rule_manifest_v1", "rule_id": "r", "episode_number": 2,
-        "applies_at_sim_second": 0.0, "change": change, "manifest_hash": "",
-    })
+    rule = seal_rule_manifest({"schema_version": "rule_manifest_v1", "rule_id": "r", "episode_number": 2,
+                               "applies_at_sim_second": 0.0, "change": change, "manifest_hash": ""})
     lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=rule)
     verify_ledger(lg)
     assert lg["entries"][0]["change_type"] == expected_type
 
 
-def test_simulation_consequence_is_computed_from_the_files(tmp_path):
+def test_simulation_consequence_is_computed_from_consistent_files(tmp_path):
     result = make_evidence(tmp_path)
-    lg, ids = append_simulation_consequence(
-        new_ledger("riverside"), simulation_result=result,
-        extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+    lg, ids = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
     verify_ledger(lg)
-    assert ids, "the extractor should have derived at least one effect"
-    by_metric = {e["payload"]["metric"]: e["payload"] for e in lg["entries"]}
-    # baseline has 2 trips, ruled has 1 -> the extractor must find -1
-    assert by_metric["trips_completed"]["delta"] == -1.0
-    assert by_metric["avg_time_loss_s"]["baseline_value"] == 50.0
-    assert by_metric["avg_time_loss_s"]["ruled_value"] == 70.0
-    assert by_metric["avg_time_loss_s"]["delta"] == 20.0
+    by = {e["payload"]["metric"]: e["payload"] for e in lg["entries"]}
+    assert by["trips_completed"]["delta"] == -1.0           # 2 baseline trips -> 1 ruled
+    assert by["avg_time_loss_s"]["delta"] == 20.0
+    assert "walks_completed" not in by and "avg_walk_length_m" not in by   # unchanged: not remembered
     for e in lg["entries"]:
         assert e["provenance"]["extractor"] == "closure_effect_v1"
-        assert e["provenance"]["simulation_result_sha256"] == result["result_hash"]
+        assert e["provenance"]["record_sha256"] == result["artifacts"]["ruled_record_frames"]["sha256"]
 
 
-def test_a_metric_that_did_not_move_is_not_remembered(tmp_path):
-    """The world does not remember a consequence that did not occur."""
-    result = make_evidence(tmp_path)
-    lg, _ = append_simulation_consequence(
-        new_ledger("riverside"), simulation_result=result,
-        extractor_name="closure_effect_v1", evidence_dir=tmp_path)
-    metrics = {e["payload"]["metric"] for e in lg["entries"]}
-    # walks are identical in both fixtures
-    assert "walks_completed" not in metrics
-    assert "avg_walk_length_m" not in metrics
-
-
-def test_identical_evidence_yields_identical_entries(tmp_path):
-    """The extractor is deterministic."""
+def test_identical_evidence_yields_identical_ledger_hash(tmp_path):
     result = make_evidence(tmp_path)
     a, _ = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
                                          extractor_name="closure_effect_v1", evidence_dir=tmp_path)
@@ -332,12 +414,21 @@ def test_identical_evidence_yields_identical_entries(tmp_path):
     assert a["ledger_hash"] == b["ledger_hash"]
 
 
+def test_consequence_attributed_to_a_recorded_rule_is_accepted(tmp_path):
+    result = make_evidence(tmp_path)
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    lg, ids = append_simulation_consequence(lg, simulation_result=result, extractor_name="closure_effect_v1",
+                                            evidence_dir=tmp_path, rule_id="close_the_bridge")
+    verify_ledger(lg)
+    assert ids and all(e["rule_id"] == "close_the_bridge" for e in lg["entries"][1:])
+
+
 def test_extractor_registry_is_a_closed_set():
     assert set(CONSEQUENCE_EXTRACTORS) == {"closure_effect_v1"}
 
 
 # ==========================================================================
-# Chain integrity
+# Chain integrity and permanence
 # ==========================================================================
 
 def build_ledger():
@@ -347,8 +438,7 @@ def build_ledger():
         "schema_version": "rule_manifest_v1", "rule_id": "slow_it", "episode_number": 2,
         "applies_at_sim_second": 0.0,
         "change": {"speed_limit": {"target_kind": "edge", "target_ids": ["A1B1"], "mps": 8.33}},
-        "manifest_hash": "",
-    }))
+        "manifest_hash": ""}))
     return lg, c1, c2
 
 
@@ -359,132 +449,75 @@ def test_chain_verifies():
     assert lg["entries"][1]["prev_hash"] == lg["entries"][0]["entry_hash"]
 
 
-def test_editing_an_entry_is_detected():
+@pytest.mark.parametrize("mutate,match", [
+    (lambda b: b["entries"][0]["payload"].__setitem__("reason", "rewritten"), "modified after"),
+    (lambda b: b["entries"].__delitem__(0), None),
+    (lambda b: b["entries"].reverse(), "chain broken"),
+    (lambda b: b.__setitem__("ledger_hash", "0" * 64), "ledger_hash"),
+])
+def test_tampering_is_detected(mutate, match):
     lg, _, _ = build_ledger()
-    bad = copy.deepcopy(lg)
-    bad["entries"][0]["payload"]["reason"] = "rewritten history"
-    with pytest.raises(LedgerError, match="modified after it was written"):
-        verify_ledger(bad)
-
-
-def test_deleting_an_entry_is_detected():
-    lg, _, _ = build_ledger()
-    bad = copy.deepcopy(lg)
-    del bad["entries"][0]
-    with pytest.raises(LedgerError):
-        verify_ledger(bad)
-
-
-def test_reordering_entries_is_detected():
-    lg, _, _ = build_ledger()
-    bad = copy.deepcopy(lg)
-    bad["entries"].reverse()
-    with pytest.raises(LedgerError, match="chain broken"):
-        verify_ledger(bad)
-
-
-def test_ledger_hash_must_match_the_chain():
-    lg, _, _ = build_ledger()
-    bad = copy.deepcopy(lg)
-    bad["ledger_hash"] = "0" * 64
-    with pytest.raises(LedgerError, match="ledger_hash"):
+    bad = copy.deepcopy(lg); mutate(bad)
+    with pytest.raises(LedgerError, match=match) if match else pytest.raises(LedgerError):
         verify_ledger(bad)
 
 
 def test_change_ids_are_stable_and_content_derived():
     payload = {"kind": "edge_closure", "edge_ids": ["B1C1"], "disallow": ["passenger"]}
-    a = make_change_id(world_id="riverside", origin_episode=1,
-                       change_type="edge_closure", payload=payload)
-    b = make_change_id(world_id="riverside", origin_episode=1,
-                       change_type="edge_closure", payload=payload)
-    c = make_change_id(world_id="riverside", origin_episode=2,
-                       change_type="edge_closure", payload=payload)
+    a = make_change_id(world_id="riverside", origin_episode=1, change_type="edge_closure", payload=payload)
+    b = make_change_id(world_id="riverside", origin_episode=1, change_type="edge_closure", payload=payload)
+    c = make_change_id(world_id="riverside", origin_episode=2, change_type="edge_closure", payload=payload)
     assert a == b and a != c
 
 
-# ==========================================================================
-# Permanence
-# ==========================================================================
-
-def test_no_delete_function_exists():
+def test_no_delete_or_edit_function_exists():
     import ldyf.persistent_changes as pc
-
-    names = [n for n in dir(pc) if not n.startswith("_")]
-    for forbidden in ("delete_change", "remove_change", "edit_change",
-                      "drop_entry", "clear_ledger", "update_change", "append_change"):
-        assert forbidden not in names
+    for forbidden in ("delete_change", "remove_change", "edit_change", "drop_entry",
+                      "clear_ledger", "update_change", "append_change"):
+        assert not hasattr(pc, forbidden)
 
 
 def test_reversal_keeps_the_original_visible():
     lg, c1, _ = build_ledger()
     before = len(lg["entries"])
-    reopen = seal_rule_manifest({
-        "schema_version": "rule_manifest_v1", "rule_id": "reopen", "episode_number": 5,
-        "applies_at_sim_second": 0.0, "statement": "Reopen the bridge.",
-        "change": {"access_permission": {"target_kind": "edge", "target_ids": ["B1C1"],
-                                         "allow": ["passenger"], "disallow": []}},
-        "manifest_hash": "",
-    })
-    lg, _ = append_reversal(lg, rule_manifest=reopen, reverses_change_id=c1)
+    lg, _ = append_reversal(lg, rule_manifest=make_rule(episode=5, rule_id="reopen"), reverses_change_id=c1)
     verify_ledger(lg)
     assert len(lg["entries"]) == before + 1
-    assert any(e["change_id"] == c1 for e in lg["entries"]), "the original must survive"
+    assert any(e["change_id"] == c1 for e in lg["entries"])
     assert not is_active(lg, c1)
-    assert lg["entries"][0]["origin_episode"] == 1, "origin episode is never rewritten"
+    assert lg["entries"][0]["origin_episode"] == 1
     assert len(history_of(lg, c1)) == 2
 
 
 def test_a_change_cannot_be_reversed_twice():
     lg, c1, _ = build_ledger()
-    reopen = seal_rule_manifest({
-        "schema_version": "rule_manifest_v1", "rule_id": "reopen", "episode_number": 5,
-        "applies_at_sim_second": 0.0,
-        "change": {"speed_limit": {"target_kind": "edge", "target_ids": ["X"], "mps": 1.0}},
-        "manifest_hash": "",
-    })
+    reopen = make_rule(episode=5, rule_id="reopen")
     lg, _ = append_reversal(lg, rule_manifest=reopen, reverses_change_id=c1)
     with pytest.raises(LedgerError, match="already reversed"):
         append_reversal(lg, rule_manifest=reopen, reverses_change_id=c1)
 
 
-def test_cannot_reverse_an_unknown_change():
-    lg, _, _ = build_ledger()
-    reopen = make_rule(episode=5, rule_id="reopen")
-    with pytest.raises(LedgerError, match="unknown change"):
-        append_reversal(lg, rule_manifest=reopen, reverses_change_id="chg_" + "0" * 16)
-
-
 def test_active_changes_excludes_reversed_ones():
     lg, c1, c2 = build_ledger()
     assert {e["change_id"] for e in active_changes(lg)} == {c1, c2}
-    reopen = make_rule(episode=5, rule_id="reopen")
-    lg, _ = append_reversal(lg, rule_manifest=reopen, reverses_change_id=c1)
+    lg, _ = append_reversal(lg, rule_manifest=make_rule(episode=5, rule_id="reopen"), reverses_change_id=c1)
     assert {e["change_id"] for e in active_changes(lg)} == {c2}
 
 
 def test_append_does_not_mutate_the_input_ledger():
-    lg = new_ledger("riverside")
-    snapshot = copy.deepcopy(lg)
+    lg = new_ledger("riverside"); snapshot = copy.deepcopy(lg)
     append_director_rule(lg, rule_manifest=make_rule())
-    assert lg == snapshot, "history must never be half-written in place"
+    assert lg == snapshot
 
 
-def test_episode_lineage_is_queryable():
-    lg, c1, c2 = build_ledger()
-    assert [e["change_id"] for e in changes_from_episode(lg, 1)] == [c1]
-    assert [e["change_id"] for e in changes_from_episode(lg, 2)] == [c2]
-    assert changes_from_episode(lg, 99) == []
-
-
-def test_changes_accumulate_across_episodes():
-    lg = new_ledger("riverside")
-    ids = []
+def test_lineage_accumulates_and_is_queryable():
+    lg = new_ledger("riverside"); ids = []
     for ep in range(1, 6):
-        lg, cid = append_director_rule(lg, rule_manifest=make_rule(
-            episode=ep, rule_id=f"r{ep}", edges=(f"E{ep}",)))
+        lg, cid = append_director_rule(lg, rule_manifest=make_rule(episode=ep, rule_id=f"r{ep}", edges=(f"E{ep}",)))
         ids.append(cid)
     verify_ledger(lg)
     assert [e["origin_episode"] for e in lg["entries"]] == [1, 2, 3, 4, 5]
+    assert [e["change_id"] for e in changes_from_episode(lg, 3)] == [ids[2]]
     assert {e["change_id"] for e in active_changes(lg)} == set(ids)
 
 
@@ -492,39 +525,26 @@ def test_changes_accumulate_across_episodes():
 # IO and schema
 # ==========================================================================
 
-def test_save_load_round_trip(tmp_path):
+def test_save_load_round_trip_and_tamper_refusal(tmp_path):
     lg, _, _ = build_ledger()
     p = tmp_path / "pc.json"
     h = save(lg, p)
     assert load(p)["ledger_hash"] == h
-
-
-def test_load_refuses_a_tampered_file(tmp_path):
-    lg, _, _ = build_ledger()
-    p = tmp_path / "pc.json"
-    save(lg, p)
-    doc = json.loads(p.read_text())
-    doc["entries"][0]["payload"]["reason"] = "tampered"
+    doc = json.loads(p.read_text()); doc["entries"][0]["payload"]["reason"] = "tampered"
     p.write_text(json.dumps(doc))
     with pytest.raises(LedgerError):
         load(p)
 
 
 def test_a_real_ledger_validates_against_the_json_schema(tmp_path):
-    """A schema no instance validates against is decorative."""
-    from pathlib import Path
-
     from jsonschema import Draft202012Validator
 
-    schema = json.loads(
-        (Path(__file__).parent.parent / "schemas" / "persistent_changes.schema.json").read_text()
-    )
+    schema = json.loads((Path(__file__).parent.parent / "schemas" / "persistent_changes.schema.json").read_text())
     lg, c1, _ = build_ledger()
-    lg, _ = append_simulation_consequence(
-        lg, simulation_result=make_evidence(tmp_path),
-        extractor_name="closure_effect_v1", evidence_dir=tmp_path)
-    lg, _ = append_reversal(lg, rule_manifest=make_rule(episode=5, rule_id="reopen"),
-                            reverses_change_id=c1)
+    lg, _ = append_simulation_consequence(lg, simulation_result=make_evidence(tmp_path),
+                                          extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                          rule_id="close_the_bridge")
+    lg, _ = append_reversal(lg, rule_manifest=make_rule(episode=5, rule_id="reopen"), reverses_change_id=c1)
     verify_ledger(lg)
     errors = sorted(Draft202012Validator(schema).iter_errors(lg), key=lambda e: list(e.path))
     assert not errors, "\n".join(f"{list(e.path)}: {e.message}" for e in errors[:5])

@@ -40,6 +40,7 @@ def result(tmp_path, **over):
         "episode_number": 1,
         "arm": "ruled",
         "seed": 20260903,
+        "sumo_version": "1.27.1",
         "artifacts": {"ruled_tripinfo": {"file": f.name, "sha256": sha256_file(f)}},
         "result_hash": "",
     }
@@ -68,16 +69,12 @@ def test_hash_ignores_its_own_field():
     assert compute_hash(m, "manifest_hash") == a
 
 
-def test_key_order_does_not_change_identity():
+def test_key_order_and_reformatting_do_not_change_identity(tmp_path):
     m = rule()
-    assert compute_hash(m, "manifest_hash") == compute_hash(
-        dict(reversed(list(m.items()))), "manifest_hash")
-
-
-def test_reformatting_does_not_change_identity(tmp_path):
-    m = seal_rule_manifest(rule())
+    assert compute_hash(m, "manifest_hash") == compute_hash(dict(reversed(list(m.items()))), "manifest_hash")
+    sealed = seal_rule_manifest(m)
     p = tmp_path / "m.json"
-    p.write_text(json.dumps(m, indent=8))
+    p.write_text(json.dumps(sealed, indent=8))
     verify_rule_manifest(json.loads(p.read_text()))
 
 
@@ -97,9 +94,8 @@ def test_any_content_change_breaks_the_seal(mutate):
 # --- refusals -------------------------------------------------------------
 
 def test_unsealed_document_is_refused():
-    m = rule()
     with pytest.raises(EvidenceError, match="not sealed"):
-        verify_rule_manifest(m)
+        verify_rule_manifest(rule())
 
 
 def test_wrong_schema_version_is_refused():
@@ -108,24 +104,39 @@ def test_wrong_schema_version_is_refused():
 
 
 def test_missing_required_field_is_refused():
-    d = rule()
-    del d["change"]
+    d = rule(); del d["change"]
     with pytest.raises(EvidenceError, match="change"):
         seal_rule_manifest(d)
 
 
+def test_result_requires_sumo_version(tmp_path):
+    """The adversarial review noted the seal accepted results with no simulator identity."""
+    d = result(tmp_path); del d["sumo_version"]
+    with pytest.raises(EvidenceError, match="sumo_version"):
+        seal_simulation_result(d)
+
+
+def test_result_arm_must_be_baseline_or_ruled(tmp_path):
+    with pytest.raises(EvidenceError, match="arm"):
+        seal_simulation_result(result(tmp_path, arm="whatever_i_like"))
+
+
 def test_result_with_no_artifacts_is_refused(tmp_path):
-    r = seal_simulation_result(result(tmp_path, artifacts={"x": {"sha256": "a" * 64}}))
-    r2 = dict(r)
-    r2["artifacts"] = {}
-    with pytest.raises(EvidenceError):
-        verify_simulation_result(r2)
+    with pytest.raises(EvidenceError, match="at least one"):
+        seal_simulation_result(result(tmp_path, artifacts={}))
 
 
-def test_artifact_without_a_hash_is_refused(tmp_path):
-    r = seal_simulation_result(result(tmp_path, artifacts={"x": {"file": "a.xml"}}))
-    with pytest.raises(EvidenceError, match="sha256"):
-        verify_simulation_result(r)
+def test_artifact_without_a_valid_hash_is_refused(tmp_path):
+    with pytest.raises(EvidenceError, match="64-hex sha256"):
+        seal_simulation_result(result(tmp_path, artifacts={"x": {"file": "a.xml"}}))
+    with pytest.raises(EvidenceError, match="64-hex sha256"):
+        seal_simulation_result(result(tmp_path, artifacts={"x": {"file": "a.xml", "sha256": "nothex"}}))
+
+
+@pytest.mark.parametrize("bad", ["../../secrets", "/abs/path", "C:\\abs\\path", "..\\up"])
+def test_artifact_path_traversal_is_refused(tmp_path, bad):
+    with pytest.raises(EvidenceError, match="traversal"):
+        seal_simulation_result(result(tmp_path, artifacts={"x": {"file": bad, "sha256": "a" * 64}}))
 
 
 def test_a_non_document_is_refused():
@@ -137,8 +148,7 @@ def test_a_non_document_is_refused():
 
 def test_artifact_bytes_are_checked(tmp_path):
     r = seal_simulation_result(result(tmp_path))
-    verify_artifact_on_disk(r, "ruled_tripinfo", tmp_path)   # passes
-
+    verify_artifact_on_disk(r, "ruled_tripinfo", tmp_path)
     (tmp_path / "a.xml").write_text("<tripinfos>EDITED</tripinfos>")
     with pytest.raises(EvidenceError, match="does not match the sealed result"):
         verify_artifact_on_disk(r, "ruled_tripinfo", tmp_path)

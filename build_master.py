@@ -103,7 +103,8 @@ def stage() -> None:
     cl.mkdir()
     for f in ("baseline.tripinfo.xml", "ruled.tripinfo.xml",
               "ruled_repeat.tripinfo.xml", "closure_metrics.json",
-              "persistent_changes.json"):
+              "persistent_changes.json", "simulation_result.json",
+              "rule_manifest.json"):
         src = SUMO / "closure_v2" / f
         if src.exists():
             shutil.copy2(src, cl / f)
@@ -113,6 +114,17 @@ def stage() -> None:
                  clrec / "record_manifest.json")
     shutil.copy2(SUMO / "closure_v2" / "record_ruled" / "frames.bin",
                  clrec / "frames.bin")
+    # baseline record: required by closure_effect_v1's cross-artefact check
+    blrec = cl / "record_baseline"
+    blrec.mkdir()
+    shutil.copy2(SUMO / "closure_v2" / "record_baseline" / "record_manifest.json",
+                 blrec / "record_manifest.json")
+    shutil.copy2(SUMO / "closure_v2" / "record_baseline" / "frames.bin",
+                 blrec / "frames.bin")
+    # in-engine playback proof (remote execution; measured, not asserted)
+    pv = EV / "playback_verify.json"
+    if pv.exists():
+        shutil.copy2(pv, ev / "playback_verify.json")
 
     # --- identity ---
     idd = STAGE / "identity"
@@ -164,6 +176,9 @@ def stage() -> None:
     (art / "ldyf").mkdir()
     for py in sorted((WS / "ldyf").glob("*.py")):
         shutil.copy2(py, art / "ldyf" / py.name)
+    (art / "ldyf" / "unreal").mkdir()
+    for py in sorted((WS / "ldyf" / "unreal").glob("*.py")):
+        shutil.copy2(py, art / "ldyf" / "unreal" / py.name)
     (art / "ldyf" / "tests").mkdir()
     for py in sorted((WS / "ldyf" / "tests").glob("*.py")):
         shutil.copy2(py, art / "ldyf" / "tests" / py.name)
@@ -178,6 +193,7 @@ def stage() -> None:
     proj = WS / "LivingDioramaYF"
     shutil.copy2(proj / "LivingDioramaYF.uproject", art / "unreal_project" / "LivingDioramaYF.uproject")
     shutil.copy2(proj / ".mcp.json", art / "unreal_project" / "mcp.json")
+    shutil.copy2(proj / "Config" / "DefaultEngine.ini", art / "unreal_project" / "DefaultEngine.ini")
     pcg_asset = proj / "Content" / "PCG" / "PCG_LivingDiorama_Probe.uasset"
     if pcg_asset.exists():
         shutil.copy2(pcg_asset, art / "unreal_project" / "PCG_LivingDiorama_Probe.uasset")

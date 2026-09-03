@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://living-diorama.local/schemas/simulation_result.schema.json",
-  "title": "Simulation Result V1",
-  "description": "What the simulation actually produced. Every number here was measured by SUMO. Nothing in this file may be authored by an LLM (DNA-07). Claude and DeepSeek may read it; neither may write it.",
+  "title": "Simulation Result V1 (sealed)",
+  "description": "What a run actually produced, SEALED machine-side by ldyf.closure.seal_run_result from the RunResults the simulator returned. Names the byte-identity of every artefact the extractor will re-read. Nothing here is a metric or a claim; metrics are derived later by a registered extractor. An LLM never writes this document (DNA-07).",
   "type": "object",
   "required": [
     "schema_version",
@@ -11,103 +11,71 @@
     "arm",
     "seed",
     "sumo_version",
-    "network_sha256",
-    "record",
-    "metrics"
+    "artifacts",
+    "result_hash"
   ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": "simulation_result_v1" },
-    "run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$" },
-    "episode_number": { "type": "integer", "minimum": 0 },
+    "schema_version": {
+      "const": "simulation_result_v1"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "episode_number": {
+      "type": "integer",
+      "minimum": 0
+    },
     "arm": {
-      "enum": ["baseline", "ruled"],
-      "description": "Which side of the controlled experiment this run is. A consequence is only ever the difference between a baseline and a ruled run at identical seed."
+      "enum": [
+        "baseline",
+        "ruled"
+      ]
     },
-    "rule_id": { "type": ["string", "null"] },
-    "seed": { "type": "integer" },
-    "sumo_version": { "type": "string" },
-    "network_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "record": {
+    "seed": {
+      "type": "integer"
+    },
+    "sumo_version": {
+      "type": "string"
+    },
+    "applied_at_sim_second": {
+      "type": "number",
+      "minimum": 0
+    },
+    "runs": {
       "type": "object",
-      "description": "Pointer to the sealed Simulation Record this run produced.",
-      "required": ["manifest_file", "frames_file", "frames_sha256", "fcd_payload_sha256"],
-      "additionalProperties": false,
-      "properties": {
-        "manifest_file": { "type": "string" },
-        "frames_file": { "type": "string" },
-        "frames_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "fcd_payload_sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$",
-          "description": "SHA-256 of the FCD payload EXCLUDING SUMO's provenance header comment. Hashing raw bytes reports false non-determinism: two identical runs differ in exactly 10 header bytes."
-        }
+      "description": "Per-arm run facts copied from RunResult: exit code, steps, output validity, and honest reroute accounting (requests / successes / routes_actually_changed / unchanged / failures).",
+      "additionalProperties": {
+        "type": "object"
       }
     },
-    "metrics": {
+    "artifacts": {
       "type": "object",
-      "description": "Measured aggregates, as reported by SUMO. Keys mirror SUMO's own statistics names so every value is traceable to the tool that produced it.",
-      "required": ["vehicles_inserted", "trips_completed"],
-      "additionalProperties": false,
-      "properties": {
-        "vehicles_inserted": { "type": "integer", "minimum": 0 },
-        "vehicles_running_at_end": { "type": "integer", "minimum": 0 },
-        "trips_completed": { "type": "integer", "minimum": 0 },
-        "avg_route_length_m": { "type": "number" },
-        "avg_speed_mps": { "type": "number" },
-        "avg_duration_s": { "type": "number" },
-        "avg_waiting_time_s": { "type": "number" },
-        "avg_time_loss_s": { "type": "number" },
-        "avg_depart_delay_s": { "type": "number" },
-        "emergency_brakings": { "type": "integer", "minimum": 0 },
-        "teleports": { "type": "integer", "minimum": 0 },
-        "persons_inserted": { "type": "integer", "minimum": 0 },
-        "walks_completed": { "type": "integer", "minimum": 0 },
-        "avg_walk_length_m": { "type": "number" },
-        "avg_walk_duration_s": { "type": "number" },
-        "avg_walk_time_loss_s": { "type": "number" },
-        "peak_concurrent_actors": { "type": "integer", "minimum": 0 }
-      }
-    },
-    "events": {
-      "type": "array",
-      "description": "Discrete things the simulation actually did. A candidate story beat must resolve to one of these. Sustained-condition events carry the span over which they held (DNA-09).",
-      "items": {
+      "minProperties": 1,
+      "description": "name -> {file (relative, traversal-free), sha256}. closure_effect_v1 requires baseline_tripinfo, ruled_tripinfo, baseline_record_manifest, baseline_record_frames, ruled_record_manifest, ruled_record_frames.",
+      "additionalProperties": {
         "type": "object",
-        "required": ["event_id", "kind", "sim_second"],
+        "required": [
+          "file",
+          "sha256"
+        ],
         "additionalProperties": false,
         "properties": {
-          "event_id": { "type": "string" },
-          "kind": {
-            "enum": [
-              "edge_closed", "edge_reopened", "reroute", "emergency_braking",
-              "teleport", "jam_formed", "jam_cleared", "trip_completed", "trip_abandoned"
-            ]
+          "file": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)(?!.*:).+$"
           },
-          "sim_second": { "type": "number", "minimum": 0 },
-          "sustained_for_s": {
-            "type": "number",
-            "minimum": 0,
-            "description": "Required for jam_formed. A condition that did not persist is noise and must not be narrated."
-          },
-          "actor_uid": { "type": ["string", "null"] },
-          "edge_id": { "type": ["string", "null"] },
-          "measured": {
-            "type": "object",
-            "additionalProperties": { "type": ["number", "string", "boolean"] }
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
           }
         }
       }
     },
-    "performance": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "sim_seconds": { "type": "number" },
-        "wall_seconds": { "type": "number" },
-        "realtime_factor": { "type": "number" },
-        "mode": { "enum": ["offline", "traci"] }
-      }
+    "result_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over this document with result_hash blanked, canonical JSON. See ldyf.evidence."
     }
   }
 }
