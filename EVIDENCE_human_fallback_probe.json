@@ -1,0 +1,13 @@
+{
+  "ground_actor": "LD_Ground_0",
+  "tpp_loaded": [
+    true,
+    true,
+    true
+  ],
+  "walk_playing": true,
+  "walk_length_s": 1.8333333730697632,
+  "play_rate": 1.5,
+  "anim_error": "get_actor_bounds() takes at most 1 argument (2 given)",
+  "saved": true
+}
