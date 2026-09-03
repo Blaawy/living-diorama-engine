@@ -1,0 +1,44 @@
+{
+  "counts": {
+    "edges": 311,
+    "junctions": 16,
+    "lanes": 463,
+    "polyline_points": 1958
+  },
+  "normal_edges": 48,
+  "internal_edges": 263,
+  "normal_lanes": 144,
+  "lane_widths_cm_normal": [
+    200.0
+  ],
+  "null_width_lanes": 323,
+  "extent_cm": {
+    "x": [
+      -740,
+      60740
+    ],
+    "y": [
+      -60740,
+      740
+    ]
+  },
+  "junctions_with_polygon": 16,
+  "net_payload_sha256": "eab36a38ad71fefaee589a7e87f55e04e73ba704cf164b853ddb1516712d2726",
+  "bytes": 443750,
+  "sample_lane": {
+    "id": "A0A1_0",
+    "width_cm": 200.0,
+    "polyline_head": [
+      {
+        "x": 740.0,
+        "y": -840.0,
+        "z": 0.0
+      },
+      {
+        "x": 740.0,
+        "y": -18960.0,
+        "z": 0.0
+      }
+    ]
+  }
+}
