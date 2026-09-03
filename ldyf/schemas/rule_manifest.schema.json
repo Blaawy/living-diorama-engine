@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://living-diorama.local/schemas/rule_manifest.schema.json",
+  "title": "Rule Manifest V1 (ONE RULE)",
+  "description": "Exactly one rule changes per episode. This document is the experiment's independent variable, declared BEFORE the simulation runs so the result cannot be chosen after seeing it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "rule_id",
+    "episode_number",
+    "declared_utc",
+    "statement",
+    "change",
+    "applies_at_sim_second",
+    "baseline_required",
+    "prediction"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "rule_manifest_v1" },
+    "rule_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$" },
+    "episode_number": { "type": "integer", "minimum": 0 },
+    "declared_utc": { "type": "string", "format": "date-time" },
+    "statement": {
+      "type": "string",
+      "description": "The rule in the Director's own words, e.g. 'Close the bridge.' Presentation may quote this verbatim; it is never used as semantic input.",
+      "minLength": 3,
+      "maxLength": 240
+    },
+    "change": {
+      "type": "object",
+      "description": "The machine-actionable change. Exactly one of the change kinds must be present - this is what makes it ONE rule.",
+      "oneOf": [
+        { "required": ["close_edges"] },
+        { "required": ["reopen_edges"] },
+        { "required": ["speed_limit"] },
+        { "required": ["demand_scale"] },
+        { "required": ["tls_program"] }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "close_edges": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "reopen_edges": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "speed_limit": {
+          "type": "object",
+          "required": ["edge_ids", "mps"],
+          "additionalProperties": false,
+          "properties": {
+            "edge_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "mps": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "demand_scale": {
+          "type": "object",
+          "required": ["factor"],
+          "additionalProperties": false,
+          "properties": { "factor": { "type": "number", "exclusiveMinimum": 0 } }
+        },
+        "tls_program": {
+          "type": "object",
+          "required": ["tls_id", "program_id"],
+          "additionalProperties": false,
+          "properties": { "tls_id": { "type": "string" }, "program_id": { "type": "string" } }
+        }
+      }
+    },
+    "applies_at_sim_second": {
+      "type": "number",
+      "minimum": 0,
+      "description": "The rule takes effect at this simulation second and the whole causal chain at that instant already sees it. Directly inherits the old engine's RuleSystem-first correction (DNA-05)."
+    },
+    "permanent": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, the resulting world change is written into world_state.network.closed_edges and survives any later reversal of this rule."
+    },
+    "baseline_required": {
+      "type": "boolean",
+      "const": true,
+      "description": "A rule episode MUST run an identical-seed baseline without the change. Consequences are only ever claimed as the difference between two real runs."
+    },
+    "prediction": {
+      "type": "object",
+      "description": "Declared before the run. Enables honest prediction error for the viewer: what we expected, versus what the world actually did.",
+      "required": ["text", "declared_before_run"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "minLength": 3, "maxLength": 500 },
+        "declared_before_run": { "type": "boolean", "const": true },
+        "metric": { "type": "string" },
+        "direction": { "enum": ["increase", "decrease", "no_change"] }
+      }
+    }
+  }
+}

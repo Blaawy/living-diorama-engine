@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://living-diorama.local/schemas/world_state.schema.json",
+  "title": "World State V1",
+  "description": "The authoritative, machine-readable condition of the world at the end of an episode. Episode N+1 loads exactly this file. Never prose; never an LLM summary. Inherits the old engine's state_hash/parent_state_hash chaining (DNA-02).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "world_id",
+    "episode_number",
+    "state_hash",
+    "parent_state_hash",
+    "created_utc",
+    "network",
+    "districts",
+    "infrastructure",
+    "persistent_changes_ref"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "world_state_v1" },
+    "world_id": {
+      "type": "string",
+      "description": "Stable identity of this world lineage. Never changes across episodes.",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "episode_number": { "type": "integer", "minimum": 0 },
+    "state_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over this document with state_hash itself set to the empty string, serialised with sorted keys and no insignificant whitespace."
+    },
+    "parent_state_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "state_hash of episode N-1. Null only for episode 0. A world whose parent_state_hash does not resolve to an existing accepted episode MUST be refused."
+    },
+    "created_utc": { "type": "string", "format": "date-time" },
+    "network": {
+      "type": "object",
+      "required": ["net_file", "net_sha256", "extent_m"],
+      "additionalProperties": false,
+      "properties": {
+        "net_file": { "type": "string" },
+        "net_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "extent_m": {
+          "type": "object",
+          "required": ["min_x", "min_y", "max_x", "max_y"],
+          "additionalProperties": false,
+          "properties": {
+            "min_x": { "type": "number" }, "min_y": { "type": "number" },
+            "max_x": { "type": "number" }, "max_y": { "type": "number" }
+          }
+        },
+        "closed_edges": {
+          "type": "array",
+          "description": "Edges permanently closed by an accepted ONE RULE. Permanence lives here, not in a rule file, so a restored law cannot delete it (DNA-03).",
+          "items": {
+            "type": "object",
+            "required": ["edge_id", "closed_in_episode", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "edge_id": { "type": "string" },
+              "closed_in_episode": { "type": "integer", "minimum": 0 },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "districts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["district_id", "name", "edge_ids"],
+        "additionalProperties": false,
+        "properties": {
+          "district_id": { "type": "string", "pattern": "^[a-z0-9_]{1,40}$" },
+          "name": { "type": "string" },
+          "edge_ids": { "type": "array", "items": { "type": "string" } },
+          "measured": {
+            "type": "object",
+            "description": "Derived reads only. Every key MUST carry the simulation field it came from; no composite indices (DNA-08).",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["value", "source_field", "source_record_sha256"],
+              "additionalProperties": false,
+              "properties": {
+                "value": { "type": "number" },
+                "unit": { "type": "string" },
+                "source_field": { "type": "string" },
+                "source_record_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "infrastructure": {
+      "type": "array",
+      "description": "Durable built things. Once present, an entry may only be added to or amended - never silently removed. Removal requires an explicit persistent change entry.",
+      "items": {
+        "type": "object",
+        "required": ["infra_id", "kind", "built_in_episode", "active"],
+        "additionalProperties": false,
+        "properties": {
+          "infra_id": { "type": "string" },
+          "kind": { "type": "string" },
+          "built_in_episode": { "type": "integer", "minimum": 0 },
+          "active": { "type": "boolean" },
+          "location": {
+            "type": "object",
+            "required": ["x_m", "y_m"],
+            "additionalProperties": false,
+            "properties": { "x_m": { "type": "number" }, "y_m": { "type": "number" } }
+          },
+          "dependency": {
+            "type": "number",
+            "minimum": 0, "maximum": 1,
+            "description": "How much the surrounding world has come to rely on this. Grows only while the thing exists and stays active."
+          }
+        }
+      }
+    },
+    "persistent_changes_ref": {
+      "type": "object",
+      "required": ["file", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "version_history": {
+      "type": "array",
+      "description": "Append-only. One entry per accepted episode in this lineage.",
+      "items": {
+        "type": "object",
+        "required": ["episode_number", "state_hash", "created_utc"],
+        "additionalProperties": false,
+        "properties": {
+          "episode_number": { "type": "integer", "minimum": 0 },
+          "state_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "created_utc": { "type": "string", "format": "date-time" },
+          "rule_id": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

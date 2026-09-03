@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://living-diorama.local/schemas/episode_manifest.schema.json",
+  "title": "Episode Manifest V1",
+  "description": "The root document of one episode. Binds together the world it inherited, the single rule it changed, the two simulation runs it performed, and the media it produced. Everything a reviewer needs to audit a published claim starts here.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "episode_number",
+    "world_id",
+    "parent_state_hash",
+    "rule_manifest_ref",
+    "runs",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "episode_manifest_v1" },
+    "episode_number": { "type": "integer", "minimum": 0 },
+    "world_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$" },
+    "parent_state_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The world state this episode started from. Null only for episode 0."
+    },
+    "resulting_state_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Written only once the episode is accepted. Null while in progress."
+    },
+    "rule_manifest_ref": {
+      "type": "object",
+      "required": ["file", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "runs": {
+      "type": "object",
+      "description": "A rule episode has exactly two runs at identical seed. Both are required before any consequence may be claimed.",
+      "required": ["baseline", "ruled"],
+      "additionalProperties": false,
+      "properties": {
+        "baseline": { "$ref": "#/$defs/run_ref" },
+        "ruled": { "$ref": "#/$defs/run_ref" }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "video_file": { "type": "string" },
+        "video_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "duration_s": { "type": "number", "exclusiveMinimum": 0 },
+        "captions_file": { "type": ["string", "null"] },
+        "frame_count": { "type": "integer", "minimum": 1 },
+        "fps": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "description": "Every public factual statement made in the episode, each bound to the measurement that supports it. A claim with no resolvable source must block publication.",
+      "items": {
+        "type": "object",
+        "required": ["claim_id", "text", "source_run_id", "source_field", "source_value"],
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": { "type": "string" },
+          "text": { "type": "string" },
+          "source_run_id": { "type": "string" },
+          "source_field": {
+            "type": "string",
+            "description": "Dotted path into a simulation_result document, e.g. 'metrics.avg_time_loss_s'. Exactly one field per claim; no composites (DNA-08)."
+          },
+          "source_value": { "type": ["number", "string", "boolean"] },
+          "spoken_at_s": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "status": {
+      "enum": ["planned", "simulated", "rendered", "director_review", "accepted", "rejected"],
+      "description": "An episode may only contribute to world_state once it reaches 'accepted'."
+    },
+    "director_watched": {
+      "type": "boolean",
+      "default": false,
+      "description": "True only when a human has actually watched the rendered episode. Never set by an automated step."
+    },
+    "known_limitations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "What this episode does not do or does not prove. Required by DNA-10; honest incompleteness over fabricated completeness."
+    }
+  },
+  "$defs": {
+    "run_ref": {
+      "type": "object",
+      "required": ["run_id", "file", "sha256", "seed"],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": { "type": "string" },
+        "file": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "seed": { "type": "integer" }
+      }
+    }
+  }
+}
