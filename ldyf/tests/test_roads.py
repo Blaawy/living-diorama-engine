@@ -315,3 +315,27 @@ def test_real_network_spec_counts_positive_and_polylines_sane():
             for p in ln["polyline"]:
                 assert all(math.isfinite(p[k]) for k in ("x", "y", "z"))
     assert seen_edges == sorted(seen_edges)
+
+
+# --- effective width: SUMO's own value, with its source stated ---------------
+
+def test_effective_width_reports_attribute_or_sumo_default(tmp_path):
+    from ldyf.coords import METRES_TO_UNREAL_UNITS
+    spec = build_road_spec(write_tiny_net(tmp_path))
+    with_attr = lane_by_id(spec, "E1_0")
+    assert with_attr["width_source"] == "attribute"
+    assert with_attr["width_cm_effective"] == with_attr["width_cm"] == 3.2 * METRES_TO_UNREAL_UNITS
+    absent = lane_by_id(spec, "E2_0")
+    assert absent["width_cm"] is None
+    assert absent["width_source"] == "sumo_default"
+    # the default is sumolib's, read back from the parsed lane, not typed here
+    import sumolib
+    net = sumolib.net.readNet(str(write_tiny_net(tmp_path)))
+    assert absent["width_cm_effective"] == net.getLane("E2_0").getWidth() * METRES_TO_UNREAL_UNITS
+
+
+def test_effective_width_never_null_for_normal_lanes(tmp_path):
+    spec = build_road_spec(write_tiny_net(tmp_path))
+    for e in spec["edges"]:
+        for ln in e["lanes"]:
+            assert ln["width_cm_effective"] is not None and ln["width_source"] in ("attribute", "sumo_default")

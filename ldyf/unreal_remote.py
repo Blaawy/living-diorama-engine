@@ -65,6 +65,13 @@ class UnrealRemote:
     # --- lifecycle --------------------------------------------------------
 
     def connect(self) -> str:
+        # Idempotent: `with UnrealRemote() as r:` already connects; a second
+        # connect() used to re-broadcast open_connection while a command socket
+        # was open, and the editor (correctly) never dialled again -- which
+        # looked like "Remote party failed to attempt the command socket
+        # connection". Root cause found 2026-09-03 after blaming the editor.
+        if self.node_id is not None and self._exec.has_command_connection():
+            return self.node_id
         self._exec.start()
         deadline = time.time() + self.discover_timeout
         while time.time() < deadline:

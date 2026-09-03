@@ -331,11 +331,20 @@ def build_road_spec(net_path: str | Path) -> dict:
             width_cm = None
             if rl.get("width") is not None:
                 width_cm = _f3(rl["width"] * METRES_TO_UNREAL_UNITS)
+            # Effective width: the value SUMO itself uses. sumolib substitutes
+            # its default (3.2 m, sumolib/net/__init__.py `attrs.get('width', 3.2)`)
+            # when the attribute is absent; we report that value AND its source,
+            # so a consumer never has to type a default (law 3).
+            eff = _call(lane, "getWidth")
+            width_cm_effective = _f3(eff * METRES_TO_UNREAL_UNITS) if eff is not None else width_cm
+            width_source = "attribute" if rl.get("width") is not None else ("sumo_default" if eff is not None else None)
             lanes_out.append(
                 {
                     "id": lid,
                     "index": rl.get("index"),
                     "width_cm": width_cm,
+                    "width_cm_effective": width_cm_effective,
+                    "width_source": width_source,
                     "speed_mps": rl.get("speed"),
                     "length_m": rl.get("length"),
                     "allow": rl.get("allow"),
