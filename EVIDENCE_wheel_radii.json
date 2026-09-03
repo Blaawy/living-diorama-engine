@@ -1,0 +1,568 @@
+{
+  "wheel_radii": {
+    "/Game/Vehicle/vehCar_vehicle02/Mesh/SKM_vehCar_vehicle02": {
+      "spin_bones": [
+        "wheel_rear_l",
+        "wheel_rear_r",
+        "wheel_front_l",
+        "wheel_front_r"
+      ],
+      "bounds_origin": [
+        -4.641883434135764,
+        -0.00011444091796875,
+        99.90312713085667
+      ],
+      "bounds_extent": [
+        233.04057907776686,
+        109.11738481684918,
+        76.56318646968349
+      ],
+      "bounds_min_z": 23.339940661173188,
+      "bounds_max_z": 176.46631360054016,
+      "bone_z_component": {
+        "wheel_rear_l": 35.700660705566406,
+        "wheel_rear_r": 35.700660705566406,
+        "wheel_front_l": 35.70066452026367,
+        "wheel_front_r": 35.70066452026367
+      },
+      "bone_z_world": {
+        "wheel_rear_l": 35.700660705566406,
+        "wheel_rear_r": 35.700660705566406,
+        "wheel_front_l": 35.70066452026367,
+        "wheel_front_r": 35.70066452026367
+      },
+      "radius_by_bone_cm": {
+        "wheel_rear_l": 12.360720044393219,
+        "wheel_rear_r": 12.360720044393219,
+        "wheel_front_l": 12.360723859090484,
+        "wheel_front_r": 12.360723859090484
+      },
+      "wheel_radius_cm": 35.70066261291504,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 12.360721951741851
+    },
+    "/Game/Vehicle/vehCar_vehicle03/Mesh/SKM_vehCar_vehicle03": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -15.321974754333496,
+        -1.9073486328125e-05,
+        90.12887517982958
+      ],
+      "bounds_extent": [
+        255.145489692688,
+        110.17797864153579,
+        64.62789709990982
+      ],
+      "bounds_min_z": 25.50097807991976,
+      "bounds_max_z": 154.75677227973938,
+      "bone_z_component": {
+        "wheel_front_l": 33.556400299072266,
+        "wheel_front_r": 33.556400299072266,
+        "wheel_rear_l": 33.556400299072266,
+        "wheel_rear_r": 33.556400299072266
+      },
+      "bone_z_world": {
+        "wheel_front_l": 33.556400299072266,
+        "wheel_front_r": 33.556400299072266,
+        "wheel_rear_l": 33.556400299072266,
+        "wheel_rear_r": 33.556400299072266
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 8.055422219152504,
+        "wheel_front_r": 8.055422219152504,
+        "wheel_rear_l": 8.055422219152504,
+        "wheel_rear_r": 8.055422219152504
+      },
+      "wheel_radius_cm": 33.556400299072266,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 8.055422219152504
+    },
+    "/Game/Vehicle/vehCar_vehicle05/Mesh/SKM_vehCar_vehicle05": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        6.675483703613281,
+        -0.00017547607421875,
+        98.19320011138919
+      ],
+      "bounds_extent": [
+        216.72765350341797,
+        101.98234775389989,
+        62.55887508392337
+      ],
+      "bounds_min_z": 35.63432502746582,
+      "bounds_max_z": 160.75207519531256,
+      "bone_z_component": {
+        "wheel_front_l": 35.431846618652344,
+        "wheel_front_r": 35.431846618652344,
+        "wheel_rear_l": 35.431846618652344,
+        "wheel_rear_r": 35.431846618652344
+      },
+      "bone_z_world": {
+        "wheel_front_l": 35.431846618652344,
+        "wheel_front_r": 35.431846618652344,
+        "wheel_rear_l": 35.431846618652344,
+        "wheel_rear_r": 35.431846618652344
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": -0.20247840881347656,
+        "wheel_front_r": -0.20247840881347656,
+        "wheel_rear_l": -0.20247840881347656,
+        "wheel_rear_r": -0.20247840881347656
+      },
+      "wheel_radius_cm": 35.431846618652344,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": -0.20247840881347656
+    },
+    "/Game/Vehicle/vehCar_vehicle06/Mesh/SKM_vehCar_vehicle06": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -6.927480372265961,
+        -0.000125885009765625,
+        77.7389532327652
+      ],
+      "bounds_extent": [
+        206.2635254522695,
+        95.52248127715542,
+        59.139931321144104
+      ],
+      "bounds_min_z": 18.599021911621094,
+      "bounds_max_z": 136.8788845539093,
+      "bone_z_component": {
+        "wheel_front_l": 33.58661651611328,
+        "wheel_front_r": 33.58661651611328,
+        "wheel_rear_l": 33.58661651611328,
+        "wheel_rear_r": 33.58661651611328
+      },
+      "bone_z_world": {
+        "wheel_front_l": 33.58661651611328,
+        "wheel_front_r": 33.58661651611328,
+        "wheel_rear_l": 33.58661651611328,
+        "wheel_rear_r": 33.58661651611328
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 14.987594604492188,
+        "wheel_front_r": 14.987594604492188,
+        "wheel_rear_l": 14.987594604492188,
+        "wheel_rear_r": 14.987594604492188
+      },
+      "wheel_radius_cm": 33.58661651611328,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 14.987594604492188
+    },
+    "/Game/Vehicle/vehCar_vehicle07/Mesh/SKM_vehCar_vehicle07": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -9.445953369140625,
+        -1.1284922351251225e-05,
+        81.72230516139462
+      ],
+      "bounds_extent": [
+        209.23464965820312,
+        104.74331508517864,
+        60.48034800823734
+      ],
+      "bounds_min_z": 21.241957153157273,
+      "bounds_max_z": 142.20265316963196,
+      "bone_z_component": {
+        "wheel_front_l": 31.644540786743164,
+        "wheel_front_r": 31.644540786743164,
+        "wheel_rear_l": 31.644405364990234,
+        "wheel_rear_r": 31.644405364990234
+      },
+      "bone_z_world": {
+        "wheel_front_l": 31.644540786743164,
+        "wheel_front_r": 31.644540786743164,
+        "wheel_rear_l": 31.644405364990234,
+        "wheel_rear_r": 31.644405364990234
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 10.402583633585891,
+        "wheel_front_r": 10.402583633585891,
+        "wheel_rear_l": 10.402448211832962,
+        "wheel_rear_r": 10.402448211832962
+      },
+      "wheel_radius_cm": 31.6444730758667,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 10.402515922709426
+    },
+    "/Game/Vehicle/vehCar_vehicle12/Mesh/SKM_vehCar_vehicle12": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -15.122387842081366,
+        -1.9073486328125e-05,
+        89.28694611603784
+      ],
+      "bounds_extent": [
+        255.34507660494012,
+        110.17797864153579,
+        65.46982616370154
+      ],
+      "bounds_min_z": 23.8171199523363,
+      "bounds_max_z": 154.75677227973938,
+      "bone_z_component": {
+        "wheel_front_l": 33.556400299072266,
+        "wheel_front_r": 33.556400299072266,
+        "wheel_rear_l": 33.556400299072266,
+        "wheel_rear_r": 33.556400299072266
+      },
+      "bone_z_world": {
+        "wheel_front_l": 33.556400299072266,
+        "wheel_front_r": 33.556400299072266,
+        "wheel_rear_l": 33.556400299072266,
+        "wheel_rear_r": 33.556400299072266
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 9.739280346735967,
+        "wheel_front_r": 9.739280346735967,
+        "wheel_rear_l": 9.739280346735967,
+        "wheel_rear_r": 9.739280346735967
+      },
+      "wheel_radius_cm": 33.556400299072266,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 9.739280346735967
+    },
+    "/Game/Vehicle/vehCar_vehicle13/Mesh/SKM_vehCar_vehicle13": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -3.5265331268310547,
+        0.46982154902404716,
+        89.21642146478364
+      ],
+      "bounds_extent": [
+        266.94093132019043,
+        107.35891618594424,
+        65.54035081495576
+      ],
+      "bounds_min_z": 23.676070649827878,
+      "bounds_max_z": 154.75677227973938,
+      "bone_z_component": {
+        "wheel_front_l": 33.556400299072266,
+        "wheel_front_r": 33.556400299072266,
+        "wheel_rear_l": 33.556400299072266,
+        "wheel_rear_r": 33.556400299072266
+      },
+      "bone_z_world": {
+        "wheel_front_l": 33.556400299072266,
+        "wheel_front_r": 33.556400299072266,
+        "wheel_rear_l": 33.556400299072266,
+        "wheel_rear_r": 33.556400299072266
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 9.880329649244388,
+        "wheel_front_r": 9.880329649244388,
+        "wheel_rear_l": 9.880329649244388,
+        "wheel_rear_r": 9.880329649244388
+      },
+      "wheel_radius_cm": 33.556400299072266,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 9.880329649244388
+    },
+    "/Game/Vehicle/vehVan_vehicle01/Mesh/SKM_vehVan_vehicle01": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -2.8809114674929788,
+        -0.4026145935058594,
+        105.3581107531948
+      ],
+      "bounds_extent": [
+        231.80491006571015,
+        112.43409981431897,
+        78.67949190984535
+      ],
+      "bounds_min_z": 26.67861884334944,
+      "bounds_max_z": 184.03760266304016,
+      "bone_z_component": {
+        "wheel_front_l": 35.95530387759209,
+        "wheel_front_r": 35.95530387759209,
+        "wheel_rear_l": 35.955318450927734,
+        "wheel_rear_r": 35.955318450927734
+      },
+      "bone_z_world": {
+        "wheel_front_l": 35.95530387759209,
+        "wheel_front_r": 35.95530387759209,
+        "wheel_rear_l": 35.955318450927734,
+        "wheel_rear_r": 35.955318450927734
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 9.276685034242647,
+        "wheel_front_r": 9.276685034242647,
+        "wheel_rear_l": 9.276699607578294,
+        "wheel_rear_r": 9.276699607578294
+      },
+      "wheel_radius_cm": 35.95531116425991,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 9.27669232091047
+    },
+    "/Game/Vehicle/vehVan_vehicle09/Mesh/SKM_vehVan_vehicle09": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -0.1121213436126709,
+        0.5479433389894837,
+        140.95475250155354
+      ],
+      "bounds_extent": [
+        319.6972622871399,
+        115.70485373074132,
+        111.08710235684488
+      ],
+      "bounds_min_z": 29.867650144708662,
+      "bounds_max_z": 252.04185485839844,
+      "bone_z_component": {
+        "wheel_front_l": 37.76067352294922,
+        "wheel_front_r": 37.76067352294922,
+        "wheel_rear_l": 37.760677337646484,
+        "wheel_rear_r": 37.760677337646484
+      },
+      "bone_z_world": {
+        "wheel_front_l": 37.76067352294922,
+        "wheel_front_r": 37.76067352294922,
+        "wheel_rear_l": 37.760677337646484,
+        "wheel_rear_r": 37.760677337646484
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 7.8930233782405566,
+        "wheel_front_r": 7.8930233782405566,
+        "wheel_rear_l": 7.893027192937822,
+        "wheel_rear_r": 7.893027192937822
+      },
+      "wheel_radius_cm": 37.76067543029785,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 7.893025285589189
+    },
+    "/Game/Vehicle/vehTruck_vehicle04/Mesh/SKM_vehTruck_vehicle04": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -25.025311352486767,
+        0.000213623046875,
+        105.59205484897198
+      ],
+      "bounds_extent": [
+        270.8259438292934,
+        121.36577308458038,
+        74.57796620815692
+      ],
+      "bounds_min_z": 31.01408864081506,
+      "bounds_max_z": 180.1700210571289,
+      "bone_z_component": {
+        "wheel_front_l": 39.5695610716939,
+        "wheel_front_r": 39.5695610716939,
+        "wheel_rear_l": 39.56956481933594,
+        "wheel_rear_r": 39.56956481933594
+      },
+      "bone_z_world": {
+        "wheel_front_l": 39.5695610716939,
+        "wheel_front_r": 39.5695610716939,
+        "wheel_rear_l": 39.56956481933594,
+        "wheel_rear_r": 39.56956481933594
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 8.555472430878837,
+        "wheel_front_r": 8.555472430878837,
+        "wheel_rear_l": 8.555476178520877,
+        "wheel_rear_r": 8.555476178520877
+      },
+      "wheel_radius_cm": 39.56956294551492,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 8.555474304699857
+    },
+    "/Game/Vehicle/vehTruck_vehicle08/Mesh/SKM_vehTruck_vehicle08": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r",
+        "wheel_axel3_l",
+        "wheel_axel3_r"
+      ],
+      "bounds_origin": [
+        24.335270404815674,
+        0.0,
+        188.25526428222656
+      ],
+      "bounds_extent": [
+        317.59671449661255,
+        127.53124916889398,
+        146.10678100585938
+      ],
+      "bounds_min_z": 42.14848327636719,
+      "bounds_max_z": 334.36204528808594,
+      "bone_z_component": {
+        "wheel_front_l": 54.37263488769531,
+        "wheel_front_r": 54.37263488769531,
+        "wheel_rear_l": 49.76576232910156,
+        "wheel_rear_r": 49.76576232910156,
+        "wheel_axel3_l": 49.7657585144043,
+        "wheel_axel3_r": 49.7657585144043
+      },
+      "bone_z_world": {
+        "wheel_front_l": 54.37263488769531,
+        "wheel_front_r": 54.37263488769531,
+        "wheel_rear_l": 49.76576232910156,
+        "wheel_rear_r": 49.76576232910156,
+        "wheel_axel3_l": 49.7657585144043,
+        "wheel_axel3_r": 49.7657585144043
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 12.224151611328125,
+        "wheel_front_r": 12.224151611328125,
+        "wheel_rear_l": 7.617279052734375,
+        "wheel_rear_r": 7.617279052734375,
+        "wheel_axel3_l": 7.617275238037109,
+        "wheel_axel3_r": 7.617275238037109
+      },
+      "wheel_radius_cm": 51.301385243733726,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 9.152901967366537
+    },
+    "/Game/Vehicle/vehTruck_vehicle11/Mesh/SKM_vehTruck_vehicle11": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r",
+        "wheel_axel3_r",
+        "wheel_axel3_l"
+      ],
+      "bounds_origin": [
+        10.081675499140147,
+        1.627166748046875,
+        234.82248273201515
+      ],
+      "bounds_extent": [
+        515.7768822019707,
+        144.74574279785156,
+        195.7217982738442
+      ],
+      "bounds_min_z": 39.100684458170946,
+      "bounds_max_z": 430.5442810058594,
+      "bone_z_component": {
+        "wheel_front_l": 62.3347053527832,
+        "wheel_front_r": 62.3347053527832,
+        "wheel_rear_l": 65.57837677001953,
+        "wheel_rear_r": 65.57837677001953,
+        "wheel_axel3_r": 65.57837677001953,
+        "wheel_axel3_l": 65.57837677001953
+      },
+      "bone_z_world": {
+        "wheel_front_l": 62.3347053527832,
+        "wheel_front_r": 62.3347053527832,
+        "wheel_rear_l": 65.57837677001953,
+        "wheel_rear_r": 65.57837677001953,
+        "wheel_axel3_r": 65.57837677001953,
+        "wheel_axel3_l": 65.57837677001953
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 23.234020894612257,
+        "wheel_front_r": 23.234020894612257,
+        "wheel_rear_l": 26.477692311848585,
+        "wheel_rear_r": 26.477692311848585,
+        "wheel_axel3_r": 26.477692311848585,
+        "wheel_axel3_l": 26.477692311848585
+      },
+      "wheel_radius_cm": 64.4971529642741,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 25.396468506103144
+    },
+    "/Game/Vehicle/vehBus_vehicle10/Mesh/SKM_vehBus_vehicle10": {
+      "spin_bones": [
+        "wheel_front_l",
+        "wheel_front_r",
+        "wheel_rear_l",
+        "wheel_rear_r"
+      ],
+      "bounds_origin": [
+        -4.678466796875,
+        0.007117970380932093,
+        140.3044671325153
+      ],
+      "bounds_extent": [
+        565.98779296875,
+        140.34374904091925,
+        127.63750369268
+      ],
+      "bounds_min_z": 12.6669634398353,
+      "bounds_max_z": 267.9419708251953,
+      "bone_z_component": {
+        "wheel_front_l": 46.85808563232422,
+        "wheel_front_r": 46.85808563232422,
+        "wheel_rear_l": 46.85808563232422,
+        "wheel_rear_r": 46.85808563232422
+      },
+      "bone_z_world": {
+        "wheel_front_l": 46.85808563232422,
+        "wheel_front_r": 46.85808563232422,
+        "wheel_rear_l": 46.85808563232422,
+        "wheel_rear_r": 46.85808563232422
+      },
+      "radius_by_bone_cm": {
+        "wheel_front_l": 34.19112219248892,
+        "wheel_front_r": 34.19112219248892,
+        "wheel_rear_l": 34.19112219248892,
+        "wheel_rear_r": 34.19112219248892
+      },
+      "wheel_radius_cm": 46.85808563232422,
+      "ground_offset_cm": 0.0,
+      "method": "ACCEPTED: spin-bone height above the mesh origin plane (component space). The mesh origin is the ground-contact plane (vehicle_mesh_probe.json: asset bounds origin 0,0,0). The component-bounds floor method gave 8-15 cm car wheels and a floor 12-42 cm above the origin, physically implausible for these meshes, so it is recorded but rejected.",
+      "wheel_radius_cm_bounds_floor_method_REJECTED": 34.19112219248892
+    }
+  },
+  "accepted_method": "bone_height_above_origin",
+  "note": "cars ~33-36 cm, vans 36-38, trucks 40-62, bus 47: consistent with real wheel sizes; not typed, read from the skeleton"
+}

@@ -1,0 +1,105 @@
+{
+  "male": {
+    "path": "/Game/Character/Player/Male/Meshes/SKM_PlayerMale",
+    "exists": true,
+    "skeleton": "/Game/Character/Shared/Skeleton/SK_Base.SK_Base",
+    "slots": [
+      [
+        "M_Head",
+        null
+      ],
+      [
+        "M_Body",
+        null
+      ],
+      [
+        "M_EyeR",
+        null
+      ],
+      [
+        "M_ButtonDown",
+        "MI_Shirt_Player.MI_Shirt_Player"
+      ],
+      [
+        "M_EyeL",
+        null
+      ],
+      [
+        "M_Teeth",
+        null
+      ],
+      [
+        "M_Slacks",
+        "MI_Outfit_Bottom.MI_Outfit_Bottom"
+      ],
+      [
+        "M_Oxfords",
+        "MI_Outfit_Shoes.MI_Outfit_Shoes"
+      ]
+    ],
+    "contact_offset_cm": 5.57,
+    "height_cm": 186.7,
+    "walk_loaded": true,
+    "idle_loaded": true,
+    "walk_skeleton": "/Game/Character/Shared/Skeleton/SK_Base.SK_Base",
+    "walk_length_s": 1.867,
+    "walk_plays": true
+  },
+  "female": {
+    "path": "/Game/Character/Player/Female/Meshes/SKM_PlayerFemale_Body",
+    "exists": true,
+    "skeleton": "/Game/Character/Shared/Skeleton/SK_Base.SK_Base",
+    "slots": [
+      [
+        "M_Body",
+        null
+      ],
+      [
+        "M_Belt",
+        "MI_Player_Belt.MI_Player_Belt"
+      ],
+      [
+        "M_Gloves",
+        "MI_Player_Gloves.MI_Player_Gloves"
+      ],
+      [
+        "M_Jacket",
+        "MI_Player_Jacket.MI_Player_Jacket"
+      ],
+      [
+        "M_Boots",
+        "MI_Player_Boots.MI_Player_Boots"
+      ],
+      [
+        "M_Pants",
+        "MI_Player_Pants.MI_Player_Pants"
+      ],
+      [
+        "M_Shirt",
+        "MI_Player_Shirt.MI_Player_Shirt"
+      ]
+    ],
+    "contact_offset_cm": 6.232,
+    "height_cm": 176.2,
+    "walk_loaded": true,
+    "idle_loaded": true,
+    "walk_skeleton": "/Game/Character/Shared/Skeleton/SK_Base.SK_Base",
+    "walk_length_s": 1.867,
+    "walk_plays": true
+  },
+  "building_sgds": [
+    "/CitySamplePCG/PCG/DataAssets/Buildings/Bldg_SGD_level",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/SGD_CHA_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/SGD_CHB_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/SGD_CHC_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHD/SGD_CHD_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHE/SGD_CHE_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHF/SGD_CHF_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHG/SGD_CHG_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHH/SGD_CHH_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHI/SGD_CHI_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/CHJ/SGD_CHJ_A",
+    "/CitySamplePCG/PCG/DataAssets/Buildings/NYAA/SGD_NYAA_A"
+  ],
+  "building_sgd_count": 29
+}

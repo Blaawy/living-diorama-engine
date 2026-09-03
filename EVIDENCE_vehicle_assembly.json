@@ -1,0 +1,736 @@
+{
+  "vehCar_vehicle02": {
+    "wheel_bones": {
+      "wheel_rear_l": [
+        -143.849,
+        -82.94,
+        35.701
+      ],
+      "wheel_rear_r": [
+        -143.849,
+        82.94,
+        35.701
+      ],
+      "wheel_front_l": [
+        137.232,
+        -77.607,
+        35.701
+      ],
+      "wheel_front_r": [
+        137.232,
+        77.607,
+        35.701
+      ]
+    },
+    "exterior_contact_offset_cm": -31.15,
+    "exterior_extent": [
+      239.4,
+      105.5,
+      72.2
+    ],
+    "paint_slots": [
+      1
+    ],
+    "slot_names": [
+      "veh_plastic_gloss",
+      "veh_carPaint",
+      "veh_licensePlate",
+      "veh_mirror",
+      "veh_metal_chrome",
+      "veh_windshield"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Wheel_Front_L_vehCar_vehicle02",
+        "size": [
+          70.6,
+          25.8,
+          70.6
+        ],
+        "radius_cm": 35.31
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Wheel_Front_R_vehCar_vehicle02",
+        "size": [
+          70.6,
+          25.8,
+          70.6
+        ],
+        "radius_cm": 35.31
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Wheel_Rear_L_vehCar_vehicle02",
+        "size": [
+          70.6,
+          25.8,
+          70.6
+        ],
+        "radius_cm": 35.31
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Wheel_Rear_R_vehCar_vehicle02",
+        "size": [
+          70.6,
+          25.8,
+          70.6
+        ],
+        "radius_cm": 35.31
+      }
+    }
+  },
+  "vehCar_vehicle03": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        151.984,
+        -77.598,
+        33.556
+      ],
+      "wheel_front_r": [
+        151.984,
+        77.598,
+        33.556
+      ],
+      "wheel_rear_l": [
+        -145.408,
+        -84.131,
+        33.556
+      ],
+      "wheel_rear_r": [
+        -145.408,
+        84.131,
+        33.556
+      ]
+    },
+    "exterior_contact_offset_cm": -23.372,
+    "exterior_extent": [
+      270.0,
+      109.4,
+      64.5
+    ],
+    "paint_slots": [
+      0
+    ],
+    "slot_names": [
+      "veh_carPaint",
+      "veh_licensePlate",
+      "veh_rubber_smooth",
+      "veh_windshield",
+      "veh_plastic_matte",
+      "veh_plastic_gloss",
+      "veh_metal_chrome"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Wheel_Front_L_vehCar_vehicle03",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Wheel_Front_R_vehCar_vehicle03",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Wheel_Rear_L_vehCar_vehicle03",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Wheel_Rear_R_vehCar_vehicle03",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      }
+    }
+  },
+  "vehCar_vehicle05": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        149.635,
+        -70.582,
+        35.432
+      ],
+      "wheel_front_r": [
+        149.635,
+        70.582,
+        35.432
+      ],
+      "wheel_rear_l": [
+        -131.667,
+        -70.582,
+        35.432
+      ],
+      "wheel_rear_r": [
+        -131.667,
+        70.582,
+        35.432
+      ]
+    },
+    "exterior_contact_offset_cm": -32.026,
+    "exterior_extent": [
+      226.2,
+      101.0,
+      69.2
+    ],
+    "paint_slots": [
+      3
+    ],
+    "slot_names": [
+      "veh_plastic_gloss",
+      "veh_plastic_matte",
+      "veh_licensePlate",
+      "veh_carPaint",
+      "veh_rubber_smooth",
+      "veh_metal_chrome",
+      "veh_interior",
+      "veh_undercar",
+      "veh_windshield"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle05/Mesh/SM_Wheel_Front_L_vehCar_vehicle05",
+        "size": [
+          70.5,
+          24.8,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle05/Mesh/SM_Wheel_Front_R_vehCar_vehicle05",
+        "size": [
+          70.5,
+          24.8,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle05/Mesh/SM_Wheel_Rear_L_vehCar_vehicle05",
+        "size": [
+          70.5,
+          31.2,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle05/Mesh/SM_Wheel_Rear_R_vehCar_vehicle05",
+        "size": [
+          70.5,
+          31.2,
+          70.5
+        ],
+        "radius_cm": 35.27
+      }
+    }
+  },
+  "vehCar_vehicle06": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        123.272,
+        -73.254,
+        33.587
+      ],
+      "wheel_front_r": [
+        123.272,
+        73.254,
+        33.587
+      ],
+      "wheel_rear_l": [
+        -115.225,
+        -76.651,
+        33.587
+      ],
+      "wheel_rear_r": [
+        -115.225,
+        76.651,
+        33.587
+      ]
+    },
+    "exterior_contact_offset_cm": -13.93,
+    "exterior_extent": [
+      218.4,
+      94.1,
+      61.8
+    ],
+    "paint_slots": [
+      1
+    ],
+    "slot_names": [
+      "veh_rubber_smooth",
+      "veh_carPaint",
+      "veh_metal_chrome",
+      "veh_plastic_matte",
+      "veh_licensePlate",
+      "veh_glass_amber_inner",
+      "veh_engine",
+      "veh_windshield",
+      "veh_glass_amber"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle06/Mesh/SM_Wheel_Front_L_vehCar_vehicle06",
+        "size": [
+          67.1,
+          26.9,
+          67.1
+        ],
+        "radius_cm": 33.55
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle06/Mesh/SM_Wheel_Front_R_vehCar_vehicle06",
+        "size": [
+          67.1,
+          26.9,
+          67.1
+        ],
+        "radius_cm": 33.55
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle06/Mesh/SM_Wheel_Rear_L_vehCar_vehicle06",
+        "size": [
+          67.1,
+          26.1,
+          67.1
+        ],
+        "radius_cm": 33.55
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle06/Mesh/SM_Wheel_Rear_R_vehCar_vehicle06",
+        "size": [
+          67.1,
+          26.1,
+          67.1
+        ],
+        "radius_cm": 33.55
+      }
+    }
+  },
+  "vehCar_vehicle07": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        136.885,
+        -73.057,
+        31.645
+      ],
+      "wheel_front_r": [
+        136.885,
+        73.057,
+        31.645
+      ],
+      "wheel_rear_l": [
+        -135.561,
+        -73.059,
+        31.644
+      ],
+      "wheel_rear_r": [
+        -135.561,
+        73.059,
+        31.644
+      ]
+    },
+    "exterior_contact_offset_cm": -21.162,
+    "exterior_extent": [
+      220.5,
+      103.0,
+      61.0
+    ],
+    "paint_slots": [
+      0
+    ],
+    "slot_names": [
+      "veh_carPaint",
+      "veh_metal_chrome",
+      "veh_plastic_matte",
+      "veh_licensePlate",
+      "veh_plastic_gloss",
+      "veh_rubber_smooth",
+      "veh_mirror",
+      "veh_undercar",
+      "veh_interior",
+      "veh_windshield"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle07/Mesh/SM_Wheel_Front_L_vehCar_vehicle07",
+        "size": [
+          62.7,
+          20.7,
+          62.7
+        ],
+        "radius_cm": 31.34
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle07/Mesh/SM_Wheel_Front_R_vehCar_vehicle07",
+        "size": [
+          62.7,
+          20.7,
+          62.7
+        ],
+        "radius_cm": 31.34
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle07/Mesh/SM_Wheel_Rear_L_vehCar_vehicle07",
+        "size": [
+          62.7,
+          20.7,
+          62.7
+        ],
+        "radius_cm": 31.34
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle07/Mesh/SM_Wheel_Rear_R_vehCar_vehicle07",
+        "size": [
+          62.7,
+          20.7,
+          62.7
+        ],
+        "radius_cm": 31.34
+      }
+    }
+  },
+  "vehCar_vehicle12": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        151.984,
+        -77.598,
+        33.556
+      ],
+      "wheel_front_r": [
+        151.984,
+        77.598,
+        33.556
+      ],
+      "wheel_rear_l": [
+        -145.408,
+        -84.131,
+        33.556
+      ],
+      "wheel_rear_r": [
+        -145.408,
+        84.131,
+        33.556
+      ]
+    },
+    "exterior_contact_offset_cm": -21.251,
+    "exterior_extent": [
+      270.0,
+      109.4,
+      65.5
+    ],
+    "paint_slots": [
+      0
+    ],
+    "slot_names": [
+      "veh_carPaint",
+      "veh_licensePlate",
+      "veh_windshield",
+      "veh_plastic_matte",
+      "veh_metal_chrome",
+      "veh_metal_steel",
+      "veh_undercar",
+      "veh_rubber_smooth",
+      "veh_plastic_gloss"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle12/Mesh/SM_Wheel_Front_L_vehCar_vehicle12",
+        "size": [
+          70.5,
+          24.8,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle12/Mesh/SM_Wheel_Front_R_vehCar_vehicle12",
+        "size": [
+          70.5,
+          24.8,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle12/Mesh/SM_Wheel_Rear_L_vehCar_vehicle12",
+        "size": [
+          70.5,
+          24.8,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle12/Mesh/SM_Wheel_Rear_R_vehCar_vehicle12",
+        "size": [
+          70.5,
+          24.8,
+          70.5
+        ],
+        "radius_cm": 35.27
+      }
+    }
+  },
+  "vehCar_vehicle13": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        151.984,
+        -77.598,
+        33.556
+      ],
+      "wheel_front_r": [
+        151.984,
+        77.598,
+        33.556
+      ],
+      "wheel_rear_l": [
+        -145.408,
+        -84.131,
+        33.556
+      ],
+      "wheel_rear_r": [
+        -145.408,
+        84.131,
+        33.556
+      ]
+    },
+    "exterior_contact_offset_cm": -21.251,
+    "exterior_extent": [
+      276.0,
+      109.4,
+      67.0
+    ],
+    "paint_slots": [
+      0
+    ],
+    "slot_names": [
+      "veh_carPaint",
+      "veh_rubber_smooth",
+      "veh_metal_chrome",
+      "veh_windshield",
+      "veh_plastic_gloss",
+      "veh_licensePlate",
+      "veh_undercar",
+      "veh_plastic_matte",
+      "veh_metal_steel"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle13/Mesh/SM_Wheel_Front_L_vehCar_vehicle13",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle13/Mesh/SM_Wheel_Front_R_vehCar_vehicle13",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehCar_vehicle13/Mesh/SM_Wheel_Rear_L_vehCar_vehicle13",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehCar_vehicle13/Mesh/SM_Wheel_Rear_R_vehCar_vehicle13",
+        "size": [
+          70.5,
+          24.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      }
+    }
+  },
+  "vehVan_vehicle01": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        151.941,
+        -77.607,
+        35.955
+      ],
+      "wheel_front_r": [
+        151.941,
+        77.607,
+        35.955
+      ],
+      "wheel_rear_l": [
+        -147.537,
+        -77.607,
+        35.955
+      ],
+      "wheel_rear_r": [
+        -147.537,
+        77.607,
+        35.955
+      ]
+    },
+    "exterior_contact_offset_cm": -26.778,
+    "exterior_extent": [
+      239.5,
+      110.9,
+      79.6
+    ],
+    "paint_slots": [
+      2
+    ],
+    "slot_names": [
+      "veh_plastic_matte",
+      "veh_licensePlate",
+      "veh_carPaint",
+      "veh_plastic_gloss",
+      "veh_engine",
+      "veh_mirror",
+      "veh_metal_chrome",
+      "veh_rubber_smooth",
+      "veh_windshield"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehVan_vehicle01/Mesh/SM_Wheel_Front_L_vehVan_vehicle01",
+        "size": [
+          70.5,
+          25.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehVan_vehicle01/Mesh/SM_Wheel_Front_R_vehVan_vehicle01",
+        "size": [
+          70.5,
+          25.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehVan_vehicle01/Mesh/SM_Wheel_Rear_L_vehVan_vehicle01",
+        "size": [
+          70.5,
+          25.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehVan_vehicle01/Mesh/SM_Wheel_Rear_R_vehVan_vehicle01",
+        "size": [
+          70.5,
+          25.7,
+          70.5
+        ],
+        "radius_cm": 35.27
+      }
+    }
+  },
+  "vehTruck_vehicle04": {
+    "wheel_bones": {
+      "wheel_front_l": [
+        162.221,
+        -64.722,
+        39.57
+      ],
+      "wheel_front_r": [
+        162.221,
+        64.722,
+        39.57
+      ],
+      "wheel_rear_l": [
+        -180.765,
+        -79.632,
+        39.57
+      ],
+      "wheel_rear_r": [
+        -180.765,
+        79.632,
+        39.57
+      ]
+    },
+    "exterior_contact_offset_cm": -30.626,
+    "exterior_extent": [
+      277.7,
+      119.9,
+      76.6
+    ],
+    "paint_slots": [
+      1
+    ],
+    "slot_names": [
+      "veh_plastic_gloss",
+      "veh_carPaint",
+      "veh_mirror",
+      "veh_undercar",
+      "veh_plastic_matte",
+      "veh_rubber_smooth",
+      "veh_licensePlate",
+      "veh_metal_chrome",
+      "veh_windshield"
+    ],
+    "wheel_meshes": {
+      "Front_L": {
+        "path": "/Game/Vehicle/vehTruck_vehicle04/Mesh/SM_Wheel_Front_L_vehTruck_vehicle04",
+        "size": [
+          78.6,
+          29.0,
+          78.7
+        ],
+        "radius_cm": 39.34
+      },
+      "Front_R": {
+        "path": "/Game/Vehicle/vehTruck_vehicle04/Mesh/SM_Wheel_Front_R_vehTruck_vehicle04",
+        "size": [
+          78.6,
+          29.0,
+          78.7
+        ],
+        "radius_cm": 39.34
+      },
+      "Rear_L": {
+        "path": "/Game/Vehicle/vehTruck_vehicle04/Mesh/SM_Wheel_Rear_L_vehTruck_vehicle04",
+        "size": [
+          78.6,
+          29.0,
+          78.7
+        ],
+        "radius_cm": 39.34
+      },
+      "Rear_R": {
+        "path": "/Game/Vehicle/vehTruck_vehicle04/Mesh/SM_Wheel_Rear_R_vehTruck_vehicle04",
+        "size": [
+          78.6,
+          29.0,
+          78.7
+        ],
+        "radius_cm": 39.34
+      }
+    }
+  }
+}
