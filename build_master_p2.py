@@ -83,7 +83,8 @@ def stage() -> None:
                             ("yf_p2_build1", "inventory", "build_world_inventory.md"), ("yf_p2_build1", "vehicle_kin", "build_vehicle_kinematics.md"),
                             ("yf_p2_build2", "loop_audit", "build_loop_audit.md"), ("yf_p2_fix1", "roads_fix", "fix_roads.md"),
                             ("yf_p2_analysts", "pcg_plan", "analysis_pcg_roads_plan.md"), ("yf_p2_analysts", "spline_actors", "analysis_spline_actors.md"),
-                            ("yf_p2_build4", "playback_v2", "build_playback_v2.md"), ("yf_p2_build5", "humans", "build_humans.md")):
+                            ("yf_p2_build4", "playback_v2", "build_playback_v2.md"), ("yf_p2_build5", "humans", "build_humans.md"),
+                            ("yf_p2_redteam", "attack_truth", "redteam_attacker_A_truth.md"), ("yf_p2_redteam", "attack_world", "redteam_attacker_B_world.md")):
         src = RUNS / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
