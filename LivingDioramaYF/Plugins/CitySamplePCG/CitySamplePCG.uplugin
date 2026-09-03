@@ -1,0 +1,48 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "CitySamplePCG",
+  "Description": "City Sample rebuilt using PCG Framework and Primitives in Unreal \u2014 SUBSET imported into LivingDioramaYF by file copy (dependency closure of the road graph and vehicle meshes only); foliage/BlackAlder/Megaplants deliberately excluded.",
+  "Category": "Other",
+  "CreatedBy": "Epic Games, Inc.",
+  "CreatedByURL": "http://epicgames.com",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": true,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": true,
+  "Installed": false,
+  "Plugins": [
+    {
+      "Name": "PCG",
+      "Enabled": true
+    },
+    {
+      "Name": "PCGPrimitives",
+      "Enabled": true
+    },
+    {
+      "Name": "PCGPrimitives_MeshPartitionInterop",
+      "Enabled": true
+    },
+    {
+      "Name": "ProceduralVegetationEditor",
+      "Enabled": true
+    },
+    {
+      "Name": "PCGExternalDataInterop",
+      "Enabled": true
+    },
+    {
+      "Name": "ModelContextProtocol",
+      "Enabled": true
+    },
+    {
+      "Name": "AllToolsets",
+      "Enabled": true
+    }
+  ],
+  "Modules": []
+}

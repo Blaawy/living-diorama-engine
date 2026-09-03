@@ -7,3 +7,14 @@ LivingDioramaYF/Saved/
 LivingDioramaYF/DerivedDataCache/
 LivingDioramaYF/Binaries/
 *.fcd.xml
+
+# Phase 2: imported City Sample content (Epic Content License) is reproduced by
+# CACHE/import_city_sample_subset.py from EVIDENCE/PHASE_02/import_manifest.json;
+# it is never committed. Our own authored assets live under Content/PCG and Content/LD.
+LivingDioramaYF/Content/*
+!LivingDioramaYF/Content/PCG/
+!LivingDioramaYF/Content/LD/
+LivingDioramaYF/Plugins/*/Content/
+LivingDioramaYF/DerivedDataCache/
+LivingDioramaYF/Intermediate/
+LivingDioramaYF/Saved/

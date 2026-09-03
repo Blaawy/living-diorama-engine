@@ -1,0 +1,13 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "Traffic (content stub)",
+  "Description": "Content-only stub carrying the single City Sample material function the vehicle materials reference (MF_UnpackTrafficVehicleInstanceCustomData). No code, no MassTraffic. See EVIDENCE/PHASE_02/import_manifest.json.",
+  "Category": "LivingDiorama",
+  "CreatedBy": "Living Diorama YouTube Factory",
+  "CanContainContent": true,
+  "IsBetaVersion": false,
+  "Installed": false,
+  "Modules": []
+}

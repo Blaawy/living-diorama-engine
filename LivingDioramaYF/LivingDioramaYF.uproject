@@ -12,21 +12,97 @@
 				"Editor"
 			]
 		},
-		{ "Name": "PythonScriptPlugin", "Enabled": true },
-		{ "Name": "EditorScriptingUtilities", "Enabled": true },
-		{ "Name": "ModelContextProtocol", "Enabled": true },
-		{ "Name": "ToolsetRegistry", "Enabled": true },
-		{ "Name": "AllToolsets", "Enabled": true },
-		{ "Name": "MovieRenderPipeline", "Enabled": true },
-		{ "Name": "PCG", "Enabled": true },
-		{ "Name": "PCGPrimitives", "Enabled": true },
-		{ "Name": "PCGBiomeCore", "Enabled": true },
-		{ "Name": "PCGGeometryScriptInterop", "Enabled": true },
-		{ "Name": "PCGToolset", "Enabled": true },
-		{ "Name": "MassAI", "Enabled": true },
-		{ "Name": "MassCrowd", "Enabled": true },
-		{ "Name": "MassGameplay", "Enabled": true },
-		{ "Name": "Water", "Enabled": true },
-		{ "Name": "Landmass", "Enabled": true }
+		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true
+		},
+		{
+			"Name": "ToolsetRegistry",
+			"Enabled": true
+		},
+		{
+			"Name": "AllToolsets",
+			"Enabled": true
+		},
+		{
+			"Name": "MovieRenderPipeline",
+			"Enabled": true
+		},
+		{
+			"Name": "PCG",
+			"Enabled": true
+		},
+		{
+			"Name": "PCGPrimitives",
+			"Enabled": true
+		},
+		{
+			"Name": "PCGBiomeCore",
+			"Enabled": true
+		},
+		{
+			"Name": "PCGGeometryScriptInterop",
+			"Enabled": true
+		},
+		{
+			"Name": "PCGToolset",
+			"Enabled": true
+		},
+		{
+			"Name": "MassAI",
+			"Enabled": true
+		},
+		{
+			"Name": "MassCrowd",
+			"Enabled": true
+		},
+		{
+			"Name": "MassGameplay",
+			"Enabled": true
+		},
+		{
+			"Name": "Water",
+			"Enabled": true
+		},
+		{
+			"Name": "Landmass",
+			"Enabled": true
+		},
+		{
+			"Name": "CitySamplePCG",
+			"Enabled": true
+		},
+		{
+			"Name": "Traffic",
+			"Enabled": true
+		},
+		{
+			"Name": "SpeedTreeImporter",
+			"Enabled": true
+		},
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "PCGExternalDataInterop",
+			"Enabled": true
+		},
+		{
+			"Name": "PCGPrimitives_MeshPartitionInterop",
+			"Enabled": true
+		},
+		{
+			"Name": "ProceduralVegetationEditor",
+			"Enabled": true
+		}
 	]
 }
