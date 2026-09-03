@@ -133,7 +133,10 @@ def stage() -> None:
     for run, task, name in (("yf_p1_research", "attack_provenance", "attack_round1.md"),
                             ("yf_p1_attack2", "attack2", "attack_round2.md"),
                             ("yf_p1_research", "remote_python", "unreal_remote_python.md"),
-                            ("yf_p1_research", "masscrowd", "masscrowd_setup.md")):
+                            ("yf_p1_research", "masscrowd", "masscrowd_setup.md"),
+                            ("yf_p2_research", "pcg_roads", "pcg_roads_from_sumo.md"),
+                            ("yf_p2_research", "seeded_crowd", "seeded_crowd_design.md"),
+                            ("yf_p1_attack3", "measurement", "attack_round3_measurement.md")):
         src = runs / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
