@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from ldyf.evidence import EvidenceError, seal_rule_manifest, seal_simulation_result, sha256_file
+from ldyf.evidence import artifact_sha256, EvidenceError, seal_rule_manifest, seal_simulation_result, sha256_file
 from ldyf.persistent_changes import (
     CONSEQUENCE_EXTRACTORS,
     GENESIS_HASH,
@@ -105,7 +105,7 @@ def make_evidence(tmp_path: Path, *, episode: int = 1, consistent: bool = True,
                       ("baseline_record_frames", "record_baseline/frames.bin"),
                       ("ruled_record_manifest", "record_ruled/record_manifest.json"),
                       ("ruled_record_frames", "record_ruled/frames.bin")):
-        arts[name] = {"file": rel, "sha256": sha256_file(tmp_path / rel)}
+        arts[name] = {"file": rel, "sha256": artifact_sha256(tmp_path / rel)}
     return seal_simulation_result({
         "schema_version": "simulation_result_v1", "run_id": "ruled",
         "episode_number": episode, "arm": "ruled", "seed": 20260903,
@@ -227,9 +227,9 @@ def test_attack_own_fabricated_tripinfo_without_records_is_refused(tmp_path):
         "schema_version": "simulation_result_v1", "run_id": "ruled", "episode_number": 1,
         "arm": "ruled", "seed": 1, "sumo_version": "1.27.1",
         "artifacts": {"baseline_tripinfo": {"file": "baseline.tripinfo.xml",
-                                            "sha256": sha256_file(tmp_path / "baseline.tripinfo.xml")},
+                                            "sha256": artifact_sha256(tmp_path / "baseline.tripinfo.xml")},
                       "ruled_tripinfo": {"file": "ruled.tripinfo.xml",
-                                         "sha256": sha256_file(tmp_path / "ruled.tripinfo.xml")}},
+                                         "sha256": artifact_sha256(tmp_path / "ruled.tripinfo.xml")}},
         "result_hash": ""})
     with pytest.raises(EvidenceError, match="names no artefact 'baseline_record_frames'"):
         append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
@@ -342,7 +342,7 @@ def test_attack_nan_in_tripinfo_creates_nothing(tmp_path):
         '  <personinfo id="p0"><walk duration="200" routeLength="232"/></personinfo>\n</tripinfos>\n')
     # re-seal over the NaN file so the bytes match and only the NaN check can refuse it
     result = dict(result); arts = dict(result["artifacts"])
-    arts["ruled_tripinfo"] = {"file": "ruled.tripinfo.xml", "sha256": sha256_file(tmp_path / "ruled.tripinfo.xml")}
+    arts["ruled_tripinfo"] = {"file": "ruled.tripinfo.xml", "sha256": artifact_sha256(tmp_path / "ruled.tripinfo.xml")}
     result["artifacts"] = arts; result["result_hash"] = ""
     result = seal_simulation_result(result)
     with pytest.raises(LedgerError, match="non-finite"):

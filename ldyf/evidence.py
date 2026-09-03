@@ -178,6 +178,28 @@ def sha256_file(path: str | Path) -> str:
     return h.hexdigest()
 
 
+_XML_LEADING_COMMENT = re.compile(rb"\A\s*(?:<\?xml[^>]*\?>\s*)?<!--.*?-->", re.S)
+
+
+def artifact_sha256(path: str | Path) -> str:
+    """The identity of an artefact.
+
+    XML artefacts (SUMO FCD, tripinfo, net) carry a leading provenance comment
+    with a generation timestamp; two identical runs differ only there. Their
+    identity is therefore the hash of everything AFTER that leading comment --
+    the same payload law `ldyf.sumo_record` applies to FCD. Non-XML artefacts
+    (frames.bin, JSON manifests) are hashed raw. Both seal and verify use this
+    function, so a sealed result is reproducible run-to-run.
+    """
+    p = Path(path)
+    data = p.read_bytes()
+    if p.suffix.lower() == ".xml":
+        m = _XML_LEADING_COMMENT.match(data)
+        if m:
+            data = data[m.end():]
+    return hashlib.sha256(data).hexdigest()
+
+
 def verify_artifact_on_disk(result: dict[str, Any], name: str, base_dir: str | Path) -> Path:
     """Resolve one artefact named by a sealed result and check its bytes.
 
@@ -191,7 +213,7 @@ def verify_artifact_on_disk(result: dict[str, Any], name: str, base_dir: str | P
     path = Path(base_dir) / meta.get("file", name)
     if not path.exists():
         raise EvidenceError(f"artefact {name!r} not found on disk at {path}")
-    actual = sha256_file(path)
+    actual = artifact_sha256(path)
     if actual != meta["sha256"]:
         raise EvidenceError(
             f"artefact {name!r} does not match the sealed result: "

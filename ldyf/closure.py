@@ -448,7 +448,7 @@ def seal_run_result(
     """
     import json
 
-    from .evidence import seal_simulation_result, sha256_file
+    from .evidence import artifact_sha256, seal_simulation_result
 
     # `clean` is `exit_code == 0 and all(outputs_valid.values())`; an empty
     # outputs_valid would make all([]) True. A run that validated no outputs
@@ -487,7 +487,7 @@ def seal_run_result(
         p = out / rel
         if not p.exists():
             raise ClosureError(f"cannot seal: artefact {name!r} missing at {p}")
-        artifacts[name] = {"file": rel, "sha256": sha256_file(p)}
+        artifacts[name] = {"file": rel, "sha256": artifact_sha256(p)}
 
     doc = {
         "schema_version": "simulation_result_v1",

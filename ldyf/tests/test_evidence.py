@@ -7,6 +7,7 @@ import json
 import pytest
 
 from ldyf.evidence import (
+    artifact_sha256,
     EvidenceError,
     compute_hash,
     seal_rule_manifest,
@@ -47,7 +48,7 @@ def result(tmp_path, **over):
         "arm": "ruled",
         "seed": 20260903,
         "sumo_version": "1.27.1",
-        "artifacts": {"ruled_tripinfo": {"file": f.name, "sha256": sha256_file(f)}},
+        "artifacts": {"ruled_tripinfo": {"file": f.name, "sha256": artifact_sha256(f)}},
         "result_hash": "",
     }
     d.update(over)
@@ -171,3 +172,21 @@ def test_unknown_artifact_name_is_refused(tmp_path):
     r = seal_simulation_result(result(tmp_path))
     with pytest.raises(EvidenceError, match="names no artefact"):
         verify_artifact_on_disk(r, "not_a_thing", tmp_path)
+
+
+
+# --- artefact identity is the payload, not the timestamped bytes ------------
+
+def test_xml_artifact_identity_ignores_the_provenance_header(tmp_path):
+    body = "<tripinfos>\n  <tripinfo id=\"v\" duration=\"1\"/>\n</tripinfos>\n"
+    a = tmp_path / "a.xml"; a.write_text('<?xml version="1.0"?>\n<!-- generated on 2026-01-01T00:00:00 by sumo -->\n' + body)
+    b = tmp_path / "b.xml"; b.write_text('<?xml version="1.0"?>\n<!-- generated on 2099-12-31T23:59:59 by sumo -->\n' + body)
+    assert sha256_file(a) != sha256_file(b)
+    assert artifact_sha256(a) == artifact_sha256(b)
+    c = tmp_path / "c.xml"; c.write_text('<?xml version="1.0"?>\n<!-- x -->\n' + body.replace('duration="1"', 'duration="2"'))
+    assert artifact_sha256(a) != artifact_sha256(c)
+
+
+def test_non_xml_artifact_identity_is_raw_bytes(tmp_path):
+    p = tmp_path / "frames.bin"; p.write_bytes(b"\x00\x01\x02")
+    assert artifact_sha256(p) == sha256_file(p)

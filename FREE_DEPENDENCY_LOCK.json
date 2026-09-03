@@ -78,7 +78,7 @@
       "license": "Epic Content License",
       "verified_cost_usd": 0,
       "cost_status": "FREE",
-      "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03. DELIBERATELY NOT DOWNLOADED.",
+      "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03. Download started the same day by the Director's one click; at the revision-5 build it was still constructing in the launcher vault (32 GB staged, project not yet created). NOT YET OPENED OR INSPECTED.",
       "decision": "Phase 1 established that every plugin City Sample depends on is already enabled and working here, so City Sample supplies content and example graphs rather than capability. It is a 1 km dense city built from 18 interdependent PCG graphs; our world is 600 x 600 m. It stays a REFERENCE. See CITY_SAMPLE_PCG_COMPATIBILITY.md section 5 for the smallest-useful-subset plan.",
       "houdini_required": false,
       "notes": "Epic's 5.8 documentation confirms the PCG version needs no external software; the original 5.0 City Sample's Houdini dependency is gone. This keeps the project clear of any paid-tool pathway."

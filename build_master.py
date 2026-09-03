@@ -123,9 +123,16 @@ def stage() -> None:
     shutil.copy2(SUMO / "closure_v2" / "record_baseline" / "frames.bin",
                  blrec / "frames.bin")
     # in-engine playback proof (remote execution; measured, not asserted)
-    pv = EV / "playback_verify.json"
-    if pv.exists():
-        shutil.copy2(pv, ev / "playback_verify.json")
+    # machine-written evidence files (revision 5): every number the reports
+    # quote has one of these behind it
+    for name in ("playback_verify.json", "determinism_and_performance.json",
+                 "regeneration_reproducibility.json", "pcg_probe.json"):
+        src = EV / name
+        if src.exists():
+            shutil.copy2(src, ev / name)
+    fx = YF / "CACHE" / "fresh_extraction_results.json"
+    if fx.exists():
+        shutil.copy2(fx, ev / "fresh_extraction_results.json")
     # independent adversarial and research reports (DeepSeek workers), verbatim
     rt = ev / "redteam_workers"
     rt.mkdir()
@@ -136,7 +143,8 @@ def stage() -> None:
                             ("yf_p1_research", "masscrowd", "masscrowd_setup.md"),
                             ("yf_p2_research", "pcg_roads", "pcg_roads_from_sumo.md"),
                             ("yf_p2_research", "seeded_crowd", "seeded_crowd_design.md"),
-                            ("yf_p1_attack3", "measurement", "attack_round3_measurement.md")):
+                            ("yf_p1_attack3", "measurement", "attack_round3_measurement.md"),
+                            ("yf_p1_honesty", "honesty", "honesty_audit.md")):
         src = runs / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
