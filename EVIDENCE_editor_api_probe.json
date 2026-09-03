@@ -1,0 +1,125 @@
+{
+  "handle_attrs": [
+    "assign",
+    "cast",
+    "copy",
+    "export_text",
+    "get_editor_property",
+    "import_text",
+    "set_editor_properties",
+    "set_editor_property",
+    "static_struct",
+    "to_dict",
+    "to_tuple"
+  ],
+  "lib_attrs": [
+    "acquire_editor_element_handle",
+    "call_method",
+    "can_copy",
+    "can_delete",
+    "can_duplicate",
+    "can_edit",
+    "can_rename",
+    "can_reparent",
+    "cast",
+    "get_associated_object",
+    "get_blueprint",
+    "get_class",
+    "get_data",
+    "get_default_object",
+    "get_display_name",
+    "get_editor_property",
+    "get_fname",
+    "get_full_name",
+    "get_handle",
+    "get_name",
+    "get_object",
+    "get_object_for_blueprint",
+    "get_outer",
+    "get_outermost",
+    "get_package"
+  ],
+  "spline_component": "SplineComponent",
+  "spline_length": 2000.0,
+  "spline_at_1000": [
+    1000.0,
+    0.0,
+    70000.0
+  ],
+  "spline_at_1500": [
+    1000.0,
+    500.0,
+    70000.0
+  ],
+  "spline_api": [
+    "add_spline_local_point",
+    "add_spline_point",
+    "add_spline_point_at_index",
+    "add_spline_world_point",
+    "clear_spline_points",
+    "set_closed_loop",
+    "set_closed_loop_at_position",
+    "set_spline_point_type",
+    "set_spline_points",
+    "update_spline"
+  ],
+  "component_name": "Spline",
+  "tags": [
+    "ld_lane",
+    "lane_id:test"
+  ],
+  "poseable_component": "PoseableMeshComponent",
+  "bone_count": 48,
+  "wheel_bones": [
+    "wheel_rear_l",
+    "wheel_rear_no_spin_l",
+    "wheel_rear_r",
+    "wheel_rear_no_spin_r",
+    "wheel_front_turn_l",
+    "wheel_front_l",
+    "wheel_front_turn_r",
+    "wheel_front_r"
+  ],
+  "bones_sample": [
+    "root",
+    "frame",
+    "roof",
+    "door_front_l",
+    "door_front_open_l",
+    "door_front_r",
+    "door_front_open_r",
+    "door_rear_l",
+    "door_rear_open_l",
+    "door_rear_r",
+    "door_rear_open_r",
+    "frame_front",
+    "frame_front_body",
+    "frame_rear",
+    "frame_rear_body",
+    "frame_rear_r",
+    "frame_rear_l",
+    "frame_rear_body_r",
+    "wheel_rear_l",
+    "wheel_rear_no_spin_l"
+  ],
+  "wheel_before": [
+    -0.0,
+    0.0,
+    0.0
+  ],
+  "wheel_after": [
+    -0.0,
+    37.00000000000001,
+    0.0
+  ],
+  "mesh_bounds_origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "mesh_bounds_extent": [
+    0.0005000000237487257,
+    1.1102230773579206e-19,
+    0.0005000000237487257
+  ]
+}

@@ -35,18 +35,31 @@ def _spec(spec_path):
     return s
 
 
+def add_component(actor, cls):
+    """Add a component to a level actor (verified UE 5.8 route, editor_api_probe.json):
+    AActor has no add_component_by_class in Python; the Subobject Data Subsystem
+    creates the subobject and get_associated_object resolves the instance."""
+    sub = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+    handles = sub.k2_gather_subobject_data_for_instance(actor)
+    params = unreal.AddNewSubobjectParams(parent_handle=handles[0], new_class=cls, blueprint_context=None)
+    handle, fail = sub.add_new_subobject(params)
+    data = sub.k2_find_subobject_data_from_handle(handle)
+    obj = unreal.SubobjectDataBlueprintFunctionLibrary.get_associated_object(data)
+    if obj is None:
+        raise RuntimeError(f"add_new_subobject({cls}) gave no object: {fail}")
+    return obj
+
+
 def _add_spline(actor):
-    # Believed 5.8 binding of AActor::AddComponentByClass(Class,
-    # bManualAttachment, RelativeTransform, bDeferredFinish) = 4 positional args.
-    return actor.add_component_by_class(unreal.SplineComponent, False,
-                                        unreal.Transform(), False)
+    return add_component(actor, unreal.SplineComponent)
 
 
 def _fill(comp, polyline, z_cm):
     pts = [unreal.Vector(float(p["x"]), float(p["y"]), float(z_cm)) for p in polyline]
-    comp.set_spline_points(pts, unreal.SplineCoordinateSpace.WORLD, True)
-    comp.set_spline_points_type(unreal.SplinePointType.LINEAR)
-    comp.set_closed(False)
+    comp.set_spline_points(pts, unreal.SplineCoordinateSpace.WORLD, False)
+    for i in range(len(pts)):                       # verified API: per-point type
+        comp.set_spline_point_type(i, unreal.SplinePointType.LINEAR, False)
+    comp.set_closed_loop(False, False)
     comp.update_spline()
 
 
