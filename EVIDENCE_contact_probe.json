@@ -1,0 +1,26 @@
+{
+  "stopped_playback": true,
+  "vehicle_root_0": {
+    "bounds_bottom": 23.339940661173188,
+    "bounds_top": 176.46631360054016,
+    "contact_offset": -23.339940661173188,
+    "extent_z": 76.56318646968349
+  },
+  "materials": [
+    null
+  ],
+  "material_params": {},
+  "custom_primitive_data_ok": true,
+  "mid_ok": false,
+  "vehicle_root_5000": {
+    "bounds_bottom": 5023.339940661173,
+    "bounds_top": 5176.46631360054,
+    "contact_offset": -23.339940661173387,
+    "extent_z": 76.56318646968339
+  },
+  "person_root_300": {
+    "bounds_bottom": 277.2750034718102,
+    "contact_offset": 22.72499652818982,
+    "extent_z": 109.37930561482239
+  }
+}

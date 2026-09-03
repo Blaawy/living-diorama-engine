@@ -1,0 +1,130 @@
+{
+  "/CitySamplePCG/Meshes/Roads/SM_Lane_Car_200_200": {
+    "min": [
+      -100.0,
+      -100.0,
+      0.0
+    ],
+    "max": [
+      100.0,
+      100.0,
+      20.0
+    ],
+    "size": [
+      200.0,
+      200.0,
+      20.0
+    ],
+    "materials": [
+      "/Game/Road/Material/MI/M_Asphalt_Master_Inst.M_Asphalt_Master_Inst"
+    ],
+    "nanite": true
+  },
+  "/CitySamplePCG/Meshes/Roads/SM_Lane_Car_200_200_A": {
+    "min": [
+      -100.0,
+      -100.0,
+      -1.0658141036401503e-14
+    ],
+    "max": [
+      100.0,
+      100.0,
+      20.0
+    ],
+    "size": [
+      200.0,
+      200.0,
+      20.00000000000001
+    ],
+    "materials": [
+      "/CitySamplePCG/Materials/Roads/M_Asphalt_Master_Inst.M_Asphalt_Master_Inst"
+    ],
+    "nanite": true
+  },
+  "/CitySamplePCG/Meshes/Roads/SM_Lane_Car_400_500": {
+    "min": [
+      -250.0,
+      -200.0,
+      0.0
+    ],
+    "max": [
+      250.0,
+      200.0,
+      20.0
+    ],
+    "size": [
+      500.0,
+      400.0,
+      20.0
+    ],
+    "materials": [
+      "/Game/Road/Material/MI/M_Asphalt_Master_Inst.M_Asphalt_Master_Inst"
+    ],
+    "nanite": true
+  },
+  "/CitySamplePCG/Meshes/Roads/SM_Lane_Divider_40_201": {
+    "min": [
+      -100.0,
+      -20.0,
+      0.0
+    ],
+    "max": [
+      100.0,
+      20.0,
+      20.0
+    ],
+    "size": [
+      200.0,
+      40.0,
+      20.0
+    ],
+    "materials": [
+      "/Game/Road/Material/MI/M_Asphalt_Master_Inst.M_Asphalt_Master_Inst"
+    ],
+    "nanite": true
+  },
+  "/CitySamplePCG/Meshes/Roads/SM_Lane_Divider_40_501": {
+    "min": [
+      -250.0,
+      -20.0,
+      0.0
+    ],
+    "max": [
+      250.0,
+      20.0,
+      20.0
+    ],
+    "size": [
+      500.0,
+      40.0,
+      20.0
+    ],
+    "materials": [
+      "/Game/Road/Material/MI/M_Asphalt_Master_Inst.M_Asphalt_Master_Inst"
+    ],
+    "nanite": true
+  },
+  "/CitySamplePCG/Meshes/Roads/SM_Yellow_Line": {
+    "min": [
+      -256.0,
+      -256.0,
+      0.0
+    ],
+    "max": [
+      256.0,
+      256.0,
+      0.0
+    ],
+    "size": [
+      512.0,
+      512.0,
+      0.0
+    ],
+    "materials": [
+      "/Game/Megascans/Atlases/White_Line_00/White_Line_00_inst_2.White_Line_00_inst_2"
+    ],
+    "nanite": false
+  },
+  "level_saved": false,
+  "level": "/Temp/Untitled_1.Untitled_1"
+}
