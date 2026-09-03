@@ -54,11 +54,25 @@ def _add_spline(actor):
     return add_component(actor, unreal.SplineComponent)
 
 
-def _fill(comp, polyline, z_cm):
+# Cross-section reference widths of the meshes the road graph stretches along
+# the splines (measured in-editor: EVIDENCE/PHASE_02/road_mesh_bounds.json).
+MESH_WIDTH_CM = {"road": 400.0, "sidewalk": 200.0}
+
+
+def lane_kind(lane):
+    """A SUMO lane whose allow list is exactly pedestrians is a sidewalk."""
+    allow = lane.get("allow") or []
+    return "sidewalk" if allow == ["pedestrian"] else "road"
+
+
+def _fill(comp, polyline, z_cm, scale_y=1.0):
     pts = [unreal.Vector(float(p["x"]), float(p["y"]), float(z_cm)) for p in polyline]
     comp.set_spline_points(pts, unreal.SplineCoordinateSpace.WORLD, False)
     for i in range(len(pts)):                       # verified API: per-point type
         comp.set_spline_point_type(i, unreal.SplinePointType.LINEAR, False)
+        # cross-section scale: the spline mesh's start/end scale is computed from
+        # the control-point scale, so width_cm_effective / mesh width lands here
+        comp.set_scale_at_spline_point(i, unreal.Vector(1.0, float(scale_y), 1.0), False)
     comp.set_closed_loop(False, False)
     comp.update_spline()
 
@@ -100,15 +114,19 @@ def build_lane_actors(spec_path, *, include_internal=False, kinds=("road",),
             label = f"{label_prefix}_{lane_id}"
             actor.set_actor_label(label)
             comp = _add_spline(actor)
-            _fill(comp, poly, z_cm)
+            kind = lane_kind(ln)
+            w_eff = ln.get("width_cm_effective")
+            scale_y = (float(w_eff) / MESH_WIDTH_CM[kind]) if w_eff else 1.0
+            _fill(comp, poly, z_cm, scale_y)
             try:
                 comp.rename(new_name=f"lane_{lane_id}")
             except Exception:  # noqa: BLE001 - name is a convenience, the label carries the id
                 pass
             w = ln.get("width_cm")            # None -> "width_cm:None" (absence)
-            actor.set_editor_property("tags", ["ld_lane", f"lane_id:{lane_id}",
-                                               f"edge_id:{edge_id}",
-                                               f"width_cm:{w}", "kind:road"])
+            actor.set_editor_property("tags", ["ld_lane", f"ld_{kind}", f"lane_id:{lane_id}",
+                                               f"edge_id:{edge_id}", f"width_cm:{w}",
+                                               f"width_cm_effective:{w_eff}", f"width_source:{ln.get('width_source')}",
+                                               f"kind:{kind}"])
             n += 1
             if len(labels) < 5:
                 labels.append(label)
