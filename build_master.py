@@ -126,7 +126,11 @@ def stage() -> None:
     # machine-written evidence files (revision 5): every number the reports
     # quote has one of these behind it
     for name in ("playback_verify.json", "determinism_and_performance.json",
-                 "regeneration_reproducibility.json", "pcg_probe.json"):
+                 "regeneration_reproducibility.json", "pcg_probe.json",
+                 "editor_inventory.json",
+                 "city_sample_inspection.json", "city_sample_pcg_plugin.json",
+                 "city_sample_mcp_inspection.json", "city_sample_pcg_graphs.json",
+                 "citysample_editor_open_excerpt.txt"):
         src = EV / name
         if src.exists():
             shutil.copy2(src, ev / name)
@@ -144,13 +148,22 @@ def stage() -> None:
                             ("yf_p2_research", "pcg_roads", "pcg_roads_from_sumo.md"),
                             ("yf_p2_research", "seeded_crowd", "seeded_crowd_design.md"),
                             ("yf_p1_attack3", "measurement", "attack_round3_measurement.md"),
-                            ("yf_p1_honesty", "honesty", "honesty_audit.md")):
+                            ("yf_p1_honesty", "honesty", "honesty_audit.md"),
+                            ("yf_p1_r5", "attack4", "attack_round4_identity.md"),
+                            ("yf_p1_r5", "honesty_r5", "honesty_audit_r5.md")):
         src = runs / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
 
     # --- identity ---
     idd = STAGE / "identity"
+    import subprocess
+    def _git(*a):
+        return subprocess.run(["git", "-C", str(WS), *a], capture_output=True, text=True).stdout.strip()
+    (idd / "WORKSPACE_REPO_STATE.json").write_text(json.dumps({
+        "head": _git("rev-parse", "HEAD"), "tracked_files": len(_git("ls-files").splitlines()),
+        "dirty_files_at_build": len(_git("status", "--porcelain").splitlines()),
+        "note": "state of the development repo when this MASTER was built; the docs quote these numbers"}, indent=2), encoding="utf-8")
     shutil.copy2(WS / "FREE_DEPENDENCY_LOCK.json", idd / "FREE_DEPENDENCY_LOCK.json")
     (idd / "CANONICAL_IDENTITY.json").write_text(
         json.dumps(

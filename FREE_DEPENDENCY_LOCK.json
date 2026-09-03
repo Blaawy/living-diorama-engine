@@ -78,8 +78,8 @@
       "license": "Epic Content License",
       "verified_cost_usd": 0,
       "cost_status": "FREE",
-      "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03. Download started the same day by the Director's one click; at the revision-5 build it was still constructing in the launcher vault (32 GB staged, project not yet created). NOT YET OPENED OR INSPECTED.",
-      "decision": "Phase 1 established that every plugin City Sample depends on is already enabled and working here, so City Sample supplies content and example graphs rather than capability. It is a 1 km dense city built from 18 interdependent PCG graphs; our world is 600 x 600 m. It stays a REFERENCE. See CITY_SAMPLE_PCG_COMPATIBILITY.md section 5 for the smallest-useful-subset plan.",
+      "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03; download completed 14:38Z the same day (103.1 GB downloaded per the launcher, 87.7 GB project). OPENED in UE 5.8.2 and INSPECTED over MCP at revision 6: CitySamplePCG plugin enabled, 18 PCG graphs located, five read node-by-node. No Houdini plugin present or required.",
+      "decision": "Phase 1 established that every plugin City Sample depends on is already enabled and working here, so City Sample supplies content and example graphs rather than capability. It is a 1 km dense city built from 18 interdependent PCG graphs; our world is 600 x 600 m. The 87.7 GB project is never copied into ours; Phase 2 reuses the CitySamplePCG graphs (roads, lots, buildings) and selected content by reference/migration of the smallest useful subset. See CITY_SAMPLE_REUSE_PLAN.md.",
       "houdini_required": false,
       "notes": "Epic's 5.8 documentation confirms the PCG version needs no external software; the original 5.0 City Sample's Houdini dependency is gone. This keeps the project clear of any paid-tool pathway."
     },

@@ -142,6 +142,26 @@ _RESULT_REQUIRED = ("run_id", "episode_number", "arm", "seed", "sumo_version", "
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
+def _unsafe_relative_path(rel: str) -> bool:
+    """True if `rel` could escape the evidence directory on any platform.
+
+    Windows strips trailing spaces and dots from path components, so a
+    component written as ".. " resolves as ".." (attacker #4, A2a). Every
+    component is therefore judged after that normalisation; drive letters,
+    UNC prefixes, absolute paths, empty components and control characters are
+    refused outright.
+    """
+    if not rel or rel != rel.strip() or ":" in rel or rel.startswith(("/", "\\")):
+        return True
+    if any(ord(c) < 32 for c in rel):
+        return True
+    for part in rel.replace("\\", "/").split("/"):
+        norm = part.rstrip(" .")
+        if norm in ("", ".", "..") or norm != part:
+            return True
+    return False
+
+
 def _check_result_shape(doc: dict[str, Any]) -> None:
     for f in _RESULT_REQUIRED:
         if f not in doc:
@@ -156,7 +176,7 @@ def _check_result_shape(doc: dict[str, Any]) -> None:
                 or not _HEX64_RE.match(meta["sha256"]):
             raise EvidenceError(f"artifact {name!r} must carry a 64-hex sha256")
         rel = str(meta.get("file", name))
-        if rel.startswith(("/", "\\")) or ".." in Path(rel).parts or ":" in rel:
+        if _unsafe_relative_path(rel):
             raise EvidenceError(f"artifact {name!r} file path must be relative and traversal-free")
 
 
@@ -210,9 +230,23 @@ def verify_artifact_on_disk(result: dict[str, Any], name: str, base_dir: str | P
     if name not in arts:
         raise EvidenceError(f"simulation_result names no artefact {name!r}")
     meta = arts[name]
-    path = Path(base_dir) / meta.get("file", name)
+    rel = str(meta.get("file", name))
+    if _unsafe_relative_path(rel):
+        raise EvidenceError(f"artefact {name!r} file path must be relative and traversal-free")
+    base = Path(base_dir).resolve()
+    path = Path(base_dir) / rel
     if not path.exists():
         raise EvidenceError(f"artefact {name!r} not found on disk at {path}")
+    # Links are refused (attacker #4, A2b): the hash must be over a regular
+    # file that lives inside the evidence directory, not wherever a link points.
+    for probe in (path, *path.parents):
+        if probe == Path(base_dir):
+            break
+        if probe.is_symlink() or probe.is_junction():
+            raise EvidenceError(f"artefact {name!r} path contains a link: {probe}")
+    resolved = path.resolve()
+    if not resolved.is_file() or not resolved.is_relative_to(base):
+        raise EvidenceError(f"artefact {name!r} resolves outside the evidence directory or is not a regular file")
     actual = artifact_sha256(path)
     if actual != meta["sha256"]:
         raise EvidenceError(
