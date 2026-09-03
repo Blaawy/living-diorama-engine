@@ -572,9 +572,14 @@ def _arrivals_from_record(manifest_path: Path, frames_path: Path) -> dict[str, i
     """Independently derive how many actors ARRIVED, from the trajectory record.
 
     An actor whose last appearance precedes the final frame left the simulation
-    before it ended -- i.e. it arrived (or was removed). This is computed from
-    the binary record alone, so it can be compared against the tripinfo count a
-    forger might have typed.
+    before it ended. PRECONDITION (round-3 finding 1): this equals "arrived"
+    only when the run removes nothing early -- i.e. `--time-to-teleport.remove`
+    is off (a teleported vehicle continues and still arrives) and vehicles
+    that cannot be routed are never inserted. `seal_run_result` records the
+    flags used under `run_report.sumo_flags`. If the precondition fails the
+    cross-check refuses the run rather than mis-count, which is the safe
+    direction. It is computed from the binary record alone, so it can be
+    compared against the tripinfo count a forger might have typed.
     """
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     kinds = [a["kind"] for a in manifest["actors"]]

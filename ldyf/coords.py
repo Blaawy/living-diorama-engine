@@ -33,14 +33,17 @@ METRES_TO_UNREAL_UNITS = 100.0
 
 
 def normalise_deg(a: float) -> float:
-    """Normalise degrees into the half-open interval (-180, 180]."""
+    """Normalise degrees into the half-open interval (-180, 180].
+
+    `a % 360.0` already maps -180 to +180, so the interval is half-open without
+    a special case. The final `+ 0.0` turns a negative zero into +0.0: -0.0 is
+    value-equal to 0.0 but packs to different bytes, which would be a silent
+    byte-level non-determinism source in the record (round-3 finding 8).
+    """
     a = a % 360.0
     if a > 180.0:
         a -= 360.0
-    # -180 folds onto +180 so the interval is half-open and round-trips exactly.
-    if a == -180.0:
-        a = 180.0
-    return a
+    return a + 0.0
 
 
 @dataclass(frozen=True)

@@ -42,13 +42,6 @@
       "type": "number",
       "minimum": 0
     },
-    "runs": {
-      "type": "object",
-      "description": "Per-arm run facts copied from RunResult: exit code, steps, output validity, and honest reroute accounting (requests / successes / routes_actually_changed / unchanged / failures).",
-      "additionalProperties": {
-        "type": "object"
-      }
-    },
     "artifacts": {
       "type": "object",
       "minProperties": 1,
@@ -76,6 +69,13 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
       "description": "SHA-256 over this document with result_hash blanked, canonical JSON. See ldyf.evidence."
+    },
+    "run_report": {
+      "type": "object",
+      "description": "Simulator-side RunResult figures, sealed for audit: exit code, steps, output validity, teleports, honest reroute accounting (requests / successes / routes_actually_changed / unchanged / failures), vehicles_on_closed_lane_at_closure, post_closure_entries_onto_closed_edges (measured from the FCD; must be 0), lanes closed, and the SUMO flags used. NOT re-derived by the extractor except post_closure_entries.",
+      "additionalProperties": {
+        "type": "object"
+      }
     }
   }
 }

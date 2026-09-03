@@ -42,12 +42,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import struct
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .coords import SumoPose, sumo_to_unreal
+from .coords import METRES_TO_UNREAL_UNITS, SumoPose, sumo_to_unreal
+
+class RecordError(RuntimeError):
+    """Raised when a record cannot be built faithfully."""
+
+
+# float32 has 24 significant bits: below 2**23 cm (~83.9 km) the spacing is
+# under 1 cm, so SUMO's 1 cm output grid survives exactly. Beyond it, it does
+# not, and a net offset must be applied before recording (round-3 finding 6).
+FLOAT32_EXACT_CM_EXTENT = 2 ** 23
 
 SAMPLE_STRUCT = struct.Struct("<Ifffff")
 COUNT_STRUCT = struct.Struct("<I")
@@ -73,19 +83,34 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _sha256_payload(path: Path) -> str:
-    """Hash a SUMO XML file excluding its provenance header comment.
+_LEADING_COMMENT = re.compile(rb"\A\s*(?:<\?xml[^>]*\?>\s*)?<!--.*?-->", re.S)
 
-    SUMO stamps a generation timestamp and the output filename into a leading
-    XML comment. Those bytes differ between two otherwise identical runs, so
-    hashing the raw file would wrongly report non-determinism. Measured: the
-    two runs in PHASE_01/proof differ in exactly 10 bytes, all inside that
-    comment.
+
+def payload_span(data: bytes) -> tuple[int, str]:
+    """Where the hashed payload starts, and which rule chose it.
+
+    SUMO stamps a generation timestamp and output filename into ONE leading
+    XML comment. That comment is located structurally -- it must open at the
+    start of the document (after the optional XML declaration) -- rather than by
+    searching for the first `-->` anywhere, which a payload could contain
+    (round-3 finding 7). If no leading comment exists the whole file is hashed
+    and the mode says so, so the law is never silently downgraded.
     """
+    m = _LEADING_COMMENT.match(data)
+    if m:
+        return m.end(), "after_leading_comment"
+    return 0, "whole_file"
+
+
+def _sha256_payload(path: Path) -> str:
+    """Hash a SUMO XML file excluding its provenance header comment."""
     data = path.read_bytes()
-    i = data.find(b"-->")
-    body = data[i + 3 :] if i != -1 else data
-    return hashlib.sha256(body).hexdigest()
+    start, _mode = payload_span(data)
+    return hashlib.sha256(data[start:]).hexdigest()
+
+
+def payload_hash_mode(path: Path) -> str:
+    return payload_span(path.read_bytes())[1]
 
 
 def build_record(
@@ -147,9 +172,18 @@ def build_record(
                             "kind": kind,
                             "type": child.get("type", ""),
                             "first_seen_time": t,
+                            "last_seen_time": t,
                         }
                     )
                     stats.actor_kinds[kind] = stats.actor_kinds.get(kind, 0) + 1
+                actors[actor_index[key]]["last_seen_time"] = t
+
+                sx, sy = float(child.get("x", "0")), float(child.get("y", "0"))
+                if max(abs(sx), abs(sy)) * METRES_TO_UNREAL_UNITS >= FLOAT32_EXACT_CM_EXTENT:
+                    raise RecordError(
+                        f"coordinate {sx:.2f},{sy:.2f} m exceeds the float32 exact-centimetre "
+                        f"extent ({FLOAT32_EXACT_CM_EXTENT} cm); apply a net offset before recording"
+                    )
 
                 pose = sumo_to_unreal(
                     SumoPose(
@@ -190,6 +224,7 @@ def build_record(
         "coordinate_system": {
             "target": "unreal",
             "linear_units": "centimetres",
+            "float32_exact_cm_extent": FLOAT32_EXACT_CM_EXTENT,
             "angular_units": "degrees",
             "axes": "X=east, Y=south, Z=up (left-handed)",
             "yaw_zero": "+X",
@@ -212,6 +247,7 @@ def build_record(
         "source": {
             "fcd_file": fcd_path.name,
             "fcd_payload_sha256": _sha256_payload(fcd_path),
+            "fcd_payload_hash_mode": payload_hash_mode(fcd_path),
             "net_file": Path(net_path).name if net_path else None,
             "net_sha256": _sha256_payload(Path(net_path)) if net_path else None,
             "seed": seed,
