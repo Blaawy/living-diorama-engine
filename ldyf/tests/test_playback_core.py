@@ -1,9 +1,10 @@
-"""Unit tests for ldyf/playback_core.py (Phase-2 lane L6 pure arithmetic).
+"""Unit tests for ldyf/playback_core.py (Phase-2 lane L6 pure arithmetic, L7 persons).
 
 The in-editor player cannot be unit-tested (it imports `unreal`), so every
 number it computes lives here and is pinned to the frozen authorities:
 record_interp.frame_index_bounds / pose_at, vehicle_kinematics.wheel_angle_deg,
-world_inventory.inventory (actor_dump_v1 acceptance).
+world_inventory.inventory (actor_dump_v1 acceptance). L7 adds the pure
+walk/idle state machine, the play-rate scaling and the person yaw offset.
 
 Run: pytest ldyf/tests/test_playback_core.py from the repo root.
 """
@@ -198,6 +199,59 @@ def test_steer_yaw_clamps_and_uses_shortest_arc():
     assert pc.steer_yaw(0.0, 90.0, max_deg=10.0) == 10.0
 
 
+# --- persons: walk/idle state, play rate, yaw offset (Phase-2 L7) ---------
+
+
+def test_person_anim_state_walks_when_moving_and_idles_when_stopped():
+    # Until idle_below is set: any speed > 0 walks, speed == 0 idles.
+    assert pc.person_anim_state(1.4, None, None, "idle") == "walk"
+    assert pc.person_anim_state(0.0, None, None, "walk") == "idle"
+
+
+def test_person_anim_state_unset_params_still_walk_at_tiny_speed():
+    # "until set, always-walk when speed > 0": no idle threshold is invented.
+    assert pc.person_anim_state(1e-9, None, None, "idle") == "walk"
+
+
+def test_person_anim_state_idle_below_threshold_even_while_moving():
+    # speed 0.3 < idle_below 0.5 -> idle although the record keeps moving;
+    # at the boundary (0.5) the person walks.
+    assert pc.person_anim_state(0.3, 1.5, 0.5, "walk") == "idle"
+    assert pc.person_anim_state(0.5, 1.5, 0.5, "walk") == "walk"
+
+
+def test_person_anim_state_is_hysteresis_free():
+    # prev_state never influences the outcome (no hysteresis by construction).
+    for speed in (0.0, 0.3, 0.5, 1.2):
+        a = pc.person_anim_state(speed, 1.5, 0.5, "idle")
+        b = pc.person_anim_state(speed, 1.5, 0.5, "walk")
+        assert a == b
+        assert a in ("walk", "idle")
+
+
+def test_person_play_rate_scales_speed_by_walk_ref():
+    assert pc.person_play_rate(1.5, 1.5) == 1.0
+    assert pc.person_play_rate(3.0, 1.5) == 2.0
+    assert pc.person_play_rate(0.75, 1.5) == 0.5
+
+
+def test_person_play_rate_defaults_to_one_until_walk_ref_set():
+    # walk_ref None / non-positive and a standing person all play at 1.0.
+    assert pc.person_play_rate(2.0, None) == 1.0
+    assert pc.person_play_rate(2.0, 0.0) == 1.0
+    assert pc.person_play_rate(2.0, -1.0) == 1.0
+    assert pc.person_play_rate(0.0, 1.5) == 1.0
+
+
+def test_person_yaw_applies_offset_via_normalise_deg():
+    assert pc.person_yaw(10.0, 0.0) == 10.0
+    assert pc.person_yaw(10.0, 5.0) == 15.0
+    assert pc.person_yaw(179.0, 5.0) == -176.0   # wraps through +180
+    assert pc.person_yaw(-170.0, -20.0) == 170.0  # wraps through -180
+    assert pc.person_yaw(33.0) == 33.0            # default offset 0.0
+    assert pc.person_yaw(100.0, 0.0) == normalise_deg(100.0)
+
+
 # --- spawn / despawn diff -------------------------------------------------
 
 
@@ -250,16 +304,26 @@ def _vehicle_actor(name="LD_vehicle_12"):
 
 
 def _person_actor(name="LD_person_1"):
+    # Shape written by ldyf_playback.dump_actors since lane L7: a mannequin
+    # SkeletalMeshComponent whose component carries the current sequence path
+    # under the extra "animation" key (anim_class stays None in this module).
+    comp = {
+        "name": "SkeletalMeshComponent0",
+        "class": "SkeletalMeshComponent",
+        "asset": "/Engine/Tutorial/SubEditors/TutorialAssets/Character/TutorialTPP",
+        "instance_count": None,
+        "anim_class": None,
+        "skeleton": None,
+        "animation": "/Engine/Tutorial/SubEditors/TutorialAssets/Character/Tutorial_Walk_Fwd",
+    }
     return {
         "name": name,
-        "class": "StaticMeshActor",
+        "class": "SkeletalMeshActor",
         "label": name,
         "tags": ["ldyf_playback"],
-        "location": {"x": 0.0, "y": 0.0, "z": 87.5},
+        "location": {"x": 0.0, "y": 0.0, "z": 0.0},
         "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-        "components": [
-            _comp(None, "StaticMeshComponent", "/Engine/BasicShapes/Cylinder.Cylinder")
-        ],
+        "components": [comp],
     }
 
 
@@ -271,12 +335,18 @@ def test_make_actor_dump_accepted_by_world_inventory():
     result = inventory(dump)  # world_inventory accepts the shape without raising
     assert result["schema_version"] == INVENTORY_VERSION
     assert result["level"] is None
-    # PoseableMeshComponent vehicle classifies as prop (classifier gap, world_
-    # inventory.py:62-73 keys skeletal vehicles on class containing "skeletalmesh")
-    # and the cylinder person is blockout prop -- dump stays truthful.
-    assert result["counts_by_role"]["prop"] == 2
-    assert result["vehicles"]["count"] == 0
-    assert result["blockout_count"] == 1
+    # L7 classifier: a PoseableMeshComponent under /Game/Vehicle/ counts as a
+    # skeletal vehicle whose wheel count comes from wheel_bones (4), and the
+    # mannequin person (skeletal + "animation" key) is an animated pedestrian.
+    assert result["counts_by_role"]["vehicle"] == 1
+    assert result["counts_by_role"]["pedestrian"] == 1
+    assert result["counts_by_role"]["prop"] == 0
+    assert result["vehicles"] == {"count": 1, "with_min_wheels": 1, "pass": True}
+    assert result["pedestrians"] == {"count": 1, "skeletal_animated": 1, "pass": True}
+    assert result["blockout_count"] == 0
+    # No buildings in this dump, so building_kits.pass is False and the overall
+    # world_inventory pass is False -- only the per-role passes can be True.
+    assert result["pass"] is False
     for a in dump["actors"]:
         for c in a["components"]:
             assert {"name", "class", "asset", "instance_count", "anim_class", "skeleton"} <= set(c)

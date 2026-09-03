@@ -4,9 +4,11 @@ Loaded via remote execution (ldyf/unreal_remote.py) or `py ldyf_playback.py`
 from the editor console. v2 (Phase-2 lane L6): interpolated kinematic playback
 from an in-memory record, real City Sample vehicles on PoseableMeshComponents
 with wheel spin / steer, strict spawn-despawn (never parked off-screen), status
-/evidence counters and an actor_dump_v1 writer. Persons keep the Phase-1
-cylinder placeholder behind ``_REPRESENTATION`` (Phase-2 human mesh decision
-pending; the swap is one edit of that row -- see ``set_person_mesh``).
+/evidence counters and an actor_dump_v1 writer. Phase-2 lane L7 swaps persons
+from the Phase-1 cylinder placeholder to the Tutorial mannequin
+(SkeletalMeshActor, single-node animation mode) whose idle/walk AnimSequences
+are chosen per tick from the record speed, and fixes the ground-offset probe to
+the 1-argument ``get_actor_bounds`` (see below).
 
 Authority
 ---------
@@ -45,9 +47,12 @@ Ground offset
 -------------
 The asset ``SkeletalMesh.get_bounds()`` is degenerate (EVIDENCE_editor_api_
 probe.json lines 115-124), so the ground offset is measured once per mesh from
-the SPAWNED actor: ``unreal.SystemLibrary.get_actor_bounds(actor)``
-returns (origin, extent); offset_z = extent.z - origin.z is cached per mesh
-path in ``_GROUND_CACHE`` and reported in ``status()``.
+the SPAWNED actor: ``unreal.SystemLibrary.get_actor_bounds(actor)`` returns
+(origin, extent); offset_z = extent.z - origin.z is cached per mesh path in
+``_GROUND_CACHE`` and reported in ``status()``. UE 5.8 Python's
+``get_actor_bounds`` takes ONE argument -- lane L7 removed the stray second
+``False`` the v1 route passed (a two-argument call raised "takes at most 1
+argument", EVIDENCE_human_fallback_probe.json line 11).
 
 Record layout (little-endian), from ldyf.sumo_record: per frame uint32 count,
 then count x <Ifffff>: actor_index, x_cm, y_cm, z_cm, yaw_deg, speed_mps.
@@ -86,14 +91,33 @@ _SESSION: dict | None = None
 # bounds (never from the degenerate asset bounds). Persists across sessions.
 _GROUND_CACHE: dict[str, float] = {}
 
-# Representation table. Persons keep the Phase-1 cylinder placeholder; the swap
-# is one edit of the "person" row (set_person_mesh writes the same row).
+# Person presentation arguments (Phase-2 L7). No typed numbers in the
+# representation row: walk_ref_speed_mps (the speed at which the walk cycle
+# plays at rate 1.0), idle_below_mps (speeds strictly below it idle) and the
+# Tutorial-mesh facing correction person_yaw_offset_deg are all set via
+# set_person_params(); until walk_ref / idle_below are set persons play the
+# walk cycle at rate 1.0 and walk at ANY speed > 0 (person_params_unset=True).
+_PERSON_PARAMS: dict = {
+    "walk_ref_speed_mps": None,
+    "idle_below_mps": None,
+    "person_yaw_offset_deg": 0.0,
+}
+
+# Representation table. The "person" row (L7): Tutorial mannequin mesh + the
+# walk/idle AnimSequences the editor probe verified load and play
+# (EVIDENCE_human_fallback_probe.json). walk_ref_speed_mps / idle_below_mps
+# stay None here (arguments, see _PERSON_PARAMS / set_person_params) and "z"
+# is None because the ground offset is measured per mesh from the spawned
+# actor's bounds, never typed.
 _REPRESENTATION = {
     "vehicle": {"spawn": "poseable_mesh"},
     "person": {
-        "mesh": "/Engine/BasicShapes/Cylinder.Cylinder",
-        "scale": (0.5, 0.5, 1.75),
-        "z": 87.5,
+        "mesh": "/Engine/Tutorial/SubEditors/TutorialAssets/Character/TutorialTPP",
+        "walk": "/Engine/Tutorial/SubEditors/TutorialAssets/Character/Tutorial_Walk_Fwd",
+        "idle": "/Engine/Tutorial/SubEditors/TutorialAssets/Character/Tutorial_Idle",
+        "walk_ref_speed_mps": None,
+        "idle_below_mps": None,
+        "z": None,
     },
 }
 
@@ -116,7 +140,7 @@ _WHEEL_RADIUS_CM: dict[str, float | None] = {p: None for p in _VEHICLE_MESHES}
 
 def load_wheel_radii(path: str) -> dict:
     """Load per-mesh wheel radii MEASURED in-editor (EVIDENCE/PHASE_02/wheel_radii.json:
-    bone height above the mesh's local bounds floor). Nothing here is typed."""
+    spin-bone height above the mesh origin plane). Nothing here is typed."""
     import json as _json
     doc = _json.loads(Path(path).read_text(encoding="utf-8"))
     n = 0
@@ -224,6 +248,27 @@ def _local_steer_yaw(prev_yaw_deg: float, current_yaw_deg: float, max_deg: float
     return max(-max_deg, min(max_deg, d))
 
 
+def _local_person_anim_state(speed: float, walk_ref, idle_below, prev_state: str = "idle") -> str:
+    """Replica of playback_core.person_anim_state (playback_core.py)."""
+    if idle_below is not None and speed < idle_below:
+        return "idle"
+    if speed > 0.0:
+        return "walk"
+    return "idle"
+
+
+def _local_person_play_rate(speed: float, walk_ref) -> float:
+    """Replica of playback_core.person_play_rate (playback_core.py)."""
+    if walk_ref is None or walk_ref <= 0.0 or speed <= 0.0:
+        return 1.0
+    return speed / walk_ref
+
+
+def _local_person_yaw(record_yaw_deg: float, offset_deg: float = 0.0) -> float:
+    """Replica of playback_core.person_yaw (playback_core.py)."""
+    return _local_normalise_deg(record_yaw_deg + offset_deg)
+
+
 def _local_make_dump(actors: list, level, captured_utc: str) -> dict:
     """Replica of playback_core.make_actor_dump (actor_dump_v1)."""
     ordered = sorted(actors, key=lambda a: (a.get("name") or ""))
@@ -262,6 +307,24 @@ def _steer_yaw(prev_yaw_deg: float, current_yaw_deg: float) -> float:
     if _PCORE is not None:
         return _PCORE.steer_yaw(prev_yaw_deg, current_yaw_deg)
     return _local_steer_yaw(prev_yaw_deg, current_yaw_deg)
+
+
+def _person_anim_state(speed: float, walk_ref, idle_below, prev_state: str = "idle") -> str:
+    if _PCORE is not None:
+        return _PCORE.person_anim_state(speed, walk_ref, idle_below, prev_state)
+    return _local_person_anim_state(speed, walk_ref, idle_below, prev_state)
+
+
+def _person_play_rate(speed: float, walk_ref) -> float:
+    if _PCORE is not None:
+        return _PCORE.person_play_rate(speed, walk_ref)
+    return _local_person_play_rate(speed, walk_ref)
+
+
+def _person_yaw(record_yaw_deg: float, offset_deg: float = 0.0) -> float:
+    if _PCORE is not None:
+        return _PCORE.person_yaw(record_yaw_deg, offset_deg)
+    return _local_person_yaw(record_yaw_deg, offset_deg)
 
 
 def _make_dump(actors: list, level, captured_utc: str) -> dict:
@@ -353,6 +416,8 @@ def _spawn_vehicle(uid: str, label: str, tags: list) -> dict:
     steer = sorted(b for b in bones if "wheel" in b and "turn" in b)
     # Ground offset from the SPAWNED component's bounds, measured at origin with
     # identity rotation, cached per mesh path (asset bounds are degenerate).
+    # get_actor_bounds takes ONE argument in UE 5.8 Python (lane L7 fix; the
+    # former two-argument call raised "takes at most 1 argument").
     g = _GROUND_CACHE.get(mesh)
     if g is None:
         origin, extent = unreal.SystemLibrary.get_actor_bounds(actor)
@@ -388,20 +453,51 @@ def _spawn_vehicle(uid: str, label: str, tags: list) -> dict:
 
 
 def _spawn_person(uid: str, label: str, tags: list) -> dict:
-    """Phase-1 cylinder placeholder, behind the representation table (swap one edit)."""
+    """Spawn the Tutorial mannequin as a SkeletalMeshActor (Phase-2 L7).
+
+    Verified editor facts (EVIDENCE_human_fallback_probe.json):
+    ``spawn_actor_from_object(mesh, loc)`` yields a SkeletalMeshActor whose
+    ``skeletal_mesh_component`` accepts ``set_animation_mode(SINGLE_NODE)``
+    and ``play_animation(seq, True)``. The person starts in the idle loop; the
+    per-tick walk/idle choice happens in ``_place_actor`` (switch only on
+    state change, never a restart every tick). The ground offset is measured
+    once per mesh from the spawned actor's bounds (1-argument
+    ``get_actor_bounds``) and cached.
+    """
     rep = _REPRESENTATION["person"]
     mesh = unreal.EditorAssetLibrary.load_asset(rep["mesh"])
+    if mesh is None:
+        raise RuntimeError(f"could not load person mesh asset {rep['mesh']!r}")
     actor = unreal.EditorLevelLibrary.spawn_actor_from_object(
         mesh, unreal.Vector(0.0, 0.0, -100000.0), unreal.Rotator(0.0, 0.0, 0.0)
     )
+    if actor is None:
+        raise RuntimeError(f"spawn_actor_from_object gave None for {label}")
     actor.set_actor_label(label)
-    actor.set_actor_scale3d(unreal.Vector(*rep["scale"]))
+    comp = actor.skeletal_mesh_component          # verified: SkeletalMeshActor attr
+    comp.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE)
+    idle = unreal.EditorAssetLibrary.load_asset(rep["idle"])
+    if idle is None:
+        raise RuntimeError(f"could not load person idle asset {rep['idle']!r}")
+    comp.play_animation(idle, True)               # verified probe: loops (True)
+    # Ground offset from the SPAWNED actor's bounds (never the degenerate
+    # SkeletalMesh.get_bounds() asset bounds), cached per mesh path.
+    g = _GROUND_CACHE.get(rep["mesh"])
+    if g is None:
+        origin, extent = unreal.SystemLibrary.get_actor_bounds(actor)  # 1-arg
+        g = float(extent.z - origin.z)
+        _GROUND_CACHE[rep["mesh"]] = g
     actor.set_actor_hidden_in_game(False)
+    comp_name = None
+    try:
+        comp_name = str(comp.get_name())          # unreal.Object.get_name (unverified)
+    except Exception:
+        comp_name = None
     rec = {
         "actor": actor,
-        "comp": None,
-        "comp_name": None,
-        "class": "StaticMeshActor",
+        "comp": comp,
+        "comp_name": comp_name,
+        "class": "SkeletalMeshActor",
         "kind": "person",
         "uid": uid,
         "label": label,
@@ -412,8 +508,10 @@ def _spawn_person(uid: str, label: str, tags: list) -> dict:
         "wheel_radius_cm": None,
         "spin_deg": 0.0,
         "steer_deg": 0.0,
+        "anim_state": "idle",     # current walk/idle choice (pure state machine)
+        "anim_seq": rep["idle"],  # current sequence path (dump_actors reports it)
+        "z_off": g,
         "last_bracket": None,
-        "z_off": rep["z"],
         "last_pose": {"location": {"x": 0.0, "y": 0.0, "z": 0.0},
                       "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}},
         "destroyed": False,
@@ -445,16 +543,47 @@ def _spawn_actor_for(s, idx: int) -> dict:
 
 
 def _place_actor(s, idx: int, rec: dict, pose: dict, dt_sim: float, i0: int, i1: int) -> None:
-    """Move the actor to the interpolated pose; drive spin and steer bones."""
+    """Move the actor to the interpolated pose; drive spin/steer and person anim."""
     if rec["kind"] == "vehicle":
         z = pose["z"] + _GROUND_CACHE[rec["mesh"]]
-    else:
-        z = pose["z"] + _REPRESENTATION["person"]["z"]
+        yaw = pose["yaw"]
+    else:  # person: ground offset measured per mesh from the spawned actor
+        z = pose["z"] + _GROUND_CACHE[rec["mesh"]]
+        # The Tutorial mannequin's facing convention (+X or not) is NOT
+        # verified; the record yaw gets person_yaw_offset_deg (an argument,
+        # default 0.0) added and normalised via coords.normalise_deg semantics.
+        yaw = _person_yaw(pose["yaw"], _PERSON_PARAMS["person_yaw_offset_deg"])
     rec["actor"].set_actor_location_and_rotation(
         unreal.Vector(pose["x"], pose["y"], z),
         # unreal.Rotator(roll, pitch, yaw): yaw is the THIRD argument (v1 RT-14).
-        unreal.Rotator(0.0, 0.0, pose["yaw"]), False, False
+        unreal.Rotator(0.0, 0.0, yaw), False, False
     )
+    if rec["kind"] == "person":
+        walk_ref = _PERSON_PARAMS["walk_ref_speed_mps"]
+        state = _person_anim_state(
+            pose["speed"], walk_ref, _PERSON_PARAMS["idle_below_mps"],
+            rec.get("anim_state", "idle"),
+        )
+        # Switch the looped sequence ONLY when the state changes; a person who
+        # keeps walking never restarts the cycle every tick.
+        if state != rec.get("anim_state"):
+            seq_path = (_REPRESENTATION["person"]["walk"] if state == "walk"
+                        else _REPRESENTATION["person"]["idle"])
+            seq = unreal.EditorAssetLibrary.load_asset(seq_path)
+            if seq is not None:
+                try:
+                    rec["comp"].play_animation(seq, True)
+                except Exception:
+                    pass
+            rec["anim_state"] = state
+            rec["anim_seq"] = seq_path
+        # play rate = speed / walk_ref while walking (1.0 until walk_ref is set
+        # and for the idle loop) -- playback_core.person_play_rate semantics.
+        rate = _person_play_rate(pose["speed"] if state == "walk" else 0.0, walk_ref)
+        try:
+            rec["comp"].set_play_rate(rate)
+        except Exception:
+            pass
     if rec["kind"] == "vehicle":
         radius = rec["wheel_radius_cm"]
         if rec["spin_bones"] and radius is not None:
@@ -494,7 +623,7 @@ def _place_actor(s, idx: int, rec: dict, pose: dict, dt_sim: float, i0: int, i1:
                     pass
     rec["last_pose"] = {
         "location": {"x": pose["x"], "y": pose["y"], "z": z},
-        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": pose["yaw"]},
+        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": yaw},
     }
 
 
@@ -667,6 +796,15 @@ def status() -> dict:
         return {"active": False}
     s = _SESSION
     alive = sum(1 for r in s["spawned_records"].values() if not r.get("destroyed", False))
+    persons_visible = persons_walking = persons_idle = 0
+    for idx in sorted(s["visible"]):
+        rec = s["spawned_records"].get(idx)
+        if rec is not None and rec["kind"] == "person" and not rec.get("destroyed", False):
+            persons_visible += 1
+            if rec.get("anim_state") == "walk":
+                persons_walking += 1
+            else:
+                persons_idle += 1
     return {
         "active": True,
         "interpolation": True,
@@ -690,6 +828,16 @@ def status() -> dict:
         "no_spin_meshes": list(s["no_spin_meshes"]),
         "ground_offsets_cm": {p: round(g, 4) for p, g in _GROUND_CACHE.items()},
         "person_mesh": _REPRESENTATION["person"]["mesh"],
+        "person_walk_ref_speed_mps": _PERSON_PARAMS["walk_ref_speed_mps"],
+        "person_idle_below_mps": _PERSON_PARAMS["idle_below_mps"],
+        "person_yaw_offset_deg": _PERSON_PARAMS["person_yaw_offset_deg"],
+        "person_params_unset": (
+            _PERSON_PARAMS["walk_ref_speed_mps"] is None
+            or _PERSON_PARAMS["idle_below_mps"] is None
+        ),
+        "persons_visible": persons_visible,
+        "persons_walking": persons_walking,
+        "persons_idle": persons_idle,
         "ticks": s["ticks"],
         "done": s["done"],
         "wall_elapsed_s": round(time.time() - s["started"], 2),
@@ -697,17 +845,40 @@ def status() -> dict:
     }
 
 
-def set_person_mesh(mesh_path: str) -> dict:
-    """Swap the person placeholder mesh (one edit behind _REPRESENTATION).
+def set_person_params(walk_ref_speed_mps: float | None = None,
+                      idle_below_mps: float | None = None,
+                      person_yaw_offset_deg: float = 0.0) -> dict:
+    """Set the module-level person presentation arguments (Phase-2 L7).
 
-    Phase-2 human mesh decision is pending, so persons keep the cylinder until
-    then; this records the intended mesh for future sessions.
+    ``walk_ref_speed_mps`` is the speed at which the walk cycle plays at rate
+    1.0 (play rate = record speed / walk_ref while walking). ``idle_below_mps``
+    is the speed below which the person idles even while the record moves.
+    Until both are set, ``status()["person_params_unset"]`` is True and persons
+    play at rate 1.0 and walk at any speed > 0. ``person_yaw_offset_deg``
+    corrects the unverified Tutorial-mesh facing convention (default 0.0).
+    """
+    if walk_ref_speed_mps is not None and walk_ref_speed_mps <= 0.0:
+        raise ValueError("set_person_params: walk_ref_speed_mps must be > 0 when set")
+    if idle_below_mps is not None and idle_below_mps < 0.0:
+        raise ValueError("set_person_params: idle_below_mps must be >= 0 when set")
+    _PERSON_PARAMS["walk_ref_speed_mps"] = walk_ref_speed_mps
+    _PERSON_PARAMS["idle_below_mps"] = idle_below_mps
+    _PERSON_PARAMS["person_yaw_offset_deg"] = float(person_yaw_offset_deg)
+    return dict(_PERSON_PARAMS)
+
+
+def set_person_mesh(mesh_path: str) -> dict:
+    """Swap the person mannequin mesh (one edit behind _REPRESENTATION).
+
+    The Phase-2 fallback mannequin is the Tutorial TPP skeletal mesh; a City
+    Sample human mesh upgrade later is one edit of this row. Persons stay on
+    the Tutorial idle/walk AnimSequences until that upgrade provides its own.
     """
     if not isinstance(mesh_path, str) or not mesh_path:
         raise ValueError("set_person_mesh: mesh_path must be a non-empty asset path")
     _REPRESENTATION["person"]["mesh"] = mesh_path
     return {"person_mesh": mesh_path,
-            "note": "Phase-2 human mesh pending; person spawn route unchanged"}
+            "note": "walk/idle sequences unchanged (Tutorial) until the human upgrade"}
 
 
 def verify_frame(record_dir: str, frame_index: int, sample: int = 5) -> dict:
@@ -741,9 +912,11 @@ def dump_actors(out_path: str) -> dict:
 
     Schema matches ldyf.world_inventory (test_world_inventory.py:28-57): actors
     carry class/label/tags/location/rotation/components; components carry
-    class/asset/skeleton/anim_class plus truthful extra keys wheel_bones and
-    steer_bones. Despawned actors are included with their last placed transform
-    and destroyed=True so the inventory can tell destroyed actors apart.
+    class/asset/skeleton/anim_class plus truthful extra keys -- wheel_bones and
+    steer_bones on vehicle PoseableMeshComponents, and "animation" (the current
+    sequence path) on person SkeletalMeshComponents. Despawned actors are
+    included with their last placed transform and destroyed=True so the
+    inventory can tell destroyed actors apart.
     """
     if _SESSION is None:
         return {"active": False, "reason": "no session"}
@@ -773,12 +946,13 @@ def dump_actors(out_path: str) -> dict:
             }]
         else:
             comps = [{
-                "name": None,
-                "class": "StaticMeshComponent",
+                "name": rec["comp_name"],
+                "class": "SkeletalMeshComponent",
                 "asset": rec["mesh"],
                 "instance_count": None,
                 "anim_class": None,
                 "skeleton": None,
+                "animation": rec.get("anim_seq"),
             }]
         entry = {
             "name": rec["label"],

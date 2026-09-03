@@ -5,6 +5,12 @@ spline road, sidewalk ISM, building with a kit, vehicles with 4 / 3 wheels,
 pedestrians with / without animation, light, camera, volume, unknown actor,
 empty dump, determinism, role_reason coverage and pass/fail composition. Each
 test fails if its feature is removed.
+
+Phase-2 L7 additions: dumps shaped exactly like ``ldyf_playback.dump_actors``
+writes them -- v2 vehicles are ``Actor`` + ``PoseableMeshComponent`` under
+``/Game/Vehicle/`` carrying ``wheel_bones`` / ``steer_bones``, and persons are
+a mannequin ``SkeletalMeshComponent`` on TutorialTPP carrying the current
+sequence path under the extra ``"animation"`` key.
 """
 
 from __future__ import annotations
@@ -126,6 +132,49 @@ def _full_world_dump():
     return _dump(actors)
 
 
+# --- dump_actors-shaped builders (ldyf_playback.dump_actors, lane L7) -----
+
+
+def _dump_vehicle(name="LD_vehicle_12", *, wheel_bones=None, steer_bones=None,
+                  anim_class=None, animation=None):
+    """A v2 spawned vehicle: Actor + PoseableMeshComponent on /Game/Vehicle/."""
+    comp = {
+        "name": "PoseableMesh0",
+        "class": "PoseableMeshComponent",
+        "asset": "/Game/Vehicle/vehCar_vehicle02/Mesh/SKM_vehCar_vehicle02",
+        "instance_count": None,
+        "anim_class": anim_class,
+        "skeleton": None,
+    }
+    comp["wheel_bones"] = (
+        ["wheel_front_l", "wheel_front_r", "wheel_rear_l", "wheel_rear_r"]
+        if wheel_bones is None else list(wheel_bones)
+    )
+    comp["steer_bones"] = (
+        ["wheel_front_turn_l", "wheel_front_turn_r"]
+        if steer_bones is None else list(steer_bones)
+    )
+    if animation is not None:
+        comp["animation"] = animation
+    return _actor(name, "Actor", [comp])
+
+
+def _dump_person(name="LD_person_1", *, with_animation=True,
+                 animation="/Engine/Tutorial/SubEditors/TutorialAssets/Character/Tutorial_Walk_Fwd"):
+    """A L7 person: mannequin SkeletalMeshComponent + current sequence path."""
+    comp = {
+        "name": "SkeletalMeshComponent0",
+        "class": "SkeletalMeshComponent",
+        "asset": "/Engine/Tutorial/SubEditors/TutorialAssets/Character/TutorialTPP",
+        "instance_count": None,
+        "anim_class": None,
+        "skeleton": None,
+    }
+    if with_animation:
+        comp["animation"] = animation
+    return _actor(name, "SkeletalMeshActor", [comp])
+
+
 # --- kit_of ---------------------------------------------------------------
 
 
@@ -240,6 +289,64 @@ def test_role_reason_present_for_every_actor():
     for a in actors:
         c = classify_actor(a)
         assert isinstance(c["role_reason"], str) and c["role_reason"]
+
+
+# --- classify_actor: dump_actors shape (lane L7) --------------------------
+
+
+def test_poseablemesh_vehicle_is_skeletal_vehicle():
+    c = classify_actor(_dump_vehicle())
+    assert c["role"] == "vehicle"
+    assert c["skeletal"] is True
+    assert c["wheels"] == 4
+    assert not c["blockout"]
+
+
+def test_vehicle_wheels_come_from_wheel_bones_length():
+    assert classify_actor(_dump_vehicle(wheel_bones=["wl", "wr"]))["wheels"] == 2
+    assert classify_actor(_dump_vehicle(wheel_bones=[]))["wheels"] == 0
+
+
+def test_poseablemesh_vehicle_animated_only_with_animation_or_anim_class():
+    assert classify_actor(_dump_vehicle())["animated"] is False
+    assert classify_actor(_dump_vehicle(
+        animation="/Game/Vehicle/vehCar_vehicle02/Anim/SKM_vehCar_vehicle02_Anim"))["animated"] is True
+    assert classify_actor(_dump_vehicle(
+        anim_class="/Game/Vehicle/vehCar_vehicle02/ABP.ABP_C"))["animated"] is True
+
+
+def test_dump_person_is_skeletal_animated_pedestrian():
+    c = classify_actor(_dump_person())
+    assert c["role"] == "pedestrian"
+    assert c["skeletal"] is True
+    assert c["animated"] is True
+    assert not c["blockout"]
+
+
+def test_dump_person_without_animation_sequence_is_not_animated():
+    c = classify_actor(_dump_person(with_animation=False))
+    assert c["role"] == "pedestrian"
+    assert c["skeletal"] is True
+    assert c["animated"] is False
+
+
+def test_v2_dump_vehicles_and_persons_pass_inventory():
+    r = inventory(_dump([_dump_vehicle(), _dump_person()]))
+    assert r["vehicles"] == {"count": 1, "with_min_wheels": 1, "pass": True}
+    assert r["pedestrians"] == {"count": 1, "skeletal_animated": 1, "pass": True}
+    assert r["counts_by_role"]["vehicle"] == 1
+    assert r["counts_by_role"]["pedestrian"] == 1
+    assert r["counts_by_role"]["prop"] == 0
+    assert r["blockout_count"] == 0
+    # No buildings in this v2 dump, so building_kits.pass is False and the
+    # overall pass is False; the vehicle/pedestrian passes prove the L7 rules.
+    assert r["pass"] is False
+
+
+def test_v2_person_without_animation_fails_pedestrians_pass():
+    r = inventory(_dump([_dump_person(with_animation=False)]))
+    assert r["pedestrians"] == {"count": 1, "skeletal_animated": 0, "pass": False}
+    assert r["pass"] is False
 
 
 # --- inventory ------------------------------------------------------------

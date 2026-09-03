@@ -20,6 +20,19 @@ Laws (frozen)
 Role rules are data: an ordered list of (predicate-name, role) pairs evaluated
 in order; the first predicate that fires decides the role. Nothing that fires
 -> "unknown".
+
+Phase-2 L7 classifier facts
+---------------------------
+* A component whose class contains "poseablemesh" is bone-driven and counts as
+  skeletal, exactly like a SkeletalMeshComponent: the v2 playback lane spawns
+  City Sample vehicles as ``Actor`` + ``PoseableMeshComponent``.
+* Vehicle wheels come from a component's ``wheel_bones`` list when the dump
+  carries one (truthful bone names from the spawned mesh), falling back to the
+  old name/class "wheel" count.
+* A component is animated when it carries ``animation`` (the current sequence
+  path, written by ldyf_playback.dump_actors) or ``anim_class``. This makes a
+  L7 person -- SkeletalMeshComponent on TutorialTPP with an "animation" field
+  -- classify as a skeletal, animated pedestrian.
 """
 
 from __future__ import annotations
@@ -32,6 +45,9 @@ INVENTORY_VERSION = "world_inventory_v1"
 
 # Law 2 marker: any asset path containing this is blockout.
 BLOCKOUT_MARKER = "/Engine/BasicShapes/"
+
+# Bone-driven component class markers (L7: PoseableMeshComponent is skeletal).
+SKELETAL_CLASS_MARKERS = ("skeletalmesh", "poseablemesh")
 
 # Keyword groups, matched case-insensitively against lowercased paths/classes.
 PEDESTRIAN_KEYWORDS = ("crowd", "character", "mannequin", "manny", "quinn", "metahuman", "mca_")
@@ -60,16 +76,16 @@ ROLES = (
 
 
 def _skeletal_hit(bag: dict[str, Any], keywords: tuple[str, ...]) -> str | None:
-    """First SkeletalMeshComponent whose skeleton+asset path carries a keyword."""
+    """First SkeletalMesh/PoseableMesh component whose asset carries a keyword."""
     for c in bag["comps"]:
         cls = (c.get("class") or "").lower()
-        if "skeletalmesh" not in cls:
+        if not any(m in cls for m in SKELETAL_CLASS_MARKERS):
             continue
         hay = "{} {}".format(c.get("skeleton") or "", c.get("asset") or "").lower()
         for kw in keywords:
             if kw in hay:
                 name = c.get("name") or ""
-                return f"skeletal component {name!r} skeleton/asset contains {kw!r}"
+                return f"skeletal component {name!r} asset contains {kw!r}"
     return None
 
 
@@ -214,8 +230,12 @@ def classify_actor(actor: dict) -> dict:
 
     Returns ``{"role", "role_reason", "blockout", "assets", "kit", "wheels",
     "skeletal", "animated"}``. ``blockout`` is a flag (Law 2) independent of
-    the role; wheels count components named/classed with "wheel"
-    (case-insensitive) regardless of role.
+    the role. ``skeletal`` is True for SkeletalMeshComponent AND
+    PoseableMeshComponent (L7: the v2 spawned vehicle); ``animated`` is True
+    when a component carries an ``animation`` sequence path or an ``anim_class``.
+    Wheels prefer a component's ``wheel_bones`` list length when the dump
+    carries one, else the name/class "wheel" count (case-insensitive),
+    regardless of role.
     """
     comps = actor.get("components") or []
     bag = {
@@ -235,11 +255,15 @@ def classify_actor(actor: dict) -> dict:
         if isinstance(asset, str) and asset:
             assets.add(asset)
         blob = "{} {}".format(c.get("name") or "", c.get("class") or "").lower()
-        if "wheel" in blob:
+        wheel_bones = c.get("wheel_bones")
+        if isinstance(wheel_bones, list):
+            wheels += len(wheel_bones)
+        elif "wheel" in blob:
             wheels += 1
-        if "skeletalmesh" in (c.get("class") or "").lower():
+        cls = (c.get("class") or "").lower()
+        if any(m in cls for m in SKELETAL_CLASS_MARKERS):
             skeletal = True
-            if c.get("anim_class"):
+            if c.get("anim_class") or c.get("animation"):
                 animated = True
 
     kit = None

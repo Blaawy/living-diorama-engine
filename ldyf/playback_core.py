@@ -1,4 +1,4 @@
-"""Pure, unit-testable arithmetic for the in-editor playback lane (Phase 2 L6).
+"""Pure, unit-testable arithmetic for the in-editor playback lane (Phase 2 L6/L7).
 
 The in-editor player (ldyf/unreal/ldyf_playback.py) keeps its numbers honest:
 a pose is either read from the sealed record, measured from a spawned mesh, or
@@ -11,7 +11,11 @@ Single authorities -- reused, never re-derived:
                         (those two are private upstream; the replicas are pinned
                         to record_interp.pose_at by unit tests)
   * wheel spin       -- ldyf.vehicle_kinematics.wheel_angle_deg (accumulate_spin)
-  * angles           -- ldyf.coords.normalise_deg (lerp yaw, steer_yaw)
+  * angles           -- ldyf.coords.normalise_deg (lerp yaw, steer_yaw, person_yaw)
+  * persons (L7)     -- person_anim_state / person_play_rate / person_yaw: the
+                        walk-vs-idle choice, the play-rate scaling and the yaw
+                        offset correction are pure functions of the record speed
+                        and explicit arguments (never typed numbers).
 
 Laws
 ----
@@ -132,6 +136,52 @@ def steer_yaw(prev_yaw_deg: float, current_yaw_deg: float,
     return max(-max_deg, min(max_deg, d))
 
 
+# --- persons: walk/idle animation state (Phase-2 L7) ----------------------
+
+
+def person_anim_state(speed: float, walk_ref: float | None = None,
+                      idle_below: float | None = None,
+                      prev_state: str = "idle") -> str:
+    """Walk/idle choice for an animated person: "walk" or "idle".
+
+    Hysteresis-free: the choice is a pure function of the current record speed
+    and the explicit arguments -- ``prev_state`` never influences the result,
+    it exists so the in-editor caller can switch the looped sequence only when
+    the state actually changes (no restart every tick).
+
+    Until ``idle_below`` is set (None) a person walks at any speed > 0 and
+    idles at speed == 0. Once ``idle_below`` is set, speeds strictly below it
+    idle even while the record keeps moving the body (presentation only).
+    """
+    if idle_below is not None and speed < idle_below:
+        return "idle"
+    if speed > 0.0:
+        return "walk"
+    return "idle"
+
+
+def person_play_rate(speed: float, walk_ref: float | None = None) -> float:
+    """Play rate for the walk cycle: speed / walk_ref.
+
+    ``walk_ref`` is the speed (m/s) at which the walk cycle plays at rate 1.0.
+    Until a caller sets it -- or while it is non-positive / the person stands
+    still -- the rate is 1.0 (the animation asset default; no numbers invented).
+    """
+    if walk_ref is None or walk_ref <= 0.0 or speed <= 0.0:
+        return 1.0
+    return speed / walk_ref
+
+
+def person_yaw(record_yaw_deg: float, offset_deg: float = 0.0) -> float:
+    """Yaw an animated person should face: normalise_deg(record_yaw + offset).
+
+    The Tutorial mannequin's facing convention (+X or not) is NOT verified
+    in-editor, so the correction is an explicit argument (default 0.0) and the
+    sum is normalised exactly like every other angle in the pipeline.
+    """
+    return normalise_deg(record_yaw_deg + offset_deg)
+
+
 # --- lifetimes ------------------------------------------------------------
 
 
@@ -150,8 +200,8 @@ def make_actor_dump(actors: list[dict], level=None, captured_utc: str = "") -> d
 
     world_inventory reads actors' class/components (class, name, asset,
     skeleton, anim_class) and level; extra per-component keys such as
-    wheel_bones/steer_bones are tolerated and keep the dump truthful. Actors are
-    sorted by name so repeated writes are byte-identical.
+    wheel_bones/steer_bones/animation are tolerated and keep the dump truthful.
+    Actors are sorted by name so repeated writes are byte-identical.
     """
     ordered = sorted(actors, key=lambda a: (a.get("name") or ""))
     return {
