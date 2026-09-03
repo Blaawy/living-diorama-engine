@@ -349,11 +349,19 @@ def seal_run_result(
 
     from .evidence import seal_simulation_result, sha256_file
 
-    if not baseline.clean or not ruled.clean:
-        raise ClosureError(
-            f"refusing to seal a result over unclean runs: baseline.clean={baseline.clean} "
-            f"ruled.clean={ruled.clean}"
-        )
+    # `clean` is `exit_code == 0 and all(outputs_valid.values())`; an empty
+    # outputs_valid would make all([]) True. A run that validated no outputs
+    # is not a run this function will vouch for.
+    for name, rr in (("baseline", baseline), ("ruled", ruled)):
+        if not rr.outputs_valid:
+            raise ClosureError(f"refusing to seal: {name} run validated no output files")
+        if rr.exit_code != 0 or not rr.clean:
+            raise ClosureError(
+                f"refusing to seal a result over an unclean {name} run: "
+                f"exit_code={rr.exit_code} outputs_valid={rr.outputs_valid}"
+            )
+        if rr.steps <= 0:
+            raise ClosureError(f"refusing to seal: {name} run advanced zero steps")
     out = Path(out_dir)
     paths = {
         "baseline_tripinfo": f"{baseline_prefix}.tripinfo.xml",

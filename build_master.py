@@ -48,6 +48,7 @@ def stage() -> None:
         ("CITY_SAMPLE_PCG_COMPATIBILITY.md", P1 / "research" / "CITY_SAMPLE_PCG_COMPATIBILITY.md"),
         ("REPRODUCIBILITY.md", P1 / "REPRODUCIBILITY.md"),
         ("CITY_SAMPLE_REUSE_PLAN.md", P1 / "research" / "CITY_SAMPLE_REUSE_PLAN.md"),
+        ("IN_ENGINE_PLAYBACK_PROOF.md", P1 / "research" / "IN_ENGINE_PLAYBACK_PROOF.md"),
     ]:
         shutil.copy2(src, STAGE / "reports" / name)
 
@@ -104,7 +105,7 @@ def stage() -> None:
     for f in ("baseline.tripinfo.xml", "ruled.tripinfo.xml",
               "ruled_repeat.tripinfo.xml", "closure_metrics.json",
               "persistent_changes.json", "simulation_result.json",
-              "rule_manifest.json"):
+              "rule_manifest.json", "rule_manifest_reopen.json"):
         src = SUMO / "closure_v2" / f
         if src.exists():
             shutil.copy2(src, cl / f)
@@ -125,6 +126,17 @@ def stage() -> None:
     pv = EV / "playback_verify.json"
     if pv.exists():
         shutil.copy2(pv, ev / "playback_verify.json")
+    # independent adversarial and research reports (DeepSeek workers), verbatim
+    rt = ev / "redteam_workers"
+    rt.mkdir()
+    runs = Path(r"C:\Users\BLaAw\Desktop\main\_LIVING_DIORAMA_TOOLS\flash_bridge\runs")
+    for run, task, name in (("yf_p1_research", "attack_provenance", "attack_round1.md"),
+                            ("yf_p1_attack2", "attack2", "attack_round2.md"),
+                            ("yf_p1_research", "remote_python", "unreal_remote_python.md"),
+                            ("yf_p1_research", "masscrowd", "masscrowd_setup.md")):
+        src = runs / run / task / "report.md"
+        if src.exists():
+            shutil.copy2(src, rt / name)
 
     # --- identity ---
     idd = STAGE / "identity"

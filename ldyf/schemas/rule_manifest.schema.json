@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://living-diorama.local/schemas/rule_manifest.schema.json",
   "title": "Rule Manifest V1 (ONE RULE)",
-  "description": "Exactly one rule changes per episode. This document is the experiment's independent variable, declared BEFORE the simulation runs so the result cannot be chosen after seeing it.",
+  "description": "Exactly one rule changes per episode. This document is the experiment's independent variable, declared BEFORE the simulation runs so the result cannot be chosen after seeing it. It is SEALED (manifest_hash) and the ledger binds to that seal; a manifest that does not satisfy this contract cannot be sealed.",
   "type": "object",
   "required": [
     "schema_version",
@@ -13,14 +13,26 @@
     "change",
     "applies_at_sim_second",
     "baseline_required",
-    "prediction"
+    "prediction",
+    "manifest_hash"
   ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": "rule_manifest_v1" },
-    "rule_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$" },
-    "episode_number": { "type": "integer", "minimum": 0 },
-    "declared_utc": { "type": "string", "format": "date-time" },
+    "schema_version": {
+      "const": "rule_manifest_v1"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "episode_number": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "declared_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
     "statement": {
       "type": "string",
       "description": "The rule in the Director's own words, e.g. 'Close the bridge.' Presentation may quote this verbatim; it is never used as semantic input.",
@@ -29,52 +41,153 @@
     },
     "change": {
       "type": "object",
-      "description": "The machine-actionable change. Exactly one of the change kinds must be present - this is what makes it ONE rule.",
-      "oneOf": [
-        { "required": ["close_edges"] },
-        { "required": ["reopen_edges"] },
-        { "required": ["speed_limit"] },
-        { "required": ["demand_scale"] },
-        { "required": ["tls_program"] }
-      ],
+      "description": "The machine-actionable change. EXACTLY ONE kind must be present - this is what makes it ONE rule. This block is the single authority for the rule vocabulary; ldyf.persistent_changes maps each kind to a ledger change_type. demand_scale is accepted as a valid experiment input but is NOT a durable world change and is therefore refused by the ledger (it alters demand, not the world).",
+      "minProperties": 1,
+      "maxProperties": 1,
       "additionalProperties": false,
       "properties": {
         "close_edges": {
           "type": "object",
-          "description": "Close edges to specific vehicle classes. RED TEAM (Phase 1): a closure that does not name its modes severs pedestrian routes too, and SUMO then aborts the run with 'Disconnected walk'. A closure MUST therefore declare what it closes. Measured on the Phase 1 grid: closing B1C1/C1B1 outright aborted the simulation; scoping it to disallow=passenger ran correctly.",
-          "required": ["edge_ids", "disallow"],
+          "required": [
+            "edge_ids",
+            "disallow"
+          ],
           "additionalProperties": false,
           "properties": {
-            "edge_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "edge_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
             "disallow": {
               "type": "array",
               "minItems": 1,
-              "description": "SUMO vehicle classes barred from the edge, e.g. ['passenger']. Omitting 'pedestrian' keeps the footway usable, which is what a carriageway closure physically means. Note: a statically unscoped <closingReroute> closure additionally makes SUMO refuse the run ('Disconnected walk'), but barring pedestrians through TraCI does not itself crash SUMO (RT-09).",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              },
+              "description": "SUMO vehicle classes barred from the edge, e.g. ['passenger']. Omitting 'pedestrian' keeps the footway usable, which is what a carriageway closure physically means. Note: a statically unscoped <closingReroute> closure additionally makes SUMO refuse the run ('Disconnected walk'), but barring pedestrians through TraCI does not itself crash SUMO (RT-09)."
             }
           }
         },
-        "reopen_edges": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "speed_limit": {
+        "close_lanes": {
           "type": "object",
-          "required": ["edge_ids", "mps"],
+          "required": [
+            "lane_ids",
+            "disallow"
+          ],
           "additionalProperties": false,
           "properties": {
-            "edge_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-            "mps": { "type": "number", "exclusiveMinimum": 0 }
+            "lane_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "disallow": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "access_permission": {
+          "type": "object",
+          "required": [
+            "target_kind",
+            "target_ids",
+            "allow",
+            "disallow"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target_kind": {
+              "enum": [
+                "edge",
+                "lane"
+              ]
+            },
+            "target_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "disallow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "speed_limit": {
+          "type": "object",
+          "required": [
+            "target_kind",
+            "target_ids",
+            "mps"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target_kind": {
+              "enum": [
+                "edge",
+                "lane"
+              ]
+            },
+            "target_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "mps": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "tls_program": {
+          "type": "object",
+          "required": [
+            "tls_id",
+            "program_id"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tls_id": {
+              "type": "string"
+            },
+            "program_id": {
+              "type": "string"
+            }
           }
         },
         "demand_scale": {
           "type": "object",
-          "required": ["factor"],
+          "required": [
+            "factor"
+          ],
           "additionalProperties": false,
-          "properties": { "factor": { "type": "number", "exclusiveMinimum": 0 } }
-        },
-        "tls_program": {
-          "type": "object",
-          "required": ["tls_id", "program_id"],
-          "additionalProperties": false,
-          "properties": { "tls_id": { "type": "string" }, "program_id": { "type": "string" } }
+          "properties": {
+            "factor": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
         }
       }
     },
@@ -96,14 +209,37 @@
     "prediction": {
       "type": "object",
       "description": "Declared before the run. Enables honest prediction error for the viewer: what we expected, versus what the world actually did.",
-      "required": ["text", "declared_before_run"],
+      "required": [
+        "text",
+        "declared_before_run"
+      ],
       "additionalProperties": false,
       "properties": {
-        "text": { "type": "string", "minLength": 3, "maxLength": 500 },
-        "declared_before_run": { "type": "boolean", "const": true },
-        "metric": { "type": "string" },
-        "direction": { "enum": ["increase", "decrease", "no_change"] }
+        "text": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 500
+        },
+        "declared_before_run": {
+          "type": "boolean",
+          "const": true
+        },
+        "metric": {
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "increase",
+            "decrease",
+            "no_change"
+          ]
+        }
       }
+    },
+    "manifest_hash": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{64}|)$",
+      "description": "SHA-256 seal over this document with manifest_hash blanked (canonical JSON). Empty only before sealing. See ldyf.evidence.seal_rule_manifest, which refuses to seal a manifest that does not satisfy this schema."
     }
   }
 }

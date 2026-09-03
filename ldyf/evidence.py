@@ -39,7 +39,14 @@ class EvidenceError(RuntimeError):
 def _canonical(doc: dict[str, Any], hash_field: str) -> bytes:
     d = copy.deepcopy(doc)
     d[hash_field] = ""
-    return json.dumps(d, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    try:
+        # allow_nan=False: identical to the ledger's canonicaliser. A NaN would
+        # otherwise seal "successfully" and detonate later inside the doors.
+        return json.dumps(
+            d, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
+        ).encode()
+    except ValueError as e:
+        raise EvidenceError(f"document contains a non-finite number and cannot be sealed: {e}") from e
 
 
 # --- generic seal/verify --------------------------------------------------
@@ -84,18 +91,48 @@ def _verify(doc: dict[str, Any], hash_field: str, expected_version: str, what: s
 # --- rule manifest --------------------------------------------------------
 
 
+_SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
+_RULE_SCHEMA_CACHE: dict[str, Any] | None = None
+
+
+def _rule_schema_validator():
+    """The ONE RULE contract, loaded once from the package's own schema."""
+    global _RULE_SCHEMA_CACHE
+    from jsonschema import Draft202012Validator
+
+    if _RULE_SCHEMA_CACHE is None:
+        _RULE_SCHEMA_CACHE = json.loads(
+            (_SCHEMA_DIR / "rule_manifest.schema.json").read_text(encoding="utf-8")
+        )
+    return Draft202012Validator(_RULE_SCHEMA_CACHE)
+
+
+def _check_rule_contract(doc: dict[str, Any]) -> None:
+    """A rule that does not satisfy the ONE RULE contract cannot be sealed.
+
+    This is what makes `declared_utc`, `baseline_required` and a
+    before-the-run `prediction` load-bearing rather than decorative: the ledger
+    binds only to sealed manifests, and only contract-complete manifests seal.
+    """
+    if not isinstance(doc, dict):
+        raise EvidenceError("rule_manifest must be a document")
+    errors = sorted(_rule_schema_validator().iter_errors(doc), key=lambda e: list(e.path))
+    if errors:
+        e = errors[0]
+        where = "/".join(str(x) for x in e.path) or "<root>"
+        raise EvidenceError(
+            f"rule_manifest violates the ONE RULE contract at {where}: {e.message}"
+        )
+
+
 def seal_rule_manifest(doc: dict[str, Any]) -> dict[str, Any]:
-    for f in ("rule_id", "episode_number", "change"):
-        if f not in doc:
-            raise EvidenceError(f"rule_manifest is missing required field {f!r}")
+    _check_rule_contract(doc)
     return _seal(doc, "manifest_hash", RULE_MANIFEST_VERSION)
 
 
 def verify_rule_manifest(doc: dict[str, Any]) -> None:
     _verify(doc, "manifest_hash", RULE_MANIFEST_VERSION, "rule_manifest")
-    for f in ("rule_id", "episode_number", "change"):
-        if f not in doc:
-            raise EvidenceError(f"rule_manifest is missing required field {f!r}")
+    _check_rule_contract(doc)
 
 
 # --- simulation result ----------------------------------------------------

@@ -114,13 +114,24 @@ def make_evidence(tmp_path: Path, *, episode: int = 1, consistent: bool = True,
     })
 
 
-def make_rule(episode=1, rule_id="close_the_bridge", edges=("B1C1",), disallow=("passenger",)):
-    return seal_rule_manifest({
+def rule_doc(episode=1, rule_id="close_the_bridge", change=None, statement="Close the bridge."):
+    """A contract-complete ONE RULE manifest (unsealed)."""
+    return {
         "schema_version": "rule_manifest_v1", "rule_id": rule_id, "episode_number": episode,
-        "statement": "Close the bridge.", "applies_at_sim_second": 150.0,
-        "change": {"close_edges": {"edge_ids": list(edges), "disallow": list(disallow)}},
+        "declared_utc": "2026-09-03T00:00:00Z", "statement": statement,
+        "applies_at_sim_second": 150.0, "permanent": True, "baseline_required": True,
+        "prediction": {"text": "Trips through the centre lengthen and fewer complete.",
+                       "declared_before_run": True, "metric": "trips_completed",
+                       "direction": "decrease"},
+        "change": change or {"close_edges": {"edge_ids": ["B1C1"], "disallow": ["passenger"]}},
         "manifest_hash": "",
-    })
+    }
+
+
+def make_rule(episode=1, rule_id="close_the_bridge", edges=("B1C1",), disallow=("passenger",)):
+    return seal_rule_manifest(rule_doc(
+        episode, rule_id,
+        {"close_edges": {"edge_ids": list(edges), "disallow": list(disallow)}}))
 
 
 def sim_prov(result: dict) -> dict:
@@ -349,14 +360,12 @@ def test_attack_unsealed_or_edited_rule_manifest_is_rejected():
 
 
 def test_attack_two_changes_in_one_rule_and_pedestrian_barring_are_rejected():
-    two = seal_rule_manifest({
-        "schema_version": "rule_manifest_v1", "rule_id": "greedy", "episode_number": 1,
-        "applies_at_sim_second": 0.0,
-        "change": {"close_edges": {"edge_ids": ["A"], "disallow": ["passenger"]},
-                   "speed_limit": {"target_kind": "edge", "target_ids": ["B"], "mps": 5.0}},
-        "manifest_hash": ""})
-    with pytest.raises(LedgerError, match="exactly ONE change"):
-        append_director_rule(new_ledger("riverside"), rule_manifest=two)
+    # Two changes in one rule are refused at SEAL time by the contract (oneOf),
+    # before the ledger is ever reached.
+    with pytest.raises(EvidenceError, match="ONE RULE contract"):
+        seal_rule_manifest(rule_doc(1, "greedy",
+            {"close_edges": {"edge_ids": ["A"], "disallow": ["passenger"]},
+             "speed_limit": {"target_kind": "edge", "target_ids": ["B"], "mps": 5.0}}))
     with pytest.raises(LedgerError, match="footway"):
         append_director_rule(new_ledger("riverside"), rule_manifest=make_rule(disallow=("passenger", "pedestrian")))
 
@@ -384,8 +393,7 @@ def test_director_rule_payload_is_derived_from_the_sealed_manifest():
     ({"tls_program": {"tls_id": "B1", "program_id": "night"}}, "traffic_light_program"),
 ])
 def test_every_director_change_kind_round_trips(change, expected_type):
-    rule = seal_rule_manifest({"schema_version": "rule_manifest_v1", "rule_id": "r", "episode_number": 2,
-                               "applies_at_sim_second": 0.0, "change": change, "manifest_hash": ""})
+    rule = seal_rule_manifest(rule_doc(2, "rule_r", change))
     lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=rule)
     verify_ledger(lg)
     assert lg["entries"][0]["change_type"] == expected_type
@@ -434,11 +442,8 @@ def test_extractor_registry_is_a_closed_set():
 def build_ledger():
     lg = new_ledger("riverside")
     lg, c1 = append_director_rule(lg, rule_manifest=make_rule())
-    lg, c2 = append_director_rule(lg, rule_manifest=seal_rule_manifest({
-        "schema_version": "rule_manifest_v1", "rule_id": "slow_it", "episode_number": 2,
-        "applies_at_sim_second": 0.0,
-        "change": {"speed_limit": {"target_kind": "edge", "target_ids": ["A1B1"], "mps": 8.33}},
-        "manifest_hash": ""}))
+    lg, c2 = append_director_rule(lg, rule_manifest=seal_rule_manifest(rule_doc(
+        2, "slow_it", {"speed_limit": {"target_kind": "edge", "target_ids": ["A1B1"], "mps": 8.33}})))
     return lg, c1, c2
 
 
@@ -513,7 +518,7 @@ def test_append_does_not_mutate_the_input_ledger():
 def test_lineage_accumulates_and_is_queryable():
     lg = new_ledger("riverside"); ids = []
     for ep in range(1, 6):
-        lg, cid = append_director_rule(lg, rule_manifest=make_rule(episode=ep, rule_id=f"r{ep}", edges=(f"E{ep}",)))
+        lg, cid = append_director_rule(lg, rule_manifest=make_rule(episode=ep, rule_id=f"rule_{ep}", edges=(f"E{ep}",)))
         ids.append(cid)
     verify_ledger(lg)
     assert [e["origin_episode"] for e in lg["entries"]] == [1, 2, 3, 4, 5]
@@ -540,11 +545,156 @@ def test_a_real_ledger_validates_against_the_json_schema(tmp_path):
     from jsonschema import Draft202012Validator
 
     schema = json.loads((Path(__file__).parent.parent / "schemas" / "persistent_changes.schema.json").read_text())
-    lg, c1, _ = build_ledger()
-    lg, _ = append_simulation_consequence(lg, simulation_result=make_evidence(tmp_path),
+    lg, c1, _ = build_ledger()                       # rules in episodes 1 and 2
+    # a consequence measured in episode 2 (episodes never run backwards)
+    lg, _ = append_simulation_consequence(lg, simulation_result=make_evidence(tmp_path, episode=2),
                                           extractor_name="closure_effect_v1", evidence_dir=tmp_path,
                                           rule_id="close_the_bridge")
     lg, _ = append_reversal(lg, rule_manifest=make_rule(episode=5, rule_id="reopen"), reverses_change_id=c1)
     verify_ledger(lg)
     errors = sorted(Draft202012Validator(schema).iter_errors(lg), key=lambda e: list(e.path))
     assert not errors, "\n".join(f"{list(e.path)}: {e.message}" for e in errors[:5])
+
+
+# ==========================================================================
+# The ONE RULE contract is load-bearing
+# ==========================================================================
+
+@pytest.mark.parametrize("strip", ["declared_utc", "prediction", "baseline_required", "statement"])
+def test_a_rule_missing_contract_fields_cannot_be_sealed(strip):
+    d = rule_doc(); del d[strip]
+    with pytest.raises(EvidenceError, match="ONE RULE contract"):
+        seal_rule_manifest(d)
+
+
+def test_a_prediction_not_declared_before_the_run_cannot_be_sealed():
+    d = rule_doc(); d["prediction"]["declared_before_run"] = False
+    with pytest.raises(EvidenceError, match="ONE RULE contract"):
+        seal_rule_manifest(d)
+
+
+def test_a_rule_without_baseline_cannot_be_sealed():
+    d = rule_doc(); d["baseline_required"] = False
+    with pytest.raises(EvidenceError, match="ONE RULE contract"):
+        seal_rule_manifest(d)
+
+
+def test_a_sealed_rule_edited_to_break_the_contract_is_refused_by_the_ledger():
+    r = make_rule()
+    del r["prediction"]
+    with pytest.raises(EvidenceError):
+        append_director_rule(new_ledger("riverside"), rule_manifest=r)
+
+
+def test_schema_and_ledger_agree_on_the_rule_vocabulary():
+    """The schema is the single authority; the ledger must map every durable kind
+    it declares, and refuse (clearly) the one that is not a world change."""
+    schema = json.loads((Path(__file__).parent.parent / "schemas" / "rule_manifest.schema.json").read_text())
+    kinds = set(schema["properties"]["change"]["properties"])
+    from ldyf.persistent_changes import _CHANGE_BLOCK_TO_TYPE
+
+    assert set(_CHANGE_BLOCK_TO_TYPE) <= kinds, "ledger maps a kind the schema does not define"
+    assert kinds - set(_CHANGE_BLOCK_TO_TYPE) == {"demand_scale"}
+
+
+def test_demand_scale_is_a_valid_rule_but_not_a_world_change():
+    r = seal_rule_manifest(rule_doc(3, "rush_hour", {"demand_scale": {"factor": 1.5}}))   # seals fine
+    with pytest.raises(LedgerError, match="not a durable world change"):
+        append_director_rule(new_ledger("riverside"), rule_manifest=r)
+
+
+# ==========================================================================
+# Second-attacker findings (DeepSeek worker `attack2`) -- each must now fail
+# ==========================================================================
+
+def test_attack_B2_well_formed_forgery_fails_evidence_aware_verify(tmp_path):
+    """A fabricated entry with valid-looking hashes passes plain verify (structure
+    only) but MUST fail once the ledger is traced back to sealed evidence."""
+    result = make_evidence(tmp_path)
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    forged = copy.deepcopy(lg["entries"][0])
+    forged["change_id"] = "chg_" + "c" * 16
+    forged["change_type"] = "measured_effect"
+    forged["rule_id"] = None
+    forged["payload"] = {"kind": "measured_effect", "metric": "trips_completed",
+                         "baseline_value": 0.0, "ruled_value": 100.0, "delta": 100.0,
+                         "unit": "trips", "source_field": "tripinfo.trips_completed"}
+    forged["provenance"] = {"source": "simulation", "simulation_result_sha256": "0" * 64,
+                            "run_id": "ruled", "extractor": "closure_effect_v1",
+                            "record_sha256": "0" * 64}
+    bad = _resealed(lg, lg["entries"] + [forged])
+    verify_ledger(bad)                                   # structure-only: passes, by design
+    with pytest.raises(LedgerError, match="no sealed simulation_result.json with that hash"):
+        verify_ledger(bad, evidence_dir=tmp_path)
+
+
+def test_attack_B2_real_entry_with_swapped_payload_fails_evidence_aware_verify(tmp_path):
+    """Real seal hashes, but the recorded numbers were edited to something the
+    extractor does not derive."""
+    result = make_evidence(tmp_path)
+    (tmp_path / "simulation_result.json").write_text(json.dumps(result), encoding="utf-8")
+    lg, ids = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
+                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+    verify_ledger(lg, evidence_dir=tmp_path)             # genuine: passes
+    tampered = copy.deepcopy(lg["entries"])
+    tampered[0]["payload"]["baseline_value"] = 0.0
+    tampered[0]["payload"]["ruled_value"] = 5.0
+    tampered[0]["payload"]["delta"] = 5.0
+    bad = _resealed(lg, tampered)
+    with pytest.raises(LedgerError, match="not one the extractor derives"):
+        verify_ledger(bad, evidence_dir=tmp_path)
+
+
+def test_attack_B3_fractional_or_negative_counts_are_rejected(tmp_path):
+    result = make_evidence(tmp_path)
+    for b, r in ((0.0, -3.0), (0.5, 2.5)):
+        with pytest.raises(LedgerError, match="non-negative integer"):
+            _append_entry(new_ledger("riverside"), change_type="measured_effect", origin_episode=1,
+                          applied_at_sim_second=0.0,
+                          payload={"kind": "measured_effect", "metric": "trips_completed",
+                                   "baseline_value": b, "ruled_value": r, "delta": round(r - b, 4),
+                                   "unit": "trips", "source_field": "tripinfo.trips_completed"},
+                          provenance=sim_prov(result))
+    with pytest.raises(LedgerError, match="rounded to 2 dp"):
+        _append_entry(new_ledger("riverside"), change_type="measured_effect", origin_episode=1,
+                      applied_at_sim_second=0.0,
+                      payload={"kind": "measured_effect", "metric": "avg_time_loss_s",
+                               "baseline_value": 1.23456, "ruled_value": 2.0, "delta": round(2.0 - 1.23456, 4),
+                               "unit": "s", "source_field": "tripinfo.avg_time_loss_s"},
+                      provenance=sim_prov(result))
+
+
+def test_attack_B4_out_of_order_episodes_and_bad_sim_time_are_rejected():
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule(episode=5, rule_id="later"))
+    with pytest.raises(LedgerError, match="must not decrease"):
+        append_director_rule(lg, rule_manifest=make_rule(episode=1, rule_id="earlier"))
+    d = rule_doc(); d["applies_at_sim_second"] = -5.0
+    with pytest.raises(EvidenceError, match="ONE RULE contract"):     # refused at the seal already
+        seal_rule_manifest(d)
+    # and re-checked on verify for a hand-edited ledger
+    bad = copy.deepcopy(lg); bad["entries"][0]["applied_at_sim_second"] = -1.0
+    bad = _resealed(bad, bad["entries"])
+    with pytest.raises(LedgerError, match="finite non-negative"):
+        verify_ledger(bad)
+
+
+def test_attack_B6_nan_cannot_be_sealed_or_hashed(tmp_path):
+    d = rule_doc(); d["applies_at_sim_second"] = float("nan")
+    with pytest.raises(EvidenceError):
+        seal_rule_manifest(d)
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule())
+    bad = copy.deepcopy(lg); bad["entries"][0]["applied_at_sim_second"] = float("inf")
+    with pytest.raises(LedgerError, match="non-finite"):
+        compute_entry_hash(bad["entries"][0])
+
+
+def test_real_ledger_passes_evidence_aware_verification_when_evidence_is_present():
+    """The shipped ledger must trace back to its shipped sealed evidence."""
+    import os
+    base = Path(os.environ.get("LDYF_PROOF_DIR",
+                r"C:\Users\BLaAw\Desktop\LIVING_DIORAMA_WORK_ARCHIVE\YOUTUBE_FACTORY\PHASE_01\proof\sumo"))
+    ev = base / "closure_v2"
+    if not (ev / "persistent_changes.json").exists():
+        pytest.skip("real closure evidence not present")
+    lg = load(ev / "persistent_changes.json", evidence_dir=ev)
+    assert sum(1 for e in lg["entries"] if e["change_type"] == "measured_effect") == 6

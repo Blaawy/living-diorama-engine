@@ -18,17 +18,24 @@ through exactly two doors, and both bind to sealed evidence identities:
   The caller supplies **evidence, never conclusions**. A named deterministic
   extractor re-reads the sealed artefacts from disk, verifies their bytes, and
   *computes* the consequence. The extractor also **cross-checks the artefacts
-  against each other**: tripinfo trip counts must agree with arrivals derived
-  independently from the sealed trajectory record. A forger therefore has to
-  fabricate a mutually consistent multi-megabyte trajectory -- which is to say,
-  run a simulation.
+  against each other**: tripinfo trip and walk counts must agree with arrivals
+  derived independently from the sealed trajectory record. That raises the bar
+  from "type a number" to "fabricate a consistent record" -- it does not make
+  fabrication impossible for someone who can write the evidence directory
+  (attacker #2 demonstrated a consistent miniature). See point 4 below.
 
 What this module guarantees, stated exactly (per the Phase 1 adversarial review)
 --------------------------------------------------------------------------------
 1. Entry content is extractor-derived from sealed bytes, never caller-chosen.
-2. Editing, reordering, deleting, or forging an entry is detected by
-   `verify_ledger`, which re-applies every rule `append_*` applies, including
-   payload/provenance shape, reversal semantics, and rule attribution.
+2. `verify_ledger(ledger)` re-applies every append-time rule: chain hashes,
+   payload/provenance shape, extractor-output invariants, reversal semantics,
+   rule attribution, episode ordering. **That authenticates structure, not
+   origin**: a well-formed entry with fabricated-but-valid hashes passes it.
+   `verify_ledger(ledger, evidence_dir=...)` additionally re-opens every
+   sealed `simulation_result` a simulation entry names, re-verifies its
+   artefacts on disk, **re-runs the extractor, and requires the recorded
+   payloads to equal what it derives**. Use that form whenever the evidence is
+   available; the plain form is for chain integrity only.
 3. Artefacts must be mutually consistent (tripinfo vs record), so fabricating
    one file is not enough.
 4. It does **not** prove a SUMO process ran. Sealing is a keyed-by-nothing
@@ -161,7 +168,10 @@ def _canonical(obj: Any) -> bytes:
 def compute_entry_hash(entry: dict[str, Any]) -> str:
     d = copy.deepcopy(entry)
     d.pop("entry_hash", None)
-    return hashlib.sha256(_canonical(d)).hexdigest()
+    try:
+        return hashlib.sha256(_canonical(d)).hexdigest()
+    except ValueError as e:      # non-finite float somewhere in the entry
+        raise LedgerError(f"entry contains a non-finite number and cannot be hashed: {e}") from e
 
 
 def compute_ledger_hash(entries: list[dict[str, Any]]) -> str:
@@ -173,7 +183,13 @@ def compute_ledger_hash(entries: list[dict[str, Any]]) -> str:
 def make_change_id(
     *, world_id: str, origin_episode: int, change_type: str, payload: dict[str, Any], nonce: int = 0
 ) -> str:
-    """Deterministic, stable, content-derived identity."""
+    """Deterministic, stable, content-derived identity.
+
+    16 hex chars (64 bits) is deliberate and schema-locked: ids only need to be
+    unique within one world's ledger, the nonce loop guarantees that locally,
+    and the entry_hash (256 bits) is the real identity. Widening ids would
+    invalidate every existing ledger for no security gain.
+    """
     seed = _canonical(
         {
             "world_id": world_id,
@@ -237,6 +253,18 @@ def _validate_payload(change_type: str, payload: dict[str, Any]) -> None:
             raise LedgerError(f"measured_effect.unit for {metric!r} must be {_EFFECT_UNITS[metric]!r}")
         if payload["source_field"] != f"tripinfo.{metric}":
             raise LedgerError("measured_effect.source_field must name its tripinfo metric")
+        # Shape the real extractor emits: counts are non-negative integers
+        # (stored as floats), averages are rounded to 2 dp. Anything else is
+        # a value the extractor cannot produce.
+        if metric in ("trips_completed", "walks_completed"):
+            for f in ("baseline_value", "ruled_value"):
+                v = payload[f]
+                if v < 0 or v != int(v):
+                    raise LedgerError(f"measured_effect.{f} for {metric!r} must be a non-negative integer")
+        else:
+            for f in ("baseline_value", "ruled_value"):
+                if round(payload[f], 2) != payload[f]:
+                    raise LedgerError(f"measured_effect.{f} for {metric!r} must be rounded to 2 dp")
 
 
 def _validate_provenance(prov: dict[str, Any]) -> None:
@@ -300,6 +328,17 @@ def _check_entry_against_chain(entries: list[dict[str, Any]], entry: dict[str, A
     ct = entry["change_type"]
     prov = entry["provenance"]
     known = {e["change_id"]: e for e in entries}
+
+    ep = entry.get("origin_episode")
+    if not isinstance(ep, int) or isinstance(ep, bool) or ep < 0:
+        raise LedgerError(f"origin_episode must be a non-negative integer, got {ep!r}")
+    if entries and ep < entries[-1]["origin_episode"]:
+        raise LedgerError(
+            f"origin_episode must not decrease along the ledger: {entries[-1]['origin_episode']} -> {ep}"
+        )
+    t_ = entry.get("applied_at_sim_second")
+    if not _finite(t_) or t_ < 0:
+        raise LedgerError(f"applied_at_sim_second must be a finite non-negative number, got {t_!r}")
 
     if ct == "reversal":
         if prov.get("source") != "director_rule":
@@ -417,12 +456,19 @@ def append_director_rule(
     verify_rule_manifest(rule_manifest)
 
     change = rule_manifest["change"]
-    present = [k for k in _CHANGE_BLOCK_TO_TYPE if k in change]
-    if len(present) != 1:
+    keys = list(change.keys())
+    if len(keys) != 1:
         raise LedgerError(
-            f"a rule manifest must declare exactly ONE change; found {present or 'none'}"
+            f"a rule manifest must declare exactly ONE change; found {keys or 'none'}"
         )
-    key = present[0]
+    key = keys[0]
+    if key not in _CHANGE_BLOCK_TO_TYPE:
+        # The schema admits it as an experiment input; the ledger records only
+        # durable changes to the WORLD. demand_scale alters demand, not the world.
+        raise LedgerError(
+            f"rule change {key!r} is a valid experiment input but not a durable world "
+            f"change; the ledger records only {sorted(_CHANGE_BLOCK_TO_TYPE)}"
+        )
     change_type = _CHANGE_BLOCK_TO_TYPE[key]
     spec = change[key]
 
@@ -665,8 +711,16 @@ def append_simulation_consequence(
 # --- verification ---------------------------------------------------------
 
 
-def verify_ledger(ledger: dict[str, Any]) -> None:
-    """Re-apply every append-time rule to a ledger. Raise naming the first failure."""
+def verify_ledger(ledger: dict[str, Any], *, evidence_dir: str | Path | None = None) -> None:
+    """Re-apply every append-time rule to a ledger. Raise naming the first failure.
+
+    Without `evidence_dir` this authenticates the chain and every entry's
+    structure. With it, each simulation entry is additionally traced back to a
+    sealed `simulation_result.json` on disk whose `result_hash` equals the
+    entry's `simulation_result_sha256`; the artefacts are re-verified, the named
+    extractor is re-run, and the recorded payload must be one the extractor
+    derives. A fabricated-but-well-formed entry fails here.
+    """
     if ledger.get("schema_version") != SCHEMA_VERSION:
         raise LedgerError(f"unexpected schema_version {ledger.get('schema_version')!r}")
 
@@ -696,6 +750,46 @@ def verify_ledger(ledger: dict[str, Any]) -> None:
 
     if ledger.get("ledger_hash") != compute_ledger_hash(entries):
         raise LedgerError("ledger_hash does not match the entry chain")
+
+    if evidence_dir is not None:
+        _verify_entries_against_evidence(entries, Path(evidence_dir))
+
+
+def _verify_entries_against_evidence(entries: list[dict[str, Any]], evidence_dir: Path) -> None:
+    """Trace every simulation entry back to sealed evidence and re-derive it."""
+    derived_cache: dict[str, list[dict[str, Any]]] = {}
+    for e in entries:
+        prov = e["provenance"]
+        if prov.get("source") != "simulation":
+            continue
+        want = prov["simulation_result_sha256"]
+        if want not in derived_cache:
+            match = None
+            for c in sorted(evidence_dir.rglob("simulation_result*.json")):
+                try:
+                    doc = json.loads(c.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if doc.get("result_hash") == want:
+                    verify_simulation_result(doc)
+                    match = (doc, c.parent)
+                    break
+            if match is None:
+                raise LedgerError(
+                    f"entry {e['change_id']} names simulation_result {want[:16]}..., but no sealed "
+                    f"simulation_result.json with that hash exists under {evidence_dir}"
+                )
+            doc, base = match
+            ex = CONSEQUENCE_EXTRACTORS[prov["extractor"]]
+            derived_cache[want] = ex(doc, base)
+            rec = doc.get("artifacts", {}).get("ruled_record_frames", {}).get("sha256")
+            if prov.get("record_sha256") != rec:
+                raise LedgerError(f"entry {e['change_id']}: record_sha256 does not match the sealed result")
+        if e["payload"] not in derived_cache[want]:
+            raise LedgerError(
+                f"entry {e['change_id']}: payload is not one the extractor derives from the sealed "
+                "evidence -- fabricated or stale"
+            )
 
 
 def is_active(ledger: dict[str, Any], change_id: str) -> bool:
@@ -735,7 +829,7 @@ def save(ledger: dict[str, Any], path: str | Path) -> str:
     return ledger["ledger_hash"]
 
 
-def load(path: str | Path) -> dict[str, Any]:
+def load(path: str | Path, *, evidence_dir: str | Path | None = None) -> dict[str, Any]:
     doc = json.loads(Path(path).read_text(encoding="utf-8"))
-    verify_ledger(doc)
+    verify_ledger(doc, evidence_dir=evidence_dir)
     return doc

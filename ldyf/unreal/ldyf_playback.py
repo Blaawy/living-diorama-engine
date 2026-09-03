@@ -105,14 +105,47 @@ def status() -> dict:
     }
 
 
-def play(record_dir: str, playback_rate: float = 1.0, max_frames: int | None = None) -> dict:
-    """Start playing a Simulation Record. Replaces any running session."""
+def _resolve_frames_path(rd: Path, manifest: dict) -> Path:
+    """The manifest names its binary; never let that name escape the record dir."""
+    rel = str(manifest["binary"]["file"])
+    if rel.startswith(("/", "\\")) or ".." in Path(rel).parts or ":" in rel:
+        raise ValueError(f"record binary path is not a safe relative path: {rel!r}")
+    p = (rd / rel).resolve()
+    if rd.resolve() not in p.parents:
+        raise ValueError(f"record binary path escapes the record directory: {rel!r}")
+    return p
+
+
+def _sha256_file(p: Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with p.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def play(record_dir: str, playback_rate: float = 1.0, max_frames: int | None = None,
+         expected_sha256: str | None = None) -> dict:
+    """Start playing a Simulation Record. Replaces any running session.
+
+    `expected_sha256`, when given by the caller (who got it from the sealed
+    ledger/result), must match the binary on disk. The manifest's own
+    self-declared hash is also checked; a manifest may not vouch for itself.
+    """
     global _SESSION
     stop()
 
     rd = Path(record_dir)
     manifest = json.loads((rd / "record_manifest.json").read_text(encoding="utf-8"))
-    frames = _load_frames(rd / manifest["binary"]["file"])
+    frames_path = _resolve_frames_path(rd, manifest)
+    actual = _sha256_file(frames_path)
+    if actual != manifest["binary"]["sha256"]:
+        raise ValueError("frames.bin does not match the manifest's declared sha256")
+    if expected_sha256 is not None and actual != expected_sha256:
+        raise ValueError("frames.bin does not match the ledger-bound sha256 the caller expected")
+    frames = _load_frames(frames_path)
     step = float(manifest["clock"]["step_seconds"])
     t_begin = float(manifest["clock"]["t_begin"])
 

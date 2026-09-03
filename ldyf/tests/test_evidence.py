@@ -23,7 +23,13 @@ def rule(**over):
         "schema_version": "rule_manifest_v1",
         "rule_id": "close_the_bridge",
         "episode_number": 1,
+        "declared_utc": "2026-09-03T00:00:00Z",
+        "statement": "Close the bridge.",
         "applies_at_sim_second": 150.0,
+        "permanent": True,
+        "baseline_required": True,
+        "prediction": {"text": "Fewer trips complete.", "declared_before_run": True,
+                       "metric": "trips_completed", "direction": "decrease"},
         "change": {"close_edges": {"edge_ids": ["B1C1"], "disallow": ["passenger"]}},
         "manifest_hash": "",
     }
@@ -105,7 +111,7 @@ def test_wrong_schema_version_is_refused():
 
 def test_missing_required_field_is_refused():
     d = rule(); del d["change"]
-    with pytest.raises(EvidenceError, match="change"):
+    with pytest.raises(EvidenceError, match="ONE RULE contract"):
         seal_rule_manifest(d)
 
 
