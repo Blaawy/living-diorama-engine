@@ -117,7 +117,31 @@ class UnrealRemote:
     # --- commands ---------------------------------------------------------
 
     def exec_file(self, code: str, unattended: bool = True) -> dict[str, Any]:
-        """Run multi-statement Python inside the editor."""
+        """Run multi-statement Python inside the editor.
+
+        The plugin's ExecuteFile mode accepts either a literal script or a file
+        path, and its literal/path heuristic misfired on a long script whose
+        first line it took for a path ("Could not load Python file ... /import
+        sys", 2026-09-03). Writing the code to a real .py file and sending the
+        path is the mode's primary contract and is deterministic.
+        """
+        import tempfile
+        import uuid
+
+        d = Path(tempfile.gettempdir()) / "ldyf_remote_exec"
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / f"cmd_{uuid.uuid4().hex}.py"
+        f.write_text(code, encoding="utf-8")
+        try:
+            return self._run(str(f), self._re.MODE_EXEC_FILE, unattended)
+        finally:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+    def exec_code(self, code: str, unattended: bool = True) -> dict[str, Any]:
+        """Run a literal script string (short snippets only; see exec_file)."""
         return self._run(code, self._re.MODE_EXEC_FILE, unattended)
 
     def eval(self, expression: str, unattended: bool = True) -> Any:
