@@ -136,6 +136,38 @@ def build_lane_actors(spec_path, *, include_internal=False, kinds=("road",),
             "labels": labels, "cleared": cleared}
 
 
+def build_junction_actors(spec_path, *, z_cm=0.0, label_prefix="LD_Junction"):
+    """One CLOSED linear spline actor per SUMO junction polygon, tagged
+    `ld_junction`; the road graph fills them as slabs. Clear-first, like lanes."""
+    s = _spec(spec_path)
+    cleared = 0
+    for a in _prefix(label_prefix):
+        a.destroy_actor()
+        cleared += 1
+    n = skipped = 0
+    for j in s.get("junctions") or []:
+        poly = j.get("polygon") or []
+        if len(poly) < 3:
+            skipped += 1
+            continue
+        jid = str(j["id"])
+        actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
+            unreal.Actor, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+        actor.set_actor_label(f"{label_prefix}_{jid}")
+        comp = _add_spline(actor)
+        pts = [unreal.Vector(float(p["x"]), float(p["y"]), float(z_cm)) for p in poly]
+        comp.set_spline_points(pts, unreal.SplineCoordinateSpace.WORLD, False)
+        for i in range(len(pts)):
+            comp.set_spline_point_type(i, unreal.SplinePointType.LINEAR, False)
+        comp.set_closed_loop(True, False)
+        comp.update_spline()
+        actor.set_editor_property("tags", ["ld_junction", f"junction_id:{jid}", f"type:{j.get('type')}",
+                                           f"incoming:{','.join(j.get('incoming_edge_ids') or [])}"])
+        n += 1
+    unreal.log(f"[ldyf_roads_editor] junctions built {n}")
+    return {"actors": n, "skipped_no_polygon": skipped, "cleared": cleared}
+
+
 def clear_lane_actors(label_prefix="LD_Lane"):
     n = 0
     for a in _prefix(label_prefix):
