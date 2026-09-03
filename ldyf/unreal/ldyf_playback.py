@@ -45,7 +45,7 @@ Ground offset
 -------------
 The asset ``SkeletalMesh.get_bounds()`` is degenerate (EVIDENCE_editor_api_
 probe.json lines 115-124), so the ground offset is measured once per mesh from
-the SPAWNED actor: ``unreal.SystemLibrary.get_actor_bounds(actor, False)``
+the SPAWNED actor: ``unreal.SystemLibrary.get_actor_bounds(actor)``
 returns (origin, extent); offset_z = extent.z - origin.z is cached per mesh
 path in ``_GROUND_CACHE`` and reported in ``status()``.
 
@@ -112,6 +112,25 @@ _VEHICLE_MESHES = ["/Game/Vehicle/{0}/Mesh/SKM_{0}".format(n) for n in _VEHICLE_
 # entry is None (TODO: measure once per mesh in-editor). While None, spin is
 # skipped and counted as wheels_unspun. Radii are never invented here.
 _WHEEL_RADIUS_CM: dict[str, float | None] = {p: None for p in _VEHICLE_MESHES}
+
+
+def load_wheel_radii(path: str) -> dict:
+    """Load per-mesh wheel radii MEASURED in-editor (EVIDENCE/PHASE_02/wheel_radii.json:
+    bone height above the mesh's local bounds floor). Nothing here is typed."""
+    import json as _json
+    doc = _json.loads(Path(path).read_text(encoding="utf-8"))
+    n = 0
+    for mesh, rec in doc.get("wheel_radii", {}).items():
+        r = rec.get("wheel_radius_cm")
+        if r is not None and r > 0:
+            _WHEEL_RADIUS_CM[mesh] = float(r); n += 1
+    return {"loaded": n, "meshes": len(_WHEEL_RADIUS_CM), "source": str(path)}
+
+
+def set_wheel_radii(radii: dict) -> dict:
+    for mesh, r in radii.items():
+        _WHEEL_RADIUS_CM[mesh] = (float(r) if r is not None else None)
+    return {"set": len(radii)}
 
 _METRES_TO_UNREAL_UNITS = 100.0  # ldyf/coords.py:32 METRES_TO_UNREAL_UNITS
 
@@ -336,7 +355,7 @@ def _spawn_vehicle(uid: str, label: str, tags: list) -> dict:
     # identity rotation, cached per mesh path (asset bounds are degenerate).
     g = _GROUND_CACHE.get(mesh)
     if g is None:
-        origin, extent = unreal.SystemLibrary.get_actor_bounds(actor, False)
+        origin, extent = unreal.SystemLibrary.get_actor_bounds(actor)
         g = float(extent.z - origin.z)
         _GROUND_CACHE[mesh] = g
     actor.set_actor_hidden_in_game(False)
