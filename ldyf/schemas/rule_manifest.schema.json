@@ -39,7 +39,21 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "close_edges": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "close_edges": {
+          "type": "object",
+          "description": "Close edges to specific vehicle classes. RED TEAM (Phase 1): a closure that does not name its modes severs pedestrian routes too, and SUMO then aborts the run with 'Disconnected walk'. A closure MUST therefore declare what it closes. Measured on the Phase 1 grid: closing B1C1/C1B1 outright aborted the simulation; scoping it to disallow=passenger ran correctly.",
+          "required": ["edge_ids", "disallow"],
+          "additionalProperties": false,
+          "properties": {
+            "edge_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "disallow": {
+              "type": "array",
+              "minItems": 1,
+              "description": "SUMO vehicle classes barred from the edge, e.g. ['passenger']. Omitting 'pedestrian' keeps the footway usable, which is both physically truthful for a road closure and required for the run to survive.",
+              "items": { "type": "string" }
+            }
+          }
+        },
         "reopen_edges": { "type": "array", "minItems": 1, "items": { "type": "string" } },
         "speed_limit": {
           "type": "object",
