@@ -34,7 +34,7 @@ from ldyf.sumo_record import _sha256_payload
 TINY_NET = """<?xml version="1.0" encoding="UTF-8"?>
 <!-- synthetic fixture for test_roads: hand-written, never netconvert -->
 <net version="1.20">
-    <location netOffset="0.00,0.00" convBoundary="0.00,0.00,100.00,0.00" origBoundary="0.00,0.00,100.00,0.00"/>
+    <location netOffset="0.00,0.00" convBoundary="0.00,0.00,200.00,100.00" origBoundary="-10000000000.00,-10000000000.00,10000000000.00,10000000000.00" projParameter="!"/>
     <edge id="E1" from="J0" to="J1" priority="3">
         <lane id="E1_0" index="0" speed="13.89" length="100.00" width="3.20" shape="0.00,0.00 100.00,0.00"/>
         <lane id="E1_1" index="1" speed="8.33" length="100.00" width="3.50" shape="0.00,3.20 100.00,3.20"/>
@@ -43,8 +43,8 @@ TINY_NET = """<?xml version="1.0" encoding="UTF-8"?>
         <lane id="E2_0" index="0" speed="13.89" length="100.00" shape="100.00,8.00 0.00,8.00"/>
         <lane id="E2_1" index="1" speed="13.89" length="100.00" width="3.20" allow="passenger bus" disallow="truck" shape="100.00,11.20 0.00,11.20"/>
     </edge>
-    <junction id="J0" type="priority" x="0.00" y="0.00" shape="0.00,-2.00 2.00,-2.00 2.00,14.00 0.00,14.00" incoming="E2"/>
-    <junction id="J1" type="priority" x="100.00" y="0.00" incoming="E1"/>
+    <junction id="J0" type="priority" x="0.00" y="0.00" incLanes="E2_0 E2_1" intLanes="" shape="0.00,-2.00 2.00,-2.00 2.00,14.00 0.00,14.00"/>
+    <junction id="J1" type="priority" x="100.00" y="0.00" incLanes="E1_0 E1_1" intLanes=""/>
 </net>
 """
 
@@ -242,10 +242,13 @@ def test_centreline_error_segment_projection_and_worst_index(tmp_path):
 
 def test_centreline_error_clamps_to_segment_endpoints(tmp_path):
     spec_poly = [{"x": 0.0, "y": 0.0, "z": 0.0}, {"x": 100.0, "y": 0.0, "z": 0.0}]
-    # measured beyond the far end projects onto the segment endpoint at (100,0)
+    # measured beyond the far end projects past the segment, so the distance is
+    # measured to the clamped endpoint (100,0): hypot(400-100, 300-0) = 300*sqrt(2)
+    # ~= 424.264. (500.0 would be the distance to the *near* endpoint (0,0),
+    # which is not the closest point on the segment.)
     measured = [{"x": 400.0, "y": 300.0, "z": 0.0}]
     err = centreline_error_cm(spec_poly, measured)
-    assert err["max_cm"] == pytest.approx(500.0)
+    assert err["max_cm"] == pytest.approx(math.hypot(300.0, 300.0))
 
 
 def test_check_centrelines_passes_at_5cm_and_fails_at_3cm(tmp_path):

@@ -71,8 +71,20 @@ class UnrealRemote:
             nodes = self._exec.remote_nodes
             if nodes:
                 self.node_id = nodes[0]["node_id"]
-                self._exec.open_command_connection(self.node_id)
-                return self.node_id
+                # The editor answers discovery before it is ready to dial the
+                # command socket; opening immediately fails with "Remote party
+                # failed to attempt the command socket connection" (seen on
+                # 2026-09-03 with an idle editor). Settle, then retry the open.
+                last: Exception | None = None
+                for attempt in range(4):
+                    time.sleep(1.0 + attempt)
+                    try:
+                        self._exec.open_command_connection(self.node_id)
+                        return self.node_id
+                    except Exception as e:  # noqa: BLE001 - plugin raises bare RuntimeError
+                        last = e
+                self._exec.stop()
+                raise UnrealRemoteError(f"editor {self.node_id} discovered but the command socket never opened: {last}")
             time.sleep(0.25)
         self._exec.stop()
         raise UnrealRemoteError(
