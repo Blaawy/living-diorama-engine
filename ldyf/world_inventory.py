@@ -376,3 +376,169 @@ def write_inventory(dump_path: str | Path, out_path: str | Path, **params) -> di
         json.dumps(result, indent=2, sort_keys=True, ensure_ascii=True), encoding="utf-8"
     )
     return result
+
+
+# --- level-wide inventory (contract C5) -------------------------------------
+
+LEVEL_INVENTORY_VERSION = "level_inventory_v1"
+
+#: Any of these substrings in a LOWER-CASED asset path means a blockout mesh.
+BLOCKOUT_MARKERS = ("/engine/basicshapes/", "basicshapes", "/engine/enginemeshes/",
+                    "/engine/editormeshes/")
+#: Engine primitive names that are blockout wherever they are mounted from /Engine.
+BLOCKOUT_ENGINE_NAMES = ("cube", "sphere", "cylinder", "cone", "plane")
+
+
+def _lower_assets(actor: dict) -> list:
+    out = []
+    for c in actor.get("components") or []:
+        a = c.get("asset_lower") or (c.get("asset") or "").lower() or None
+        if a:
+            out.append(a)
+    return out
+
+
+def is_blockout_asset(asset_lower: str | None) -> bool:
+    """Case-insensitive, mount-agnostic blockout test."""
+    if not asset_lower:
+        return False
+    a = asset_lower
+    if any(m in a for m in BLOCKOUT_MARKERS):
+        return True
+    if a.startswith("/engine/"):
+        name = a.rsplit("/", 1)[-1].split(".")[0]
+        if name in BLOCKOUT_ENGINE_NAMES:
+            return True
+    return False
+
+
+def _comp_classes(actor: dict) -> set:
+    return {str(c.get("class") or "").lower() for c in actor.get("components") or []}
+
+
+def classify_level_actor(actor: dict) -> dict:
+    """Role of one `level_dump_v1` actor. Rules are data, evaluated in order."""
+    cls = str(actor.get("class") or "")
+    lcls = cls.lower()
+    comps = _comp_classes(actor)
+    assets = _lower_assets(actor)
+    tags = [str(t).lower() for t in (actor.get("tags") or [])]
+    label = str(actor.get("label") or "").lower()
+    blockout = [a for a in assets if is_blockout_asset(a)]
+    has_mesh = any(k in comps for k in ("staticmeshcomponent", "instancedstaticmeshcomponent",
+                                        "skeletalmeshcomponent", "poseablemeshcomponent",
+                                        "splinemeshcomponent", "dynamicmeshcomponent"))
+    role, reason = "unknown", "no rule matched"
+    if "pcgcomponent" in comps:
+        role, reason = "pcg_volume", "actor carries a PCGComponent"
+    elif not has_mesh and "splinecomponent" in comps:
+        role, reason = "authoring", "spline-only actor (authoring input, renders nothing)"
+    elif any(k in lcls for k in ("directionallight", "skylight", "pointlight", "spotlight", "rectlight")):
+        role, reason = "light", f"actor class {cls}"
+    elif "skyatmosphere" in lcls or "exponentialheightfog" in lcls or "volumetriccloud" in lcls:
+        role, reason = "sky", f"actor class {cls}"
+    elif "camera" in lcls:
+        role, reason = "camera", f"actor class {cls}"
+    elif "volume" in lcls:
+        role, reason = "volume", f"actor class {cls}"
+    elif any("ld_vehicle" == t or t.startswith("mesh:veh") for t in tags) or any("/game/vehicle/" in a for a in assets):
+        role, reason = "vehicle", "vehicle asset path or ld_vehicle tag"
+    elif "ld_person" in tags or any("/game/character/" in a for a in assets):
+        role, reason = "pedestrian", "character asset path or ld_person tag"
+    elif any("meshes/roads/" in a for a in assets) or "splinemeshcomponent" in comps:
+        sidewalk = any("_200_200" in a for a in assets) or "sidewalk" in label or "ld_sidewalk" in tags
+        role = "sidewalk" if sidewalk else "road"
+        reason = "spline-mesh strip from the road mesh set"
+    elif "dynamicmeshcomponent" in comps:
+        role, reason = "pcg_surface", "PCG-generated dynamic mesh (ground / junction / building mass)"
+    elif any("/building/" in a or "bldg" in a for a in assets):
+        role, reason = "building", "building asset path"
+    elif has_mesh:
+        role, reason = "prop", "mesh actor with no more specific rule"
+    return {"role": role, "role_reason": reason, "blockout": bool(blockout),
+            "blockout_assets": sorted(set(blockout))[:4], "assets": sorted(set(assets))[:6],
+            "components": sorted(comps)}
+
+
+def level_inventory(dump: dict, *, min_building_kits: int = 3, min_vehicle_wheels: int = 4) -> dict:
+    """Inventory of an entire level (`level_dump_v1`), not just spawned actors."""
+    roles = {}
+    blockout_actors = []
+    unknown_actors = []
+    kits = set()
+    vehicles = wheels_ok = 0
+    persons = persons_animated = 0
+    pcg_surfaces = 0
+    for a in dump.get("actors") or []:
+        c = classify_level_actor(a)
+        roles[c["role"]] = roles.get(c["role"], 0) + 1
+        if c["blockout"]:
+            blockout_actors.append({"label": a.get("label"), "assets": c["blockout_assets"]})
+        if c["role"] == "unknown":
+            unknown_actors.append(a.get("label"))
+        if c["role"] == "pcg_surface":
+            pcg_surfaces += 1
+        if c["role"] == "pcg_volume":
+            # A PCG volume renders the world through its OWN components; count
+            # them by role so "the world" is not hidden inside one actor.
+            for comp in a.get("components") or []:
+                ccls = str(comp.get("class") or "").lower()
+                casset = (comp.get("asset_lower") or "")
+                if ccls == "splinemeshcomponent":
+                    key = "sidewalk" if "_200_200" in casset else "road"
+                    roles[key] = roles.get(key, 0) + 1
+                elif ccls == "dynamicmeshcomponent":
+                    roles["pcg_surface"] = roles.get("pcg_surface", 0) + 1
+                    pcg_surfaces += 1
+        if c["role"] == "vehicle":
+            vehicles += 1
+            n = 0
+            for comp in a.get("components") or []:
+                nm = f"{comp.get('name','')} {comp.get('class','')}".lower()
+                if "wheel" in nm:
+                    n += 1
+            if n >= min_vehicle_wheels:
+                wheels_ok += 1
+        if c["role"] == "pedestrian":
+            persons += 1
+            if any(comp.get("animation") or comp.get("anim_class") for comp in a.get("components") or []):
+                persons_animated += 1
+        for asset in c["assets"]:
+            if "/building/" in asset:
+                seg = asset.split("/building/", 1)[1].split("/")[0]
+                kits.add(seg)
+    for t in ("kit:",):
+        for a in dump.get("actors") or []:
+            for tag in a.get("tags") or []:
+                if str(tag).startswith(t):
+                    kits.add(str(tag).split(":", 1)[1])
+    building_kits = sorted(kits)
+    out = {
+        "schema_version": LEVEL_INVENTORY_VERSION,
+        "level": dump.get("level"),
+        "counts_by_role": dict(sorted(roles.items())),
+        "actors": len(dump.get("actors") or []),
+        "blockout_actors": blockout_actors,
+        "blockout_count": len(blockout_actors),
+        "building_kits": {"kits": building_kits, "count": len(building_kits),
+                          "pass": len(building_kits) >= min_building_kits},
+        "vehicles": {"count": vehicles, "with_min_wheels": wheels_ok,
+                     "pass": wheels_ok == vehicles},
+        "pedestrians": {"count": persons, "animated": persons_animated,
+                        "pass": persons_animated == persons},
+        "pcg_surfaces": pcg_surfaces,
+        "unknown_actors": sorted(unknown_actors)[:20],
+        "params": {"min_building_kits": min_building_kits, "min_vehicle_wheels": min_vehicle_wheels},
+    }
+    out["pass"] = (out["blockout_count"] == 0 and out["building_kits"]["pass"]
+                   and out["vehicles"]["pass"] and out["pedestrians"]["pass"])
+    return out
+
+
+def write_level_inventory(dump_path, out_path, **params) -> dict:
+    import json as _json
+    from pathlib import Path as _Path
+    dump = _json.loads(_Path(dump_path).read_text(encoding="utf-8"))
+    rep = level_inventory(dump, **params)
+    _Path(out_path).write_text(_json.dumps(rep, indent=2, sort_keys=True), encoding="utf-8")
+    return rep

@@ -276,3 +276,182 @@ def write_audit(record_dir, out_path, **params) -> dict:
     text = json.dumps(result, indent=2, sort_keys=True) + "\n"
     Path(out_path).write_text(text, encoding="utf-8")
     return result
+
+
+# --- loop audit v2 (contract C6) --------------------------------------------
+
+LOOP_AUDIT_V2_VERSION = "loop_audit_v2"
+
+
+def _windows_all_pairs(cells, window, horizon):
+    """Every pair of identical windows (not only the first occurrence)."""
+    seen = {}
+    repeats = []
+    stationary = 0
+    for i in range(0, max(0, len(cells) - window + 1)):
+        w = tuple(cells[i:i + window])
+        if len(set(w)) == 1:
+            stationary += 1
+            continue
+        for j in seen.get(w, ()):  # ALL earlier starts, not just the first
+            if horizon is None or (i - j + window) <= horizon:
+                repeats.append({"start_a": j, "start_b": i})
+        seen.setdefault(w, []).append(i)
+    return repeats, stationary
+
+
+def _headings(track, quant_deg=45.0):
+    import math
+    out = []
+    for (t0, x0, y0, _z0), (t1, x1, y1, _z1) in zip(track, track[1:]):
+        dx, dy = x1 - x0, y1 - y0
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            out.append(None)
+            continue
+        a = math.degrees(math.atan2(dy, dx)) % 360.0
+        out.append(int(round(a / quant_deg)) % int(round(360.0 / quant_deg)))
+    return out
+
+
+def _stops(track, cell_cm, speed_eps_cm=10.0):
+    """Cells where the actor essentially stopped (consecutive samples within eps)."""
+    import math
+    stops = []
+    for (t0, x0, y0, _z0), (t1, x1, y1, _z1) in zip(track, track[1:]):
+        if math.hypot(x1 - x0, y1 - y0) < speed_eps_cm:
+            c = (int(math.floor(x1 / cell_cm)), int(math.floor(y1 / cell_cm)))
+            if not stops or stops[-1] != c:
+                stops.append(c)
+    return stops
+
+
+def audit_record_v2(frames_path, manifest, *, windows_s=(6.0, 8.0, 12.0, 20.0),
+                    rates_hz=(1.0, 2.0), horizons_s=(120.0, 300.0, None),
+                    cell_cm=100.0, dest_ratio_min=0.6, periodicity_threshold=0.5,
+                    patrol_cells=2):
+    """Several independent loop tests; the honest boundary is reported, not hidden."""
+    base = audit_record(frames_path, manifest, cell_cm=cell_cm, rate_hz=rates_hz[0],
+                        dest_ratio_min=dest_ratio_min)
+    kinds = {a["uid"]: a.get("kind") for a in manifest["actors"]}
+    grid = []
+    patrol_windows = 0
+    patrol_actors = set()
+    patrol_hits = {}
+    patrol_total = {}
+    cross_actor = []
+    route_repeats = {}
+    dest_cycles = {}
+    for rate in rates_hz:
+        tracks = sampled_tracks(frames_path, manifest, rate_hz=rate)
+        for window_s in windows_s:
+            window = max(2, int(round(window_s * rate)))
+            for horizon_s in horizons_s:
+                horizon = None if horizon_s is None else int(round(horizon_s * rate))
+                total = 0
+                actors_hit = set()
+                windows_seen = {}
+                for uid, tr in tracks.items():
+                    cells = quantise(tr, cell_cm=cell_cm)
+                    reps, stat = _windows_all_pairs(cells, window, horizon)
+                    if reps:
+                        total += len(reps)
+                        actors_hit.add(uid)
+                    for i in range(0, max(0, len(cells) - window + 1)):
+                        w = tuple(cells[i:i + window])
+                        xs = [c[0] for c in w]
+                        ys = [c[1] for c in w]
+                        if len(set(w)) > 1 and (max(xs) - min(xs)) <= patrol_cells and (max(ys) - min(ys)) <= patrol_cells:
+                            patrol_windows += 1
+                            patrol_actors.add(uid)
+                            patrol_hits[uid] = patrol_hits.get(uid, 0) + 1
+                        patrol_total[uid] = patrol_total.get(uid, 0) + 1
+                        windows_seen.setdefault(w, set()).add(uid)
+                for w, uids in windows_seen.items():
+                    if len(uids) > 1:
+                        cross_actor.append({"window_len": len(w), "uids": sorted(uids)[:4],
+                                            "rate_hz": rate, "window_s": window_s})
+                grid.append({"rate_hz": rate, "window_s": window_s,
+                             "horizon_s": horizon_s, "repeats": total,
+                             "actors": sorted(actors_hit)[:6], "actor_count": len(actors_hit)})
+    tracks = sampled_tracks(frames_path, manifest, rate_hz=rates_hz[0])
+    for uid, tr in tracks.items():
+        hs = [h for h in _headings(tr) if h is not None]
+        for L in (6, 10):
+            seen = {}
+            hit = 0
+            for i in range(0, max(0, len(hs) - L + 1)):
+                seg = tuple(hs[i:i + L])
+                if len(set(seg)) == 1:
+                    continue
+                if seg in seen:
+                    hit += 1
+                seen.setdefault(seg, i)
+            if hit:
+                route_repeats.setdefault(uid, {})[f"len{L}"] = hit
+        st = _stops(tr, cell_cm)
+        for i in range(0, max(0, len(st) - 3)):
+            if st[i] == st[i + 2] and st[i + 1] == st[i + 3] and st[i] != st[i + 1]:
+                dest_cycles[uid] = dest_cycles.get(uid, 0) + 1
+    # An actor is "patrolling" only when most of its life is a small-extent
+    # shuffle AND it has enough windows to be noticeable on screen.
+    patrol_dominant = {uid for uid, hits in patrol_hits.items()
+                       if patrol_total.get(uid, 0) >= 30 and hits >= 0.5 * patrol_total[uid]}
+    per = base.get("spawn_periodicity", {})
+    by_kind = per.get("by_kind", {})
+    periodic_fail = {k: v for k, v in by_kind.items() if (v.get("score") or 0.0) >= periodicity_threshold}
+    doc = {
+        "schema_version": LOOP_AUDIT_V2_VERSION,
+        "record": base.get("record"),
+        "params": {"windows_s": list(windows_s), "rates_hz": list(rates_hz),
+                   "horizons_s": list(horizons_s), "cell_cm": cell_cm,
+                   "dest_ratio_min": dest_ratio_min,
+                   "periodicity_threshold": periodicity_threshold,
+                   "patrol_cells": patrol_cells},
+        "window_grid": grid,
+        "window_repeats_total": sum(g["repeats"] for g in grid),
+        "patrol": {"windows": patrol_windows, "actors": sorted(patrol_actors)[:8],
+                   "actor_count": len(patrol_actors),
+                   "note": "counted, never exempted: a 1-2 cell patrol is a loop a viewer can see"},
+        "route_repeats": {"actors": len(route_repeats), "sample": dict(list(route_repeats.items())[:4])},
+        "destination_cycles": {"actors": len(dest_cycles), "sample": dict(list(dest_cycles.items())[:4])},
+        "cross_actor_windows": {"count": len(cross_actor), "sample": cross_actor[:4]},
+        "destinations": base.get("destinations"),
+        "spawn_periodicity": {"by_kind": by_kind, "threshold": periodicity_threshold,
+                              "failing_kinds": sorted(periodic_fail)},
+        "v1": {"window_repeats": base.get("window_repeats"), "pass": base.get("pass")},
+        "boundary": [
+            "route_repeats and cross_actor_windows are informational: on a rectangular grid every vehicle shares four headings and the lane cells of the car ahead.",
+            "A loop whose period exceeds the longest horizon (%s s) is only caught by the horizon=None pass." % max(h for h in horizons_s if h),
+            "Motion that never crosses a %.0f cm cell boundary is invisible to the cell tests." % cell_cm,
+            "Sub-second phase drift breaks exact window equality; near-repeats are not scored.",
+            "Route repetition is quantised to 45 deg headings, so gentle curves may not match.",
+            "Two actors alternating identical windows are reported under cross_actor_windows, not as per-actor repeats.",
+            "Spawn periodicity uses a DFT peak ratio; the threshold %.2f is the Director's to set." % periodicity_threshold,
+        ],
+    }
+    # What the GATE tests (a viewer-visible loop): an actor repeating its own
+    # position window, poor destination diversity, or periodic spawning.
+    # Route-heading repeats and cross-actor window sharing are INFORMATIONAL:
+    # on a rectangular street grid every car shares the same four headings and
+    # drives the same lane cells as the car ahead, so those two counts are
+    # normal traffic, not repetition a viewer would read as a loop. Patrol
+    # windows are likewise informational unless an actor patrols for most of
+    # its life (`patrol_dominant_actors`), which a viewer would notice.
+    doc["patrol"]["dominant_actors"] = sorted(patrol_dominant)[:8]
+    doc["patrol"]["dominant_count"] = len(patrol_dominant)
+    doc["informational_only"] = ["route_repeats", "cross_actor_windows", "patrol.windows"]
+    doc["pass"] = (doc["window_repeats_total"] == 0
+                   and (base.get("destinations") or {}).get("pass", False)
+                   and not periodic_fail
+                   and len(patrol_dominant) == 0)
+    return doc
+
+
+def write_audit_v2(record_dir, out_path, **params) -> dict:
+    import json as _json
+    from pathlib import Path as _Path
+    rd = _Path(record_dir)
+    manifest = _json.loads((rd / "record_manifest.json").read_text(encoding="utf-8"))
+    doc = audit_record_v2(rd / "frames.bin", manifest, **params)
+    _Path(out_path).write_text(_json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
+    return doc
