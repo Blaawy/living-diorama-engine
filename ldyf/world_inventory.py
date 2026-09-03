@@ -424,7 +424,10 @@ def classify_level_actor(actor: dict) -> dict:
     assets = _lower_assets(actor)
     tags = [str(t).lower() for t in (actor.get("tags") or [])]
     label = str(actor.get("label") or "").lower()
-    blockout = [a for a in assets if is_blockout_asset(a)]
+    # Editor-only preview meshes on cameras (MatineeCam_SM etc.) are never
+    # rendered; they are not blockout presentation objects.
+    _editor_only = "camera" in lcls
+    blockout = [] if _editor_only else [a for a in assets if is_blockout_asset(a)]
     has_mesh = any(k in comps for k in ("staticmeshcomponent", "instancedstaticmeshcomponent",
                                         "skeletalmeshcomponent", "poseablemeshcomponent",
                                         "splinemeshcomponent", "dynamicmeshcomponent"))
@@ -494,7 +497,7 @@ def level_inventory(dump: dict, *, min_building_kits: int = 3, min_vehicle_wheel
             vehicles += 1
             n = 0
             for comp in a.get("components") or []:
-                nm = f"{comp.get('name','')} {comp.get('class','')}".lower()
+                nm = f"{comp.get('name','')} {comp.get('class','')} {comp.get('asset_lower') or ''}".lower()
                 if "wheel" in nm:
                     n += 1
             if n >= min_vehicle_wheels:

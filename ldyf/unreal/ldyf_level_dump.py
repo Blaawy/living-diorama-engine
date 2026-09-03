@@ -54,11 +54,21 @@ def _anim_of(comp):
         anim_class = str(ac.get_path_name()) if ac else None
     except Exception:
         pass
-    try:
-        seq = comp.get_editor_property("animation_data").anim_to_play
-        animation = str(seq.get_path_name()) if seq else None
-    except Exception:
-        pass
+    for getter in ("animation_data", "anim_to_play"):
+        try:
+            v = comp.get_editor_property(getter)
+            seq = getattr(v, "anim_to_play", v)
+            if seq is not None:
+                animation = str(seq.get_path_name())
+                break
+        except Exception:
+            continue
+    if animation is None:
+        try:
+            if comp.is_playing():
+                animation = "playing:single_node"
+        except Exception:
+            pass
     try:
         sk = comp.get_editor_property("skeletal_mesh") or comp.get_editor_property("skinned_asset")
         s = sk.get_editor_property("skeleton") if sk else None
