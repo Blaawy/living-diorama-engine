@@ -2,7 +2,7 @@
 	"FileVersion": 3,
 	"EngineAssociation": "5.8",
 	"Category": "Living Diorama",
-	"Description": "The Living Diorama YouTube Factory. SUMO is mobility truth; Unreal is presentation. Blueprint-only by design so no Visual Studio toolchain is required.",
+	"Description": "The Living Diorama YouTube Factory. SUMO is mobility truth; Unreal is presentation. Blueprint-only by design so no Visual Studio toolchain is required. Every plugin below ships free with UE 5.8 - no Fab purchase, no Houdini, no external DCC.",
 	"Modules": [],
 	"Plugins": [
 		{
@@ -12,29 +12,21 @@
 				"Editor"
 			]
 		},
-		{
-			"Name": "PythonScriptPlugin",
-			"Enabled": true
-		},
-		{
-			"Name": "EditorScriptingUtilities",
-			"Enabled": true
-		},
-		{
-			"Name": "ModelContextProtocol",
-			"Enabled": true
-		},
-		{
-			"Name": "ToolsetRegistry",
-			"Enabled": true
-		},
-		{
-			"Name": "AllToolsets",
-			"Enabled": true
-		},
-		{
-			"Name": "MovieRenderPipeline",
-			"Enabled": true
-		}
+		{ "Name": "PythonScriptPlugin", "Enabled": true },
+		{ "Name": "EditorScriptingUtilities", "Enabled": true },
+		{ "Name": "ModelContextProtocol", "Enabled": true },
+		{ "Name": "ToolsetRegistry", "Enabled": true },
+		{ "Name": "AllToolsets", "Enabled": true },
+		{ "Name": "MovieRenderPipeline", "Enabled": true },
+		{ "Name": "PCG", "Enabled": true },
+		{ "Name": "PCGPrimitives", "Enabled": true },
+		{ "Name": "PCGBiomeCore", "Enabled": true },
+		{ "Name": "PCGGeometryScriptInterop", "Enabled": true },
+		{ "Name": "PCGToolset", "Enabled": true },
+		{ "Name": "MassAI", "Enabled": true },
+		{ "Name": "MassCrowd", "Enabled": true },
+		{ "Name": "MassGameplay", "Enabled": true },
+		{ "Name": "Water", "Enabled": true },
+		{ "Name": "Landmass", "Enabled": true }
 	]
 }

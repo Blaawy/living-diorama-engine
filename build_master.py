@@ -45,6 +45,8 @@ def stage() -> None:
         ("ARCHITECTURE_DECISION_SUMO_UNREAL.md", P1 / "research" / "ARCHITECTURE_DECISION_SUMO_UNREAL.md"),
         ("CONCEPTUAL_DNA_EXTRACTION.md", P1 / "dna" / "CONCEPTUAL_DNA_EXTRACTION.md"),
         ("RED_TEAM_PHASE_1.md", P1 / "redteam" / "RED_TEAM_PHASE_1.md"),
+        ("CITY_SAMPLE_PCG_COMPATIBILITY.md", P1 / "research" / "CITY_SAMPLE_PCG_COMPATIBILITY.md"),
+        ("REPRODUCIBILITY.md", P1 / "REPRODUCIBILITY.md"),
     ]:
         shutil.copy2(src, STAGE / "reports" / name)
 
@@ -67,7 +69,12 @@ def stage() -> None:
         "- `unreal_sumo_frame1500_topdown.png` — the SUMO road grid is legible in "
         "the arrangement of the vehicles.\n"
         "- `unreal_sumo_frame1500_wide.png` — oblique view.\n"
-        "- `unreal_sumo_frame1500_street.png` — near-ground view.\n\n"
+        "- `unreal_sumo_frame1500_street.png` — near-ground view.\n"
+        "- `unreal_pcg_grid_3600_points.png` — the PCG volume in the level. Note "
+        "that **no geometry is visible in this shot**: the graph generates 3,600 "
+        "points (proven by reading the node data, not by this picture), but the "
+        "Static Mesh Spawner has no mesh assigned yet. Instancing meshes from "
+        "those points is Phase 2 work.\n\n"
         "**The Director has watched nothing. No video exists.**\n",
         encoding="utf-8",
     )
@@ -89,7 +96,22 @@ def stage() -> None:
     rec = ev / "simulation" / "record_v1"
     rec.mkdir()
     shutil.copy2(SUMO / "record_v1" / "record_manifest.json", rec / "record_manifest.json")
-    shutil.copy2(SUMO / "record_v1" / "frames.bin", rec / "frames.bin")
+
+    # RISK-1 closure evidence: 500 vehicles + 200 pedestrians, clean exit.
+    cl = ev / "simulation" / "closure_v2"
+    cl.mkdir()
+    for f in ("baseline.tripinfo.xml", "ruled.tripinfo.xml",
+              "ruled_repeat.tripinfo.xml", "closure_metrics.json",
+              "persistent_changes.json"):
+        src = SUMO / "closure_v2" / f
+        if src.exists():
+            shutil.copy2(src, cl / f)
+    clrec = cl / "record_ruled"
+    clrec.mkdir()
+    shutil.copy2(SUMO / "closure_v2" / "record_ruled" / "record_manifest.json",
+                 clrec / "record_manifest.json")
+    shutil.copy2(SUMO / "closure_v2" / "record_ruled" / "frames.bin",
+                 clrec / "frames.bin")
 
     # --- identity ---
     idd = STAGE / "identity"
@@ -151,6 +173,9 @@ def stage() -> None:
     proj = WS / "LivingDioramaYF"
     shutil.copy2(proj / "LivingDioramaYF.uproject", art / "unreal_project" / "LivingDioramaYF.uproject")
     shutil.copy2(proj / ".mcp.json", art / "unreal_project" / "mcp.json")
+    pcg_asset = proj / "Content" / "PCG" / "PCG_LivingDiorama_Probe.uasset"
+    if pcg_asset.exists():
+        shutil.copy2(pcg_asset, art / "unreal_project" / "PCG_LivingDiorama_Probe.uasset")
     shutil.copy2(
         YF.parent / "MANIFESTS" / "YOUTUBE_FACTORY_CLEANUP_MANIFEST.json",
         art / "CLEANUP_MANIFEST.json",

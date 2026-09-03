@@ -1,10 +1,35 @@
 {
-  "schema_version": "free_dependency_lock_v1",
+  "schema_version": "free_dependency_lock_v2",
   "project": "The Living Diorama — YouTube Factory",
   "phase_recorded": 1,
-  "recorded_utc": "2026-09-03T00:30:00Z",
+  "recorded_utc": "2026-09-03T04:30:00Z",
+  "revision_note": "v2 supersedes v1. Updated after ChatGPT review: the Unreal licence position is now recorded explicitly as Non-Engine Product output with no royalty, the seat-licence threshold and price are named, and the engine-bundled PCG/Mass plugin stack verified in Phase 1 is enumerated.",
   "cost_law": "The Director pays only for the Claude Code subscription and existing DeepSeek worker usage. Every entry below must have verified_cost_usd = 0 for our actual use, or the component must be removed.",
   "total_recurring_cost_usd": 0,
+
+  "unreal_license_position": {
+    "our_output": "Linear, non-interactive video published to YouTube.",
+    "classification": "NON-ENGINE PRODUCT",
+    "reasoning": "We ship no interactive product, no application, and nothing that relies on Unreal Engine code at runtime. The deliverable is a rendered video file. Under Epic's terms this is linear content, which carries NO Unreal royalty regardless of revenue.",
+    "royalty_owed": "NONE",
+    "royalty_rule_that_does_not_apply_to_us": "The 5% royalty applies to off-the-shelf INTERACTIVE products past USD 1,000,000 lifetime gross. We ship no such product.",
+    "seat_license_exception": {
+      "applies_to": "Non-game commercial users (film, broadcast, simulation, archviz) at companies whose ANNUAL GROSS REVENUE exceeds the threshold below.",
+      "threshold_usd_annual_gross_revenue": 1000000,
+      "current_status": "BELOW THRESHOLD — the Director is an individual creator far under USD 1,000,000 annual gross revenue. Unreal Engine is therefore free for this project today.",
+      "cost_if_threshold_crossed": {
+        "product": "Unreal Engine for Creators (seat-based subscription)",
+        "price_usd_per_seat_per_year": 1850
+      },
+      "RECHECK_TRIGGER": "If the Director's annual gross revenue from any source relevant to Epic's definition approaches or crosses USD 1,000,000, this licence MUST be re-evaluated before further production. This is the single re-check condition for the entire project.",
+      "confidence": "HIGH on the no-royalty position for linear video. MEDIUM on the exact seat-licence wording: epicgames.com returns HTTP 403 to automated retrieval and no EULA text ships in the install, so the threshold and price come from Epic's published pricing announcement and consistent secondary reporting, not from primary licence text. DIRECTOR/CHATGPT VERIFICATION REQUESTED."
+    },
+    "sources": [
+      "https://www.unrealengine.com/eula/unreal",
+      "https://www.unrealengine.com/en-US/blog/we-are-updating-unreal-engine-twinmotion-and-realitycapture-pricing-in-late-april"
+    ]
+  },
+
   "dependencies": [
     {
       "name": "Unreal Engine",
@@ -12,32 +37,26 @@
       "build": "++UE5+Release-5.8 CL 56702186 (promoted build)",
       "source": "Epic Games Launcher (official)",
       "install_path": "C:\\Program Files\\Epic Games\\UE_5.8",
-      "disk_gb": 29.56,
-      "file_count": 250492,
+      "disk_gb": 29.9,
       "license": "Unreal Engine End User License Agreement",
       "verified_cost_usd": 0,
-      "cost_status": "FREE_CONDITIONAL",
-      "cost_conditions": {
-        "our_use": "Producing linear, non-interactive video content (YouTube episodes). We ship no interactive product and no application that relies on Unreal Engine code at runtime.",
-        "royalty": "Per Epic's published terms, linear content (film, TV, video) carries NO royalty regardless of revenue. The 5% royalty applies to off-the-shelf interactive products past USD 1,000,000 lifetime gross, which we do not ship.",
-        "seat_subscription_trigger": "Epic's seat-based Unreal Subscription applies to non-game commercial users at companies whose ANNUAL GROSS REVENUE exceeds USD 1,000,000. Below that threshold the engine is free for our use.",
-        "action_required_if_triggered": "If the Director's company revenue ever exceeds USD 1,000,000/year, a paid seat subscription becomes required and this entry must be re-evaluated. This is the ONLY component in the project with any future cost pathway.",
-        "confidence": "HIGH on the royalty exemption for linear content; MEDIUM on the exact seat-licence wording. Epic's website blocks automated retrieval (HTTP 403) and no EULA text ships in the install, so this was established from Epic's published pricing announcement and secondary reporting rather than from the primary EULA text. FLAGGED FOR CHATGPT/DIRECTOR VERIFICATION."
-      },
-      "sources": [
-        "https://www.unrealengine.com/eula/unreal",
-        "https://www.unrealengine.com/en-US/blog/we-are-updating-unreal-engine-twinmotion-and-realitycapture-pricing-in-late-april"
-      ]
+      "cost_status": "FREE — see unreal_license_position"
     },
     {
-      "name": "Epic Games Launcher",
-      "version": "20.2.6-0+UE5",
-      "source": "winget EpicGames.EpicGamesLauncher (official Epic MSI, installer hash verified by winget)",
-      "install_path": "C:\\Program Files\\Epic Games\\Launcher",
-      "license": "Epic Games Launcher EULA",
+      "name": "Unreal engine-bundled plugin stack (all free, all verified enabled in Phase 1)",
+      "version": "ships with UE 5.8.2",
+      "source": "Engine/Plugins",
+      "license": "covered by the Unreal Engine EULA",
       "verified_cost_usd": 0,
       "cost_status": "FREE",
-      "notes": "Required only to install and update the engine. Not a runtime dependency of the factory."
+      "plugins_verified_enabled_by_editor": [
+        "PCG", "PCGPrimitives", "PCGBiomeCore", "PCGGeometryScriptInterop", "PCGToolset",
+        "MassAI", "MassCrowd", "MassGameplay", "Water", "Landmass",
+        "ModelContextProtocol", "ToolsetRegistry", "AllToolsets",
+        "PythonScriptPlugin", "EditorScriptingUtilities", "MovieRenderPipeline",
+        "ModelingToolsEditorMode", "Fab"
+      ],
+      "notes": "Verified by querying PluginToolset.IsEnabled against the live editor, not inferred from logs. PCGPrimitives is the dependency Epic names for City Sample PCG, and it is present. 299 plugins enabled in the project overall; editor launched with zero plugin errors."
     },
     {
       "name": "Eclipse SUMO",
@@ -45,80 +64,12 @@
       "source": "https://sumo.dlr.de/releases/1.27.1/sumo-win64-1.27.1.msi (official DLR)",
       "install_path": "C:\\Program Files (x86)\\Eclipse\\Sumo",
       "disk_mb": 368.4,
-      "file_count": 3649,
       "sha256": "8B6FE108DA4D1196A9DD9F558DD21B59CDF2B5CA13F369F3DF41968272BCE385",
       "hash_verification": "Downloaded from the official DLR URL and independently cross-checked against the Microsoft winget-pkgs manifest InstallerSha256. Exact match.",
       "license": "Eclipse Public License 2.0",
       "verified_cost_usd": 0,
       "cost_status": "FREE",
-      "notes": "Open source. No paid tier exists. This is the project's mobility truth authority."
-    },
-    {
-      "name": "Unreal MCP (ModelContextProtocol plugin)",
-      "version": "1.0 (Experimental, ships with UE 5.8)",
-      "source": "Engine/Plugins/Experimental/ModelContextProtocol",
-      "license": "covered by the Unreal Engine EULA",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE",
-      "notes": "Epic's own Anthropic MCP server implementation. Marked IsExperimentalVersion, EnabledByDefault false. Bundled — no separate acquisition or cost."
-    },
-    {
-      "name": "Python",
-      "version": "3.13.15",
-      "source": "pre-existing user install at AppData\\Local\\Programs\\Python313",
-      "license": "PSF License",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE",
-      "notes": "NOT newly installed — reused to keep the machine lean. Base install lacks stdlib venv/ensurepip; environments are created with virtualenv 21.7.4, which is how the old project's environments were built too."
-    },
-    {
-      "name": "traci",
-      "version": "installed from PyPI into the project virtualenv",
-      "source": "PyPI",
-      "license": "Eclipse Public License 2.0",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE"
-    },
-    {
-      "name": "sumolib",
-      "version": "installed from PyPI into the project virtualenv",
-      "source": "PyPI",
-      "license": "Eclipse Public License 2.0",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE"
-    },
-    {
-      "name": "pytest",
-      "version": "installed from PyPI into the project virtualenv",
-      "source": "PyPI",
-      "license": "MIT",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE"
-    },
-    {
-      "name": "jsonschema",
-      "version": "installed from PyPI into the project virtualenv",
-      "source": "PyPI",
-      "license": "MIT",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE"
-    },
-    {
-      "name": "Git",
-      "version": "2.55.0.windows.4",
-      "source": "pre-existing install",
-      "license": "GNU GPL v2",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE"
-    },
-    {
-      "name": "FFmpeg",
-      "version": "9.0.1-full_build (gyan.dev)",
-      "source": "pre-existing winget install Gyan.FFmpeg",
-      "license": "GPL (full build)",
-      "verified_cost_usd": 0,
-      "cost_status": "FREE",
-      "notes": "Not yet used by the YouTube Factory. Retained because Phase 4/5 will need encoding. Carried over from the old project's environment."
+      "known_defect": "1.27.1 crashes (0xC0000409 / 0xC0000005) on <closingReroute> when pedestrians are present. Worked around in ldyf.closure by using TraCI lane-level permission changes instead; see RISK-1 CLOSED."
     },
     {
       "name": "City Sample (PCG)",
@@ -127,38 +78,52 @@
       "license": "Epic Content License",
       "verified_cost_usd": 0,
       "cost_status": "FREE",
-      "acquisition_status": "CLAIMED to the Director's Fab library on 2026-09-03. NOT yet downloaded into the project — deferred to Phase 2.",
-      "notes": "The 5.8 version is built entirely with in-engine PCG. The original 5.0 City Sample required Houdini; this one does not, which keeps the project clear of any paid-tool dependency. Epic state it includes building primitives designed for LLMs to construct cities via the Unreal MCP server."
+      "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03. DELIBERATELY NOT DOWNLOADED.",
+      "decision": "Phase 1 established that every plugin City Sample depends on is already enabled and working here, so City Sample supplies content and example graphs rather than capability. It is a 1 km dense city built from 18 interdependent PCG graphs; our world is 600 x 600 m. It stays a REFERENCE. See CITY_SAMPLE_PCG_COMPATIBILITY.md section 5 for the smallest-useful-subset plan.",
+      "houdini_required": false,
+      "notes": "Epic's 5.8 documentation confirms the PCG version needs no external software; the original 5.0 City Sample's Houdini dependency is gone. This keeps the project clear of any paid-tool pathway."
+    },
+    {
+      "name": "Python", "version": "3.13.15",
+      "source": "pre-existing user install (NOT newly installed — machine kept lean)",
+      "license": "PSF License", "verified_cost_usd": 0, "cost_status": "FREE",
+      "notes": "Base install lacks stdlib venv/ensurepip; environments are created with virtualenv 21.7.4."
+    },
+    { "name": "traci", "source": "PyPI", "license": "Eclipse Public License 2.0", "verified_cost_usd": 0, "cost_status": "FREE" },
+    { "name": "sumolib", "source": "PyPI", "license": "Eclipse Public License 2.0", "verified_cost_usd": 0, "cost_status": "FREE" },
+    { "name": "pytest", "source": "PyPI", "license": "MIT", "verified_cost_usd": 0, "cost_status": "FREE" },
+    { "name": "jsonschema", "source": "PyPI", "license": "MIT", "verified_cost_usd": 0, "cost_status": "FREE" },
+    { "name": "Git", "version": "2.55.0.windows.4", "source": "pre-existing", "license": "GNU GPL v2", "verified_cost_usd": 0, "cost_status": "FREE" },
+    {
+      "name": "FFmpeg", "version": "9.0.1-full_build (gyan.dev)",
+      "source": "pre-existing winget install Gyan.FFmpeg",
+      "license": "GPL (full build)", "verified_cost_usd": 0, "cost_status": "FREE",
+      "notes": "Not yet used by the YouTube Factory; retained for Phase 4 encoding."
+    },
+    {
+      "name": "Epic Games Launcher", "version": "20.2.6-0+UE5",
+      "source": "winget EpicGames.EpicGamesLauncher (official MSI, hash verified by winget)",
+      "license": "Epic Games Launcher EULA", "verified_cost_usd": 0, "cost_status": "FREE",
+      "notes": "Needed only to install/update the engine. Not a runtime dependency of the factory."
     }
   ],
+
   "explicitly_rejected": [
-    {
-      "name": "Houdini",
-      "reason": "Paid subscription. Avoided entirely by using the PCG-based City Sample, which needs no external DCC."
-    },
-    {
-      "name": "Paid Fab assets / paid Unreal plugins / paid simulation packages",
-      "reason": "Forbidden by the Director's cost law. None used."
-    },
-    {
-      "name": "Cloud rendering",
-      "reason": "Forbidden. All rendering is local on the RTX 5070."
-    },
-    {
-      "name": "Paid AI APIs beyond the Director's existing Claude and DeepSeek usage",
-      "reason": "Forbidden. No third-party AI service is called by the factory."
-    },
-    {
-      "name": "Visual Studio / MSVC build tools",
-      "reason": "NOT INSTALLED. The Unreal project is deliberately Blueprint-only with no C++ modules, so no compiler toolchain is required. Keeps the machine lean and avoids a large install."
-    }
+    { "name": "Houdini", "reason": "Paid subscription. Avoided entirely — the 5.8 City Sample is PCG-based and needs no external DCC." },
+    { "name": "Paid Fab assets, paid Unreal plugins, paid simulation packages", "reason": "Forbidden by the cost law. None used." },
+    { "name": "Cloud rendering", "reason": "Forbidden. All rendering is local on the RTX 5070." },
+    { "name": "Paid AI APIs beyond the Director's existing Claude and DeepSeek usage", "reason": "Forbidden. The factory calls no third-party AI service." },
+    { "name": "Visual Studio / MSVC build tools", "reason": "NOT INSTALLED. The Unreal project is deliberately Blueprint-only with no C++ modules." },
+    { "name": "Unreal Engine for Creators seat subscription (USD 1,850/seat/yr)", "reason": "NOT REQUIRED at current revenue. Listed so the trigger condition is explicit and auditable." }
   ],
+
   "hardware": {
     "cpu": "Intel Core i9-14900KF (24 cores / 32 threads)",
     "ram_gb": 31.79,
     "gpu_primary": "NVIDIA GeForce RTX 5070, 12227 MiB VRAM, driver 610.88",
     "gpu_secondary": "NVIDIA GeForce RTX 4060, 8188 MiB VRAM",
     "os": "Windows 11 Pro 10.0.26200",
-    "disk_c_free_gb_after_install": 305.6
+    "disk_c_free_gb": 307.0,
+    "measured_headroom": "With the full plugin stack loaded and a PCG graph executing: editor 4.04 GB working set, system RAM 14.59/31.79 GB, VRAM 2990/12227 MiB. Roughly 17 GB RAM and 9 GB VRAM spare."
   }
 }
