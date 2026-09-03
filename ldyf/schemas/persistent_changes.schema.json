@@ -1,14 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://living-diorama.local/schemas/persistent_changes.schema.json",
-  "title": "Persistent Changes V1",
-  "description": "The append-only ledger of durable changes to the world. THE WORLD REMEMBERS, generalised: every change the world keeps is one typed, hashed, provenance-carrying entry. Entries are NEVER deleted or edited. Undoing a change means appending a reversal entry that names the original; the original stays visible forever, which is how a scar outlives the rule that made it (DNA-03).",
+  "title": "Persistent Changes V2",
+  "description": "The append-only ledger of durable changes to the world. THE WORLD REMEMBERS, generalised. V2 makes SIMULATION CREATES TRUTH structural: an entry binds to the IDENTITY of a sealed evidence document (a rule_manifest hash for Director truth, a simulation_result hash plus a named deterministic extractor for simulation truth). A caller-supplied provenance string is no longer sufficient and no public API accepts one. Entries are NEVER deleted or edited; undoing a change appends a reversal naming the original, which stays visible forever (DNA-03).",
   "type": "object",
-  "required": ["schema_version", "world_id", "entries", "ledger_hash"],
+  "required": [
+    "schema_version",
+    "world_id",
+    "entries",
+    "ledger_hash"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": "persistent_changes_v1" },
-    "world_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$" },
+    "schema_version": {
+      "const": "persistent_changes_v2"
+    },
+    "world_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"
+    },
     "ledger_hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
@@ -16,7 +26,9 @@
     },
     "entries": {
       "type": "array",
-      "items": { "$ref": "#/$defs/entry" }
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
     }
   },
   "$defs": {
@@ -48,6 +60,7 @@
             "traffic_light_program",
             "infrastructure_added",
             "infrastructure_removed",
+            "measured_effect",
             "reversal"
           ]
         },
@@ -56,53 +69,134 @@
           "minimum": 0,
           "description": "The episode in which this change actually happened. Fixed forever at creation."
         },
-        "applied_at_sim_second": { "type": "number", "minimum": 0 },
+        "applied_at_sim_second": {
+          "type": "number",
+          "minimum": 0
+        },
         "rule_id": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "The ONE RULE that caused this. Null only for world-genesis entries."
         },
         "reverses": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "For change_type 'reversal': the change_id being undone. The reversed entry is NOT removed.",
           "pattern": "^chg_[0-9a-f]{16}$"
         },
         "provenance": {
           "type": "object",
-          "description": "Where this change's truth came from. A change with no resolvable provenance must be refused: SIMULATION CREATES TRUTH, and an LLM may never author an entry here.",
-          "required": ["source", "run_id"],
+          "description": "The IDENTITY of the sealed evidence this entry came from. Not a claim about evidence. 'director_rule' requires rule_manifest_sha256; 'simulation' requires simulation_result_sha256 AND the name of the registered deterministic extractor that derived the entry. An LLM can never author an entry here because no public API accepts provenance.",
+          "required": [
+            "source"
+          ],
           "additionalProperties": false,
           "properties": {
             "source": {
-              "enum": ["simulation", "director_rule"],
-              "description": "'director_rule' is the declared independent variable of an episode; 'simulation' is a consequence the world produced. No other source is permitted."
+              "enum": [
+                "simulation",
+                "director_rule"
+              ]
             },
-            "run_id": { "type": "string" },
-            "record_sha256": {
-              "type": ["string", "null"],
+            "rule_manifest_sha256": {
+              "type": "string",
               "pattern": "^[0-9a-f]{64}$",
-              "description": "sha256 of the frames.bin whose replay shows this change in effect."
+              "description": "REQUIRED when source is 'director_rule'. Seal of the rule manifest the payload was derived from."
             },
             "simulation_result_sha256": {
-              "type": ["string", "null"],
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "REQUIRED when source is 'simulation'. Seal of the simulation_result whose artefacts were re-read."
+            },
+            "extractor": {
+              "type": "string",
+              "description": "REQUIRED when source is 'simulation'. Name of the registered deterministic extractor that COMPUTED this entry from the sealed artefacts. A consequence with no extractor is an assertion, not simulation truth."
+            },
+            "record_sha256": {
+              "type": [
+                "string",
+                "null"
+              ],
               "pattern": "^[0-9a-f]{64}$"
             },
-            "measured": {
-              "type": "object",
-              "description": "Optional supporting measurements, each a single field reading. No composite indices (DNA-08).",
-              "additionalProperties": { "type": ["number", "string", "boolean"] }
+            "run_id": {
+              "type": "string"
+            },
+            "rule_id": {
+              "type": "string"
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "director_rule"
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              },
+              "then": {
+                "required": [
+                  "source",
+                  "rule_manifest_sha256"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "simulation"
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              },
+              "then": {
+                "required": [
+                  "source",
+                  "simulation_result_sha256",
+                  "extractor"
+                ]
+              }
+            }
+          ]
         },
         "payload": {
           "description": "Type-specific detail. Exactly one shape per change_type; validated by ldyf.persistent_changes.",
           "oneOf": [
-            { "$ref": "#/$defs/payload_edge_closure" },
-            { "$ref": "#/$defs/payload_lane_closure" },
-            { "$ref": "#/$defs/payload_access_permission" },
-            { "$ref": "#/$defs/payload_speed_limit" },
-            { "$ref": "#/$defs/payload_tls_program" },
-            { "$ref": "#/$defs/payload_infrastructure" },
-            { "$ref": "#/$defs/payload_reversal" }
+            {
+              "$ref": "#/$defs/payload_edge_closure"
+            },
+            {
+              "$ref": "#/$defs/payload_lane_closure"
+            },
+            {
+              "$ref": "#/$defs/payload_access_permission"
+            },
+            {
+              "$ref": "#/$defs/payload_speed_limit"
+            },
+            {
+              "$ref": "#/$defs/payload_tls_program"
+            },
+            {
+              "$ref": "#/$defs/payload_infrastructure"
+            },
+            {
+              "$ref": "#/$defs/payload_reversal"
+            },
+            {
+              "$ref": "#/$defs/payload_measured_effect"
+            }
           ]
         },
         "prev_hash": {
@@ -110,99 +204,295 @@
           "pattern": "^[0-9a-f]{64}$",
           "description": "entry_hash of the previous entry, or 64 zeroes for the first."
         },
-        "entry_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        "entry_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
       }
     },
-
     "payload_edge_closure": {
       "type": "object",
-      "required": ["kind", "edge_ids", "disallow"],
+      "required": [
+        "kind",
+        "edge_ids",
+        "disallow"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "edge_closure" },
-        "edge_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "disallow": {
-          "type": "array", "minItems": 1, "items": { "type": "string" },
-          "description": "Vehicle classes barred. MUST NOT contain 'pedestrian' - closing a carriageway does not close the footway, and barring pedestrians crashes SUMO 1.27.1 (RISK-1)."
+        "kind": {
+          "const": "edge_closure"
         },
-        "reason": { "type": "string" }
+        "edge_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "disallow": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Vehicle classes barred. MUST NOT contain 'pedestrian': closing a carriageway does not close the footway. This is a semantic guarantee protecting pedestrian access, NOT the SUMO crash fix - measured, barring pedestrians through TraCI does not crash SUMO; the 1.27.1 crash belongs to the closingReroute mechanism (RT-09)."
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "payload_lane_closure": {
       "type": "object",
-      "required": ["kind", "lane_ids", "disallow"],
+      "required": [
+        "kind",
+        "lane_ids",
+        "disallow"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "lane_closure" },
-        "lane_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "disallow": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "reason": { "type": "string" }
+        "kind": {
+          "const": "lane_closure"
+        },
+        "lane_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "disallow": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "payload_access_permission": {
       "type": "object",
-      "required": ["kind", "target_ids", "target_kind", "allow", "disallow"],
+      "required": [
+        "kind",
+        "target_ids",
+        "target_kind",
+        "allow",
+        "disallow"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "access_permission" },
-        "target_kind": { "enum": ["edge", "lane"] },
-        "target_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "allow": { "type": "array", "items": { "type": "string" } },
-        "disallow": { "type": "array", "items": { "type": "string" } },
-        "reason": { "type": "string" }
+        "kind": {
+          "const": "access_permission"
+        },
+        "target_kind": {
+          "enum": [
+            "edge",
+            "lane"
+          ]
+        },
+        "target_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disallow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "payload_speed_limit": {
       "type": "object",
-      "required": ["kind", "target_kind", "target_ids", "mps"],
+      "required": [
+        "kind",
+        "target_kind",
+        "target_ids",
+        "mps"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "speed_limit" },
-        "target_kind": { "enum": ["edge", "lane"] },
-        "target_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-        "mps": { "type": "number", "exclusiveMinimum": 0 },
-        "previous_mps": { "type": ["number", "null"] },
-        "reason": { "type": "string" }
+        "kind": {
+          "const": "speed_limit"
+        },
+        "target_kind": {
+          "enum": [
+            "edge",
+            "lane"
+          ]
+        },
+        "target_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "mps": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "previous_mps": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "payload_tls_program": {
       "type": "object",
-      "required": ["kind", "tls_id", "program_id"],
+      "required": [
+        "kind",
+        "tls_id",
+        "program_id"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "traffic_light_program" },
-        "tls_id": { "type": "string" },
-        "program_id": { "type": "string" },
-        "previous_program_id": { "type": ["string", "null"] },
-        "reason": { "type": "string" }
+        "kind": {
+          "const": "traffic_light_program"
+        },
+        "tls_id": {
+          "type": "string"
+        },
+        "program_id": {
+          "type": "string"
+        },
+        "previous_program_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "payload_infrastructure": {
       "type": "object",
-      "required": ["kind", "infra_id", "infra_kind", "operation"],
+      "required": [
+        "kind",
+        "infra_id",
+        "infra_kind",
+        "operation"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "infrastructure" },
-        "infra_id": { "type": "string" },
-        "infra_kind": { "type": "string" },
-        "operation": { "enum": ["added", "removed"] },
+        "kind": {
+          "const": "infrastructure"
+        },
+        "infra_id": {
+          "type": "string"
+        },
+        "infra_kind": {
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "added",
+            "removed"
+          ]
+        },
         "location": {
           "type": "object",
-          "required": ["x_m", "y_m"],
+          "required": [
+            "x_m",
+            "y_m"
+          ],
           "additionalProperties": false,
-          "properties": { "x_m": { "type": "number" }, "y_m": { "type": "number" } }
+          "properties": {
+            "x_m": {
+              "type": "number"
+            },
+            "y_m": {
+              "type": "number"
+            }
+          }
         },
-        "reason": { "type": "string" }
+        "reason": {
+          "type": "string"
+        }
       }
     },
     "payload_reversal": {
       "type": "object",
-      "required": ["kind", "reverses_change_id"],
+      "required": [
+        "kind",
+        "reverses_change_id"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "const": "reversal" },
-        "reverses_change_id": { "type": "string", "pattern": "^chg_[0-9a-f]{16}$" },
-        "reason": { "type": "string" }
+        "kind": {
+          "const": "reversal"
+        },
+        "reverses_change_id": {
+          "type": "string",
+          "pattern": "^chg_[0-9a-f]{16}$"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "payload_measured_effect": {
+      "type": "object",
+      "description": "A consequence the simulation actually produced, computed by a deterministic extractor from sealed artefacts. One metric per entry, carrying the field it came from (DNA-08). No composite indices.",
+      "required": [
+        "kind",
+        "metric",
+        "baseline_value",
+        "ruled_value",
+        "delta",
+        "unit",
+        "source_field"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "measured_effect"
+        },
+        "metric": {
+          "type": "string"
+        },
+        "baseline_value": {
+          "type": "number"
+        },
+        "ruled_value": {
+          "type": "number"
+        },
+        "delta": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "source_field": {
+          "type": "string",
+          "description": "Dotted path to the single authoritative field this reading came from."
+        },
+        "sustained_over_s": {
+          "type": "number",
+          "minimum": 0
+        }
       }
     }
   }

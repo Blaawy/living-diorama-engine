@@ -47,6 +47,7 @@ def stage() -> None:
         ("RED_TEAM_PHASE_1.md", P1 / "redteam" / "RED_TEAM_PHASE_1.md"),
         ("CITY_SAMPLE_PCG_COMPATIBILITY.md", P1 / "research" / "CITY_SAMPLE_PCG_COMPATIBILITY.md"),
         ("REPRODUCIBILITY.md", P1 / "REPRODUCIBILITY.md"),
+        ("CITY_SAMPLE_REUSE_PLAN.md", P1 / "research" / "CITY_SAMPLE_REUSE_PLAN.md"),
     ]:
         shutil.copy2(src, STAGE / "reports" / name)
 
@@ -166,9 +167,13 @@ def stage() -> None:
     (art / "ldyf" / "tests").mkdir()
     for py in sorted((WS / "ldyf" / "tests").glob("*.py")):
         shutil.copy2(py, art / "ldyf" / "tests" / py.name)
-    (art / "schemas").mkdir()
+    (art / "ldyf" / "schemas").mkdir()
     for js in sorted((WS / "ldyf" / "schemas").glob("*.json")):
-        shutil.copy2(js, art / "schemas" / js.name)
+        shutil.copy2(js, art / "ldyf" / "schemas" / js.name)
+    # a pytest.ini so `python -m pytest ldyf/tests` works from artifacts/
+    (art / "pytest.ini").write_text(
+        "[pytest]\ntestpaths = ldyf/tests\n", encoding="utf-8"
+    )
     (art / "unreal_project").mkdir()
     proj = WS / "LivingDioramaYF"
     shutil.copy2(proj / "LivingDioramaYF.uproject", art / "unreal_project" / "LivingDioramaYF.uproject")

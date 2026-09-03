@@ -26,13 +26,53 @@ from ldyf.closure import (
     summarise_tripinfo,
 )
 
-PROOF = Path(
-    r"C:\Users\BLaAw\Desktop\LIVING_DIORAMA_WORK_ARCHIVE\YOUTUBE_FACTORY\PHASE_01\proof\sumo"
-)
+def _find_proof_dir() -> Path:
+    """Locate the SUMO fixtures in either layout.
+
+    The suite must run from the development repo *and* from a freshly extracted
+    MASTER, where the same files live under `evidence/simulation/`. An explicit
+    `LDYF_PROOF_DIR` overrides both.
+    """
+    import os
+
+    candidates = []
+    env = os.environ.get("LDYF_PROOF_DIR")
+    if env:
+        candidates.append(Path(env))
+    here = Path(__file__).resolve()
+    # extracted MASTER: <root>/artifacts/ldyf/tests -> <root>/evidence/simulation
+    candidates.append(here.parents[3] / "evidence" / "simulation")
+    # development repo
+    candidates.append(
+        Path(r"C:\Users\BLaAw\Desktop\LIVING_DIORAMA_WORK_ARCHIVE\YOUTUBE_FACTORY")
+        / "PHASE_01" / "proof" / "sumo"
+    )
+    for c in candidates:
+        if (c / "grid.net.xml").exists():
+            return c
+    return candidates[-1]
+
+
+PROOF = _find_proof_dir()
 NET = PROOF / "grid.net.xml"
 VEH = PROOF / "veh.rou.xml"
 PED = PROOF / "ped.rou.xml"
-SUMO_BIN = r"C:\Program Files (x86)\Eclipse\Sumo\bin\sumo.exe"
+def _find_sumo() -> str:
+    """Locate the SUMO binary: LDYF_SUMO_BIN, then SUMO_HOME, then the default."""
+    import os
+
+    env = os.environ.get("LDYF_SUMO_BIN")
+    if env:
+        return env
+    home = os.environ.get("SUMO_HOME")
+    if home:
+        cand = Path(home) / "bin" / "sumo.exe"
+        if cand.exists():
+            return str(cand)
+    return r"C:\Program Files (x86)\Eclipse\Sumo\bin\sumo.exe"
+
+
+SUMO_BIN = _find_sumo()
 
 needs_net = pytest.mark.skipif(not NET.exists(), reason="proof network not present")
 needs_sumo = pytest.mark.skipif(

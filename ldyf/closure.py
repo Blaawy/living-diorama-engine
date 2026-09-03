@@ -17,8 +17,9 @@ Method
 ------
 TraCI is authoritative. At the closure instant we set lane permissions on the
 *vehicle-carrying lanes only*, then reroute the vehicles that needed that edge.
-Pedestrian infrastructure is never modified, so no walk can become disconnected
-and the crash cannot be reached.
+`closingReroute` is never used anywhere in this module, which is what makes the
+crash unreachable. Pedestrian infrastructure is additionally never modified, for
+the separate semantic reason given below.
 
 What actually fixes the crash, stated precisely
 -----------------------------------------------
@@ -83,8 +84,10 @@ class ClosureSpec:
         if PEDESTRIAN_VCLASS in self.disallow:
             raise ClosureError(
                 "refusing to disallow pedestrians: a road closure closes the "
-                "carriageway, not the footway. Barring pedestrians is what "
-                "crashes SUMO 1.27.1 and is not what a closed road means."
+                "carriageway, not the footway. (Measured: barring pedestrians "
+                "through TraCI does NOT itself crash SUMO -- the 1.27.1 crash "
+                "belongs to the <closingReroute> mechanism, which this module "
+                "never uses. This guard exists for semantic correctness.)"
             )
         if self.at_second < 0:
             raise ClosureError("at_second must not be negative")
@@ -100,13 +103,30 @@ class RunResult:
     persons_loaded: int = 0
     closure_applied_at_step: int | None = None
     lanes_closed: tuple[str, ...] = ()
-    vehicles_rerouted: int = 0
+
+    # Reroute accounting. These are deliberately separate: a TraCI call that
+    # returns without raising proves only that the COMMAND succeeded, not that
+    # the vehicle changed its route. Routes are captured before and after and
+    # compared edge-for-edge, so "rerouted" means the route actually changed.
+    reroute_requests: int = 0
+    reroute_successes: int = 0
+    routes_actually_changed: int = 0
+    routes_unchanged: int = 0
     reroute_failures: int = 0
+
     outputs_valid: dict[str, bool] = field(default_factory=dict)
 
     @property
     def clean(self) -> bool:
         return self.exit_code == 0 and all(self.outputs_valid.values())
+
+    @property
+    def vehicles_rerouted(self) -> int:
+        """The honest figure: vehicles whose route genuinely changed.
+
+        Kept as a read-only alias so no caller can set it to a command count.
+        """
+        return self.routes_actually_changed
 
 
 # --- lane selection: the structural guarantee -----------------------------
@@ -172,6 +192,37 @@ def output_is_complete(path: str | Path, root_tag: str) -> bool:
         return False
     tail = p.read_bytes()[-400:]
     return f"</{root_tag}>".encode() in tail
+
+
+# --- rerouting, measured honestly -----------------------------------------
+
+
+def _reroute_and_measure(vid: str, closed_edges: set[str], result: RunResult) -> None:
+    """Reroute one vehicle and record whether its route ACTUALLY changed.
+
+    `rerouteTraveltime` returning without raising proves the command was
+    accepted -- nothing more. A vehicle can be asked to reroute and keep exactly
+    the route it had (no alternative exists, or the alternative is worse). Calling
+    that "rerouted" overstates the effect of a closure, so the route is captured
+    before and after and compared edge-for-edge.
+    """
+    route_before = tuple(traci.vehicle.getRoute(vid))
+    if not closed_edges.intersection(route_before):
+        return
+
+    result.reroute_requests += 1
+    try:
+        traci.vehicle.rerouteTraveltime(vid, currentTravelTimes=True)
+    except traci.TraCIException:
+        result.reroute_failures += 1
+        return
+
+    result.reroute_successes += 1
+    route_after = tuple(traci.vehicle.getRoute(vid))
+    if route_after != route_before:
+        result.routes_actually_changed += 1
+    else:
+        result.routes_unchanged += 1
 
 
 # --- the run --------------------------------------------------------------
@@ -246,22 +297,12 @@ def run_simulation(
                 result.closure_applied_at_step = step
                 # everyone currently running who needs the closed edge
                 for vid in sorted(traci.vehicle.getIDList()):
-                    if closed_edges.intersection(traci.vehicle.getRoute(vid)):
-                        try:
-                            traci.vehicle.rerouteTraveltime(vid, currentTravelTimes=True)
-                            result.vehicles_rerouted += 1
-                        except traci.TraCIException:
-                            result.reroute_failures += 1
+                    _reroute_and_measure(vid, closed_edges, result)
 
             elif applied:
                 # vehicles inserted after the closure still carry pre-planned routes
                 for vid in sorted(traci.simulation.getDepartedIDList()):
-                    if closed_edges.intersection(traci.vehicle.getRoute(vid)):
-                        try:
-                            traci.vehicle.rerouteTraveltime(vid, currentTravelTimes=True)
-                            result.vehicles_rerouted += 1
-                        except traci.TraCIException:
-                            result.reroute_failures += 1
+                    _reroute_and_measure(vid, closed_edges, result)
 
         result.steps = step
         result.sim_seconds = step * step_length
