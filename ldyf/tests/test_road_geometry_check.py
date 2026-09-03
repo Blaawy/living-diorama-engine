@@ -69,7 +69,9 @@ def make_strip(spec: dict, lid: str, *, lane_id=None, dx=0.0, dy=0.0,
     if scale_y is None:
         scale_y = w_eff / mesh_width
     return {
-        "lane_id": lane_by_id(spec, lid)["id"] if lane_id is None else lane_id,
+        # None = PCG tag absent: the snapshot strip carries no lane_id and the
+        # checker must recover the lane by midpoint (match_strip_to_lane).
+        "lane_id": lane_id,
         "kind": "road",
         "mesh": MESH,
         "mesh_width_cm": mesh_width,
@@ -82,7 +84,12 @@ def make_strip(spec: dict, lid: str, *, lane_id=None, dx=0.0, dy=0.0,
 
 
 def all_strips(spec: dict, **kw) -> list[dict]:
-    return [make_strip(spec, lid, **kw) for lid in ("E1_0", "E1_1", "E2_0", "E2_1")]
+    # Default fixture strips carry their real lane id (the sampler read the
+    # PCG tag); pass lane_id=None into make_strip to simulate an untagged strip.
+    return [
+        make_strip(spec, lid, lane_id=lane_by_id(spec, lid)["id"], **kw)
+        for lid in ("E1_0", "E1_1", "E2_0", "E2_1")
+    ]
 
 
 def j0_slab(spec: dict, *, top_z=20.0) -> dict:

@@ -321,11 +321,16 @@ def _bbox(points: list[dict]) -> dict:
 
 
 def _bbox_deficit(outer: dict, inner: dict) -> float:
-    """How far (cm) bbox ``outer`` falls short of covering bbox ``inner``."""
-    return (max(0.0, inner["min_x"] - outer["min_x"])
-            + max(0.0, inner["min_y"] - outer["min_y"])
-            + max(0.0, outer["max_x"] - inner["max_x"])
-            + max(0.0, outer["max_y"] - inner["max_y"]))
+    """How far (cm) bbox ``outer`` falls short of covering bbox ``inner``.
+
+    Each term is non-zero only where ``outer`` extends less far than ``inner``
+    on that side: outer's min must sit at or below inner's min and outer's max
+    at or above inner's max. A strictly-larger ``outer`` yields 0.0.
+    """
+    return (max(0.0, outer["min_x"] - inner["min_x"])
+            + max(0.0, outer["min_y"] - inner["min_y"])
+            + max(0.0, inner["max_x"] - outer["max_x"])
+            + max(0.0, inner["max_y"] - outer["max_y"]))
 
 
 def check_junctions(snapshot: dict, spec: dict, *, tol_cm: float = 5.0) -> dict:

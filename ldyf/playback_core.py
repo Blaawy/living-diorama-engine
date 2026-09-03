@@ -1,4 +1,4 @@
-"""Pure, unit-testable arithmetic for the in-editor playback lane (Phase 2 L6/L7).
+"""Pure, unit-testable arithmetic for the in-editor playback lane (Phase 2 L6/L7 + P).
 
 The in-editor player (ldyf/unreal/ldyf_playback.py) keeps its numbers honest:
 a pose is either read from the sealed record, measured from a spawned mesh, or
@@ -16,6 +16,15 @@ Single authorities -- reused, never re-derived:
                         walk-vs-idle choice, the play-rate scaling and the yaw
                         offset correction are pure functions of the record speed
                         and explicit arguments (never typed numbers).
+  * contact law (P)  -- contact_offset_cm = root_z - (origin.z - extent.z), with
+                        the actor at a KNOWN root z (contract C1; ground truth
+                        EVIDENCE_contact_probe.json); root_z = record_z +
+                        surface_z + contact_offset.
+  * frame authority  -- presentation_time = frame / fps and
+                        sim_time = t_begin + presentation_time * rate (C3).
+  * profiling (P)    -- named wall-time buckets; totals + per-tick averages.
+  * paint variant    -- deterministic per-uid choice by sha256 digest (never the
+                        salted builtin hash()).
 
 Laws
 ----
@@ -29,6 +38,8 @@ Laws
    single deciding frame wins. An actor is therefore drawable exactly while
    t in [t(first_present_frame), t(last_present_frame)]: it spawns at the first
    present frame boundary and despawns at the first absent frame boundary.
+5. `surface_z` is NEVER a typed number: the pure placement law takes it as an
+   argument; the in-editor player errors until a caller sets it (C1).
 """
 
 from __future__ import annotations
@@ -41,6 +52,10 @@ from .vehicle_kinematics import wheel_angle_deg
 
 MAX_STEER_DEG = 35.0
 DUMP_SCHEMA_VERSION = "actor_dump_v1"
+
+# Per-placement wall-time buckets (Phase-2 lane P profiling). Names are frozen
+# so status()/evidence and the in-editor player share one vocabulary.
+PROFILE_BUCKETS = ("lookup", "transforms", "wheels", "anim", "spawn", "other")
 
 
 # --- deterministic mesh choice -------------------------------------------
@@ -190,6 +205,129 @@ def spawn_despawn_diff(prev_visible, curr_visible) -> tuple[list, list]:
     prev_visible = set(prev_visible)
     curr_visible = set(curr_visible)
     return (sorted(curr_visible - prev_visible), sorted(prev_visible - curr_visible))
+
+
+# --- contact law, C1 (Phase-2 lane P) -------------------------------------
+# Ground truth for the formula and API names: EVIDENCE_contact_probe.json --
+# in the live editor a vehicle at KNOWN root 0 gave bounds_bottom 23.3399 and
+# root 5000 gave 5023.3399 (contact_offset identical: -23.3399), a person at
+# root 300 gave bounds_bottom 277.275 (contact_offset +22.725). The offset is
+# invariant under vertical translation, so it may be cached per mesh path.
+
+
+def bounds_bottom_z(origin_z: float, extent_z: float) -> float:
+    """C1: bottom = origin.z - extent.z for the world bounds of a component."""
+    return origin_z - extent_z
+
+
+def contact_offset_cm(root_z: float, origin_z: float, extent_z: float) -> float:
+    """C1: contact_offset = root_z - bottom, measured at a KNOWN root z."""
+    return root_z - bounds_bottom_z(origin_z, extent_z)
+
+
+def placed_root_z(record_z: float, surface_z: float, offset_cm: float) -> float:
+    """C1 placement: root_z = record_z + surface_z + contact_offset."""
+    return record_z + surface_z + offset_cm
+
+
+def contact_error_cm(bottom_z: float, record_z: float, surface_z: float) -> float:
+    """C1 verification: |world_bounds_bottom_z - (record_z + surface_z)|."""
+    return abs(bottom_z - (record_z + surface_z))
+
+
+# --- frame player authority, C3 (Phase-2 lane P) --------------------------
+
+
+def frame_presentation_time(frame: int, fps: float) -> float:
+    """C3: presentation_time(frame, fps) = frame / fps. No wall clock involved."""
+    if fps is None or fps <= 0.0:
+        raise ValueError(f"frame_presentation_time: fps must be > 0, got {fps!r}")
+    if not isinstance(frame, int) or frame < 0:
+        raise ValueError(f"frame_presentation_time: frame must be an int >= 0, got {frame!r}")
+    return frame / float(fps)
+
+
+def frame_to_sim_time(frame: int, fps: float, rate: float = 1.0,
+                      t_start_s: float = 0.0) -> float:
+    """C3: sim_time = t_start_s + presentation_time(frame, fps) * rate.
+
+    t_start_s is the record sim time at presentation frame 0 (default 0.0);
+    the in-editor player passes the record clock's t_begin when the driver did
+    not give an explicit t_start_s.
+    """
+    if rate is None or rate <= 0.0:
+        raise ValueError(f"frame_to_sim_time: rate must be > 0, got {rate!r}")
+    return float(t_start_s) + frame_presentation_time(frame, fps) * float(rate)
+
+
+# --- profiling buckets (Phase-2 lane P) -----------------------------------
+
+
+def new_profile_buckets() -> dict:
+    """Fresh zeroed wall-time buckets: lookup/transforms/wheels/anim/spawn/other."""
+    return {name: 0.0 for name in PROFILE_BUCKETS}
+
+
+def profile_add(buckets: dict, name: str, seconds: float) -> None:
+    """Accumulate `seconds` into one named bucket; unknown names are a bug."""
+    if name not in PROFILE_BUCKETS:
+        raise ValueError(
+            f"profile_add: unknown bucket {name!r}; expected one of {PROFILE_BUCKETS}"
+        )
+    buckets[name] += seconds
+
+
+def profile_summary(buckets: dict, ticks: int) -> dict:
+    """Totals and per-tick averages for the named buckets.
+
+    per-tick averages are totals / ticks; with no recorded ticks they are 0.0
+    (an honest "nothing measured yet", not a fabricated number).
+    """
+    totals = {name: buckets.get(name, 0.0) for name in PROFILE_BUCKETS}
+    total_s = sum(totals.values())
+    return {
+        "ticks": ticks,
+        "total_s": total_s,
+        "totals_s": totals,
+        "per_tick_avg_s": {
+            name: (totals[name] / ticks if ticks > 0 else 0.0) for name in PROFILE_BUCKETS
+        },
+    }
+
+
+# --- deterministic paint variant (Phase-2 lane P) -------------------------
+
+
+def pick_variant_index(uid: str, n_variants: int) -> int:
+    """Stable per-uid paint variant in [0, n_variants) from the uid digest.
+
+    Same sha256 convention as pick_mesh; builtin hash() is salted per process
+    and must never feed a visual choice.
+    """
+    if not isinstance(n_variants, int) or n_variants < 1:
+        raise ValueError(f"pick_variant_index: n_variants must be an int >= 1, got {n_variants!r}")
+    digest = hashlib.sha256(uid.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "little") % n_variants
+
+
+# --- placed-actor snapshot, C2 shape (Phase-2 lane P) ---------------------
+
+
+def build_placed_snapshot(rows: list, surface_z_cm: float) -> dict:
+    """Assemble a sorted snapshot_placed_v1 document for the 3D verifier.
+
+    rows: one dict per visible actor with the keys the verifier compares --
+    label, uid, x, y, root_z, bottom_z, yaw (bottom measured in-editor from
+    get_component_bounds at snapshot time). Sorted by label so repeated
+    snapshots are byte-identical for the same level state.
+    """
+    actors = sorted((dict(r) for r in rows), key=lambda r: (r.get("label") or ""))
+    return {
+        "schema_version": "snapshot_placed_v1",
+        "surface_z_cm": surface_z_cm,
+        "count": len(actors),
+        "actors": actors,
+    }
 
 
 # --- actor dump (actor_dump_v1) ------------------------------------------

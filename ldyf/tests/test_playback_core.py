@@ -1,10 +1,14 @@
-"""Unit tests for ldyf/playback_core.py (Phase-2 lane L6 pure arithmetic, L7 persons).
+"""Unit tests for ldyf/playback_core.py (Phase-2 lane L6 pure arithmetic, L7 persons,
+P: contact law C1, frame authority C3, profile buckets, paint variant, snapshots).
 
 The in-editor player cannot be unit-tested (it imports `unreal`), so every
 number it computes lives here and is pinned to the frozen authorities:
 record_interp.frame_index_bounds / pose_at, vehicle_kinematics.wheel_angle_deg,
 world_inventory.inventory (actor_dump_v1 acceptance). L7 adds the pure
 walk/idle state machine, the play-rate scaling and the person yaw offset.
+Lane P adds the C1 contact law arithmetic (ground truth
+EVIDENCE_contact_probe.json), the C3 frame->sim mapping, the profiling bucket
+accounting, the deterministic paint-variant digest and the snapshot assembly.
 
 Run: pytest ldyf/tests/test_playback_core.py from the repo root.
 """
@@ -358,3 +362,177 @@ def test_make_actor_dump_sorts_and_is_deterministic():
     d2 = pc.make_actor_dump([a2, a1], level="/Game/Riverside", captured_utc="2026-09-03T00:00:00Z")
     assert [x["name"] for x in d1["actors"]] == ["A_vehicle", "B_person"]
     assert json.dumps(d1, sort_keys=True) == json.dumps(d2, sort_keys=True)
+
+
+# --- contact law, C1 (Phase-2 lane P) -------------------------------------
+# EVIDENCE_contact_probe.json is the in-editor ground truth: a vehicle at KNOWN
+# root 0 has bounds_bottom 23.339940661173188 (extent_z 76.56318646968349);
+# at root 5000 bounds_bottom is 5023.339940661173 (identical offset -23.3399);
+# a person at root 300 has bounds_bottom 277.2750034718102 -> offset +22.725.
+
+
+def test_bounds_bottom_is_origin_z_minus_extent_z():
+    # vehicle_root_0 probe: bottom = origin.z - extent.z = 23.339940661173188
+    bottom = pc.bounds_bottom_z(99.90312713085668, 76.56318646968349)
+    assert bottom == pytest.approx(23.339940661173188, abs=1e-6)
+
+
+def test_contact_offset_matches_probe_values_at_known_roots():
+    # contact_offset = root_z - bottom, invariant under translation.
+    off0 = pc.contact_offset_cm(0.0, 99.90312713085668, 76.56318646968349)
+    off5k = pc.contact_offset_cm(5000.0, 5099.903127130857, 76.56318646968349)
+    assert off0 == pytest.approx(-23.339940661173188, abs=1e-6)
+    assert off5k == pytest.approx(-23.339940661173387, abs=1e-6)
+    assert off0 == pytest.approx(off5k, abs=1e-6)
+    # person_root_300 probe -> offset +22.72499652818982
+    offp = pc.contact_offset_cm(300.0, 386.6543091366325, 109.37930561482239)
+    assert offp == pytest.approx(22.72499652818982, abs=1e-6)
+
+
+def test_placed_root_z_puts_bottom_on_surface_and_contact_error_is_zero():
+    # root_z = record_z + surface_z + offset => bottom lands exactly at
+    # record_z + surface_z, so contact_error_cm == 0 (the C1 verification law).
+    record_z, surface_z = 0.0, 20.0
+    offset = -23.339940661173188
+    root = pc.placed_root_z(record_z, surface_z, offset)
+    bottom = root - offset                     # bottom = root_z - contact_offset
+    assert bottom == pytest.approx(record_z + surface_z, abs=1e-9)
+    assert pc.contact_error_cm(bottom, record_z, surface_z) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_contact_error_is_absolute_difference_from_ground_plane():
+    assert pc.contact_error_cm(100.0, 0.0, 20.0) == 80.0
+    assert pc.contact_error_cm(19.0, 0.0, 20.0) == 1.0
+    assert pc.contact_error_cm(21.0, 0.0, 20.0) == 1.0
+
+
+# --- frame player authority, C3 (Phase-2 lane P) --------------------------
+
+
+def test_frame_presentation_time_is_frame_over_fps():
+    # C2 sample frames at fps 10: 1000 -> 100 s, 1500 -> 150 s, 3000 -> 300 s.
+    assert pc.frame_presentation_time(1000, 10.0) == 100.0
+    assert pc.frame_presentation_time(1500, 10.0) == 150.0
+    assert pc.frame_presentation_time(3000, 10.0) == 300.0
+    assert pc.frame_presentation_time(24, 24.0) == 1.0
+    assert pc.frame_presentation_time(0, 24.0) == 0.0
+
+
+def test_frame_presentation_time_rejects_bad_arguments():
+    with pytest.raises(ValueError):
+        pc.frame_presentation_time(-1, 10.0)
+    with pytest.raises(ValueError):
+        pc.frame_presentation_time(0, 0.0)
+    with pytest.raises(ValueError):
+        pc.frame_presentation_time(1.5, 10.0)   # frame must be an int
+
+
+def test_frame_to_sim_time_is_t_begin_plus_presentation_times_rate():
+    # C3 authority: sim_time = t_begin + presentation_time * rate.
+    assert pc.frame_to_sim_time(1000, 10.0, 1.0, 0.0) == 100.0
+    assert pc.frame_to_sim_time(1500, 10.0, 1.0, 0.0) == 150.0
+    assert pc.frame_to_sim_time(3000, 10.0, 1.0, 0.0) == 300.0
+    assert pc.frame_to_sim_time(1500, 10.0, 2.0, 0.0) == 300.0   # rate 2
+    assert pc.frame_to_sim_time(100, 10.0, 1.0, 40.0) == 50.0    # t_start 40 s
+    assert pc.frame_to_sim_time(0, 10.0, 1.0, 7.0) == 7.0        # frame 0 = t_start
+
+
+def test_frame_to_sim_time_rejects_nonpositive_rate():
+    with pytest.raises(ValueError):
+        pc.frame_to_sim_time(10, 10.0, 0.0)
+    with pytest.raises(ValueError):
+        pc.frame_to_sim_time(10, 10.0, -1.0)
+
+
+# --- profiling buckets (Phase-2 lane P) -----------------------------------
+
+
+def test_new_profile_buckets_has_exactly_the_frozen_names():
+    b = pc.new_profile_buckets()
+    assert set(b) == set(pc.PROFILE_BUCKETS)
+    assert set(pc.PROFILE_BUCKETS) == {"lookup", "transforms", "wheels", "anim", "spawn", "other"}
+    assert all(v == 0.0 for v in b.values())
+
+
+def test_profile_add_accumulates_and_rejects_unknown_buckets():
+    b = pc.new_profile_buckets()
+    pc.profile_add(b, "lookup", 1.0)
+    pc.profile_add(b, "lookup", 0.5)
+    pc.profile_add(b, "other", 0.25)
+    assert b["lookup"] == 1.5 and b["other"] == 0.25
+    with pytest.raises(ValueError):
+        pc.profile_add(b, "unknown", 1.0)
+
+
+def test_profile_summary_totals_and_per_tick_averages():
+    b = {"lookup": 0.12, "transforms": 0.06, "wheels": 0.0,
+         "anim": 0.02, "spawn": 0.0, "other": 0.0}
+    s = pc.profile_summary(b, 60)
+    assert s["ticks"] == 60
+    assert s["total_s"] == pytest.approx(0.2)
+    assert s["totals_s"] == b
+    assert s["per_tick_avg_s"]["lookup"] == pytest.approx(0.002)
+    assert s["per_tick_avg_s"]["wheels"] == 0.0
+    # every bucket appears in both totals and averages
+    assert set(s["per_tick_avg_s"]) == set(pc.PROFILE_BUCKETS)
+    assert set(s["totals_s"]) == set(pc.PROFILE_BUCKETS)
+
+
+def test_profile_summary_with_zero_ticks_is_zero_not_error():
+    s = pc.profile_summary(pc.new_profile_buckets(), 0)
+    assert s["ticks"] == 0 and s["total_s"] == 0.0
+    assert all(v == 0.0 for v in s["per_tick_avg_s"].values())
+
+
+# --- deterministic paint variant (Phase-2 lane P) -------------------------
+
+
+def test_pick_variant_index_is_deterministic_sha256_and_in_range():
+    for uid in ("vehicle:0", "vehicle:vehBus_vehicle10", "person:7"):
+        v = pc.pick_variant_index(uid, 5)
+        assert v == pc.pick_variant_index(uid, 5)
+        assert 0 <= v < 5
+        digest = hashlib.sha256(uid.encode("utf-8")).digest()
+        assert v == int.from_bytes(digest[:8], "little") % 5
+
+
+def test_pick_variant_index_spreads_over_uids_and_rejects_bad_counts():
+    picked = {pc.pick_variant_index(f"vehicle:{i}", 5) for i in range(200)}
+    assert len(picked) > 1          # not constant
+    assert picked <= set(range(5))
+    with pytest.raises(ValueError):
+        pc.pick_variant_index("vehicle:0", 0)
+    with pytest.raises(ValueError):
+        pc.pick_variant_index("vehicle:0", 2.5)
+
+
+# --- placed-actor snapshot, C2 shape (Phase-2 lane P) ---------------------
+
+
+def test_build_placed_snapshot_sorts_by_label_and_carries_c2_fields():
+    rows = [
+        {"label": "LD_b", "uid": "vehicle:2", "x": 10.0, "y": 20.0,
+         "root_z": 30.0, "bottom_z": 25.0, "yaw": 90.0},
+        {"label": "LD_a", "uid": "vehicle:1", "x": 1.0, "y": 2.0,
+         "root_z": 3.0, "bottom_z": 1.0, "yaw": 0.0},
+    ]
+    doc = pc.build_placed_snapshot(rows, surface_z_cm=20.0)
+    assert doc["schema_version"] == "snapshot_placed_v1"
+    assert doc["surface_z_cm"] == 20.0 and doc["count"] == 2
+    assert [a["label"] for a in doc["actors"]] == ["LD_a", "LD_b"]
+    for a in doc["actors"]:
+        # every row the verifier compares is present for every actor
+        assert {"label", "uid", "x", "y", "root_z", "bottom_z", "yaw"} <= set(a)
+
+
+def test_build_placed_snapshot_is_byte_deterministic():
+    rows = [
+        {"label": "LD_a", "uid": "u1", "x": 1.0, "y": 1.0, "root_z": 1.0,
+         "bottom_z": 1.0, "yaw": 0.0},
+        {"label": "LD_b", "uid": "u2", "x": 2.0, "y": 2.0, "root_z": 2.0,
+         "bottom_z": 2.0, "yaw": 10.0},
+    ]
+    d1 = pc.build_placed_snapshot(list(reversed(rows)), surface_z_cm=20.0)
+    d2 = pc.build_placed_snapshot(rows, surface_z_cm=20.0)
+    assert json.dumps(d1, sort_keys=True) == json.dumps(d2, sort_keys=True)
+    assert d1["actors"] == d2["actors"]
