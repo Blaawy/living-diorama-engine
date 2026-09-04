@@ -220,6 +220,14 @@ def _dash(pts: Sequence[tuple[float, float]], dash_len: float, gap: float
     return out
 
 
+def _tally(rows: Iterable[dict], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for r in rows:
+        k = str(r.get(key))
+        out[k] = out.get(k, 0) + 1
+    return out
+
+
 def _line_row(seg_id: str, kind: str, colour: str, a: tuple[float, float],
               b: tuple[float, float], width_cm: float, edge_id: str) -> dict:
     dx, dy = b[0] - a[0], b[1] - a[1]
@@ -323,17 +331,27 @@ def crosswalk_stripes(spec: dict, *,
 
 
 def signal_placements(spec: dict, *,
-                      setback_cm: float = DEFAULT_SIGNAL_SETBACK_CM) -> list[dict]:
+                      setback_cm: float = DEFAULT_SIGNAL_SETBACK_CM,
+                      with_skips: bool = False):
     """A traffic light (or stop sign) for every approach into every junction.
 
     ``kind`` follows SUMO's junction ``type``: ``traffic_light`` junctions get
     ``traffic_light``, ``priority`` junctions get ``stop_sign``. Anything else
-    is skipped and counted, never silently turned into a signal.
+    contributes nothing, and is recorded rather than silently dropped.
+
+    Some approaches genuinely cannot be signalled: an edge with a single car
+    lane and no sidewalk gives no way to tell which side the kerb is on, and
+    inventing a side would be inventing truth. Those are skipped — but a silent
+    skip is how a network quietly loses its signals and still reports a pass,
+    so every skip is recorded with its reason. Pass ``with_skips=True`` to get
+    ``(rows, skipped)`` instead of just ``rows``; ``build_dressing`` always
+    records them.
     """
     by_to: dict[str, list[dict]] = {}
     for edge in normal_edges(spec):
         by_to.setdefault(str(edge.get("to_junction")), []).append(edge)
     rows: list[dict] = []
+    skipped: list[dict] = []
     for j in sorted(spec["junctions"], key=lambda j: str(j["id"])):
         jid = str(j["id"])
         jtype = str(j.get("type"))
@@ -342,11 +360,20 @@ def signal_placements(spec: dict, *,
         elif jtype == "priority":
             kind = "stop_sign"
         else:
+            for edge in sorted(by_to.get(jid, []), key=lambda e: str(e["id"])):
+                skipped.append({"junction_id": jid, "edge_id": str(edge["id"]),
+                                "reason": "junction_type_not_signalled:%s" % jtype})
             continue
         for edge in sorted(by_to.get(jid, []), key=lambda e: str(e["id"])):
             cars = _car_lanes(edge)
             n = lateral_normal(edge)
-            if not cars or n is None:
+            if not cars:
+                skipped.append({"junction_id": jid, "edge_id": str(edge["id"]),
+                                "reason": "no_car_lanes"})
+                continue
+            if n is None:
+                skipped.append({"junction_id": jid, "edge_id": str(edge["id"]),
+                                "reason": "lateral_normal_unknown"})
                 continue
             pts = _pts(cars[0])
             total = _polyline_length(pts)
@@ -365,7 +392,10 @@ def signal_placements(spec: dict, *,
                 # faces back down the approach, so a driver on this edge sees it
                 "yaw": _yaw_deg(-ux, -uy),
             })
-    return sorted(rows, key=lambda r: r["id"])
+    out = sorted(rows, key=lambda r: r["id"])
+    if with_skips:
+        return out, sorted(skipped, key=lambda r: (r["junction_id"], r["edge_id"]))
+    return out
 
 
 def tree_slots(spec: dict, *,
@@ -480,7 +510,8 @@ def build_dressing(spec: dict, *, closed_edge_ids: Sequence[str] = (),
                              dash_gap_cm=dash_gap_cm, double_gap_cm=double_gap_cm)
     stripes = crosswalk_stripes(spec, stripe_width_cm=stripe_width_cm,
                                 stripe_gap_cm=stripe_gap_cm)
-    signals = signal_placements(spec, setback_cm=signal_setback_cm)
+    signals, signals_skipped = signal_placements(spec, setback_cm=signal_setback_cm,
+                                                 with_skips=True)
     trees = tree_slots(spec, spacing_cm=tree_spacing_cm, phase_cm=tree_phase_cm)
     closure = closure_props(spec, closed_edge_ids)
     kinds: dict[str, int] = {}
@@ -509,12 +540,18 @@ def build_dressing(spec: dict, *, closed_edge_ids: Sequence[str] = (),
             "crosswalk_stripes": len(stripes),
             "signals": len(signals),
             "signals_by_kind": sig_kinds,
+            # every approach that could NOT be signalled, with its reason. A
+            # reader who sees signals < approaches can find out exactly why
+            # here instead of guessing that the network is simply small.
+            "signals_skipped": len(signals_skipped),
+            "signals_skipped_by_reason": _tally(signals_skipped, "reason"),
             "trees": len(trees),
             "closure_props": len(closure),
         },
         "lane_markings": markings,
         "crosswalk_stripes": stripes,
         "signals": signals,
+        "signals_skipped": signals_skipped,
         "trees": trees,
         "closure_props": closure,
     }

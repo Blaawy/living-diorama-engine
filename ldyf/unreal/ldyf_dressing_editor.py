@@ -50,11 +50,15 @@ SIGNAL_MESH = {
     "traffic_light": "/Game/Prop/Kit_StreetLamp_A/Mesh/SM_StreetLamp_A_StopLight_B",
     "stop_sign": "/Game/Prop/Kit_StopSign_A/Mesh/SM_StopSign_A",
 }
+# Only trees that actually carry FOLIAGE materials. The City Sample birches and
+# the alder resolve to a single bark material and render as bare winter
+# branches, which read as dead trees in daylight (seen in the first dressed
+# capture); the maples carry a separate bough/canopy material. Sizes here are
+# 4.2-6.9 m wide, which is a street tree rather than a park specimen.
 TREE_MESHES = [
-    "/Game/Prop/Kit_Tree_Birch/Mesh/SM_Tree_Birch_f",
-    "/Game/Prop/Kit_Tree_Birch/Mesh/SM_Tree_Birch_g",
-    "/Game/Prop/Kit_Tree_Birch/Mesh/SM_Tree_Birch_h",
     "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_A",
+    "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_B",
+    "/Game/Prop/Kit_Tree_Maple_Red/Mesh/Tree_Maple_Red_A",
 ]
 TREE_BASE_MESH = "/Game/Prop/Kit_TreeBase_A/Mesh/SM_TreeBase_Circle_A"
 FURNITURE_MESH = {
