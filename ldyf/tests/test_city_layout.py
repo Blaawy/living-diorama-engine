@@ -381,3 +381,35 @@ def test_tiny_net_spec_smoke(tmp_path):
     assert bs["counts"]["blocks"] == 0 and bs["slots"] == []
     assert furniture_slots(spec)["slots"]  # E1/E2 normal lanes exist
     assert crossing_slots(spec)["counts"]["slots"] == 0
+
+
+def test_furniture_is_never_placed_on_a_carriageway_lane():
+    """Street furniture walked EVERY normal lane, so the outer offset of an
+    outer car lane put lamp posts, bins and benches in live traffic -- 336 of
+    672 on the proof network, visible in the rendered frames.  Would break if
+    furniture_slots went back to iterating lanes that disallow pedestrians."""
+    import math
+    walk = {"id": "E_0", "index": 0, "width_cm_effective": 200.0,
+            "allow": ["pedestrian"], "disallow": None,
+            "polyline": [_pt(740, 0), _pt(740, 20000)]}
+    car1 = {"id": "E_1", "index": 1, "width_cm_effective": 320.0,
+            "allow": None, "disallow": ["pedestrian"],
+            "polyline": [_pt(480, 0), _pt(480, 20000)]}
+    car2 = {"id": "E_2", "index": 2, "width_cm_effective": 320.0,
+            "allow": None, "disallow": ["pedestrian"],
+            "polyline": [_pt(160, 0), _pt(160, 20000)]}
+    spec = {"schema_version": "road_spec_v1", "units": {"linear": "cm"},
+            "edges": [{"id": "E", "function": "normal", "from_junction": "A",
+                       "to_junction": "B", "lanes": [walk, car1, car2]}],
+            "junctions": []}
+    doc = furniture_slots(spec)
+    assert doc["slots"], "the fix must not remove all furniture"
+    assert {s["lane_id"] for s in doc["slots"]} == {"E_0"}
+    for s in doc["slots"]:
+        for lane in (car1, car2):
+            hw = lane["width_cm_effective"] / 2.0
+            for q in lane["polyline"]:
+                assert math.dist((float(s["x"]), float(s["y"])),
+                                 (float(q["x"]), float(q["y"]))) > hw or                        abs(float(s["x"]) - float(q["x"])) > hw, (
+                    "furniture %s at (%s, %s) is inside car lane %s"
+                    % (s["kind"], s["x"], s["y"], lane["id"]))

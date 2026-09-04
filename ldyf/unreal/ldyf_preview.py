@@ -285,15 +285,28 @@ def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH) -> dict:
             unreal.CineCameraActor, unreal.Vector(*loc), unreal.Rotator(rot[2], rot[0], rot[1]))
         cam.set_actor_label(f"{CAM_PREFIX}_{s['name']}")
         cam.set_editor_property("tags", ["ld_camera", f"shot:{s['name']}"])
-        if s.get("fov"):
-            cc = cam.camera_component
-            cc.set_editor_property("current_focal_length", float(s["fov"]))
+        # A CineCameraActor defaults to 35 mm on a 23.76 mm sensor, i.e. a
+        # 37.5-degree horizontal FOV -- but the shot planner sizes its overview
+        # distance from a FOV the caller states. Left alone the two disagree and
+        # every shot renders about twice as tight as it was framed for, so the
+        # focal length is DERIVED from the requested FOV and the real sensor.
+        cc = cam.camera_component
+        if s.get("fov_deg"):
+            sensor_w = float(cc.get_editor_property("filmback").sensor_width)
+            focal = (sensor_w / 2.0) / math.tan(math.radians(float(s["fov_deg"])) / 2.0)
+            cc.set_editor_property("current_focal_length", float(focal))
+        elif s.get("focal_mm"):
+            cc.set_editor_property("current_focal_length", float(s["focal_mm"]))
         b = seq.add_possessable(cam)
         tr = b.add_track(unreal.MovieScene3DTransformTrack)
         sec = tr.add_section()
         f0, f1 = int(round(s["start_s"] * fps)), int(round(s["end_s"] * fps))
-        sec.set_start_frame(f0)
-        sec.set_end_frame(f1)
+        # set_start_frame alone does NOT move a section's start: every cut
+        # section came back starting at frame 0, so the renderer resolved the
+        # wrong camera for most of the preview and the shot windows in the
+        # report described something that was never on screen. set_range sets
+        # both ends and is the API that actually holds.
+        unreal.MovieSceneSectionExtensions.set_range(sec, f0, f1)
         ch = sec.get_all_channels()
         le = s.get("loc_end") or loc
         re_ = s.get("rot_end") or rot
@@ -305,8 +318,7 @@ def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH) -> dict:
             ch[4].add_key(unreal.FrameNumber(fr), float(R[0]), interpolation=LINEAR)
             ch[5].add_key(unreal.FrameNumber(fr), float(R[1]), interpolation=LINEAR)
         cs = cut.add_section()
-        cs.set_start_frame(f0)
-        cs.set_end_frame(f1)
+        unreal.MovieSceneSectionExtensions.set_range(cs, f0, f1)
         cs.set_camera_binding_id(unreal.MovieSceneSequenceExtensions.get_binding_id(seq, b))
         made.append({"name": s["name"], "frames": [f0, f1]})
     unreal.EditorAssetLibrary.save_loaded_asset(seq)

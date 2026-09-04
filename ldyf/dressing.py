@@ -322,6 +322,9 @@ def crosswalk_stripes(spec: dict, *,
                     "id": f"{eid}|{lane['index']}|{i}",
                     "edge_id": eid,
                     "lane_id": str(lane["id"]),
+                    # stated so the verifier can reject a crossing painted in
+                    # the centre-line yellow; without it any colour passed
+                    "colour": "white",
                     "x": _f3(x), "y": _f3(y),
                     "yaw": _yaw_deg(ux, uy),
                     "size_along_cm": _f3(stripe_width_cm),
@@ -398,6 +401,14 @@ def signal_placements(spec: dict, *,
     return out
 
 
+def _digest_int(key: str, n: int) -> int:
+    """Deterministic 0..n-1 from a key. The spawner used to roll this itself,
+    which meant the plan promised a yaw the spawner threw away and the verifier
+    then had to skip yaw entirely. Owning it here makes it checkable."""
+    import hashlib
+    return int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % max(1, n)
+
+
 def tree_slots(spec: dict, *,
                spacing_cm: float = DEFAULT_TREE_SPACING_CM,
                phase_cm: float = DEFAULT_TREE_PHASE_CM,
@@ -426,14 +437,22 @@ def tree_slots(spec: dict, *,
             i = 0
             while s < total:
                 x, y, ux, uy = _point_at(pts, s)
+                rid = f"{lane['id']}|tree|{i}"
                 rows.append({
-                    "id": f"{lane['id']}|tree|{i}",
+                    "id": rid,
                     "lane_id": str(lane["id"]),
                     "edge_id": str(edge["id"]),
                     "distance_cm": _f3(s),
                     "x": _f3(x + n[0] * lat),
                     "y": _f3(y + n[1] * lat),
-                    "yaw": _yaw_deg(ux, uy),
+                    # A street tree has no meaningful facing, so its rotation is
+                    # deterministic variety rather than geometry -- but it is
+                    # decided HERE, in the plan, so it can be verified. The
+                    # alignment yaw is kept alongside for anything that wants it.
+                    "yaw": _f3(float(_digest_int(rid + "|yaw", 360))),
+                    "lane_yaw": _yaw_deg(ux, uy),
+                    "scale": _f3(0.85 + 0.30 * (_digest_int(rid + "|scale", 7) / 6.0)),
+                    "variant": _digest_int(rid + "|tree", 3),
                 })
                 s += spacing_cm
                 i += 1

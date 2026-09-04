@@ -230,7 +230,7 @@ def _check_dict(label, pairs, unmatched_planned, unmatched_snapshot,
 
 def _compare_decals(planned_rows, snapshot, *, xy_tol_cm, yaw_tol_deg,
                     size_tol_cm, match_max_cm, prefix, check_name,
-                    expected_size):
+                    expected_size, expected_z_cm=None, z_tol_cm=1.0):
     """Shared marking/crosswalk logic.
 
     expected_size(row) -> (width_cm, length_cm).  The editor sets
@@ -254,6 +254,12 @@ def _compare_decals(planned_rows, snapshot, *, xy_tol_cm, yaw_tol_deg,
         if _yaw_diff_paint(_num(planned_row, "yaw", default=0.0),
                            snap_row.get("yaw", 0.0)) > yaw_tol_deg:
             reasons.append("yaw")
+        # Height was previously never read, so a marking decal lifted clear of
+        # the road passed. The plan does not carry a Z (the editor supplies the
+        # projection plane), so the caller states the plane it asked for.
+        if expected_z_cm is not None:
+            if abs(float(snap_row.get("z") or 0.0) - float(expected_z_cm)) > z_tol_cm:
+                reasons.append("z")
         if not _material_matches(planned_row, snap_row):
             reasons.append("material")
         if reasons:
@@ -265,12 +271,14 @@ def _compare_decals(planned_rows, snapshot, *, xy_tol_cm, yaw_tol_deg,
     return _check_dict(
         check_name, pairs, unmatched_planned, unmatched_snapshot, mismatches,
         {"xy_tol_cm": xy_tol_cm, "yaw_tol_deg": yaw_tol_deg,
-         "size_tol_cm": size_tol_cm, "match_max_cm": match_max_cm},
+         "size_tol_cm": size_tol_cm, "match_max_cm": match_max_cm,
+         "expected_z_cm": expected_z_cm, "z_tol_cm": z_tol_cm},
     )
 
 
 def match_markings(planned, snapshot, *, xy_tol_cm, yaw_tol_deg,
-                   size_tol_cm, match_max_cm=_MATCH_MAX_CM, prefix=MARK_PREFIX):
+                   size_tol_cm, match_max_cm=_MATCH_MAX_CM,
+                   expected_z_cm=None, z_tol_cm=1.0, prefix=MARK_PREFIX):
     """Match planned lane-marking rows (``dressing_v1`` lane_markings) against
     snapshot decals.  For a lane marking 2*size_y == width_cm and
     2*size_z == length_cm."""
@@ -285,11 +293,13 @@ def match_markings(planned, snapshot, *, xy_tol_cm, yaw_tol_deg,
         planned, snapshot, xy_tol_cm=xy_tol_cm, yaw_tol_deg=yaw_tol_deg,
         size_tol_cm=size_tol_cm, match_max_cm=match_max_cm, prefix=prefix,
         check_name="markings", expected_size=expected_size,
+        expected_z_cm=expected_z_cm, z_tol_cm=z_tol_cm,
     )
 
 
 def match_crosswalks(planned, snapshot, *, xy_tol_cm, yaw_tol_deg,
                      size_tol_cm, match_max_cm=_MATCH_MAX_CM,
+                     expected_z_cm=None, z_tol_cm=1.0,
                      prefix=CROSSWALK_PREFIX):
     """Match planned crosswalk-stripe rows (``dressing_v1`` crosswalk_stripes)
     against snapshot decals.  For a crosswalk stripe
@@ -305,6 +315,7 @@ def match_crosswalks(planned, snapshot, *, xy_tol_cm, yaw_tol_deg,
         planned, snapshot, xy_tol_cm=xy_tol_cm, yaw_tol_deg=yaw_tol_deg,
         size_tol_cm=size_tol_cm, match_max_cm=match_max_cm, prefix=prefix,
         check_name="crosswalks", expected_size=expected_size,
+        expected_z_cm=expected_z_cm, z_tol_cm=z_tol_cm,
     )
 
 

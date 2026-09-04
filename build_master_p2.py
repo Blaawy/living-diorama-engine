@@ -47,9 +47,17 @@ def stage() -> None:
         src = P2 / name
         if src.exists():
             shutil.copy2(src, STAGE / "reports" / name)
-    # preview: honest -- viewport captures only unless an MP4 exists
+    # preview: the MP4, a still per shot, and the named viewport captures.
+    # The 2,160 rendered PNGs (about 7 GB) are NEVER shipped; the report cites
+    # their ffprobe record and the stills are drawn from them.
     for png in sorted(EV.glob("*.png")):
         shutil.copy2(png, STAGE / "preview" / png.name)
+    for sub in ("preview_stills", "views"):
+        d = EV / sub
+        if d.exists():
+            (STAGE / "preview" / sub).mkdir(exist_ok=True)
+            for f in sorted(d.glob("*.png")):
+                shutil.copy2(f, STAGE / "preview" / sub / f.name)
     mp4 = sorted(EV.glob("*.mp4"))
     for m in mp4:
         shutil.copy2(m, STAGE / "preview" / m.name)
@@ -65,6 +73,19 @@ def stage() -> None:
         if f.is_file() and f.suffix.lower() in (".json", ".txt", ".png", ".log", ".md", ".csv"):
             if f.suffix.lower() == ".log" and f.stat().st_size > 2_000_000:
                 continue  # full editor logs are too large; excerpts are shipped
+            if f.stat().st_size > 8_000_000:
+                # e.g. sequence_bake.json is ~49 MB of baked keys. Ship a
+                # stub naming it and its counts rather than silently dropping
+                # it or bloating the MASTER past reviewability.
+                (ev / (f.name + ".OMITTED.txt")).write_text(
+                    "%s was omitted from this MASTER: %d bytes, too large to review.
+"
+                    "Its counts block is quoted in reports/PHASE_2_REPORT.md and it is
+"
+                    "reproducible by ldyf.sequence_bake.bake_keys from the sealed record.
+"
+                    % (f.name, f.stat().st_size), encoding="utf-8")
+                continue
             shutil.copy2(f, ev / f.name)
     dumps = EV / "pcg_graph_dumps"
     if dumps.exists():
@@ -79,12 +100,30 @@ def stage() -> None:
     # worker reports verbatim
     rt = ev / "deepseek_workers"
     rt.mkdir()
-    for run, task, name in (("yf_p2_build1", "roads", "build_roads.md"), ("yf_p2_build1", "interp", "build_record_interp.md"),
-                            ("yf_p2_build1", "inventory", "build_world_inventory.md"), ("yf_p2_build1", "vehicle_kin", "build_vehicle_kinematics.md"),
-                            ("yf_p2_build2", "loop_audit", "build_loop_audit.md"), ("yf_p2_fix1", "roads_fix", "fix_roads.md"),
-                            ("yf_p2_analysts", "pcg_plan", "analysis_pcg_roads_plan.md"), ("yf_p2_analysts", "spline_actors", "analysis_spline_actors.md"),
-                            ("yf_p2_build4", "playback_v2", "build_playback_v2.md"), ("yf_p2_build5", "humans", "build_humans.md"),
-                            ("yf_p2_redteam", "attack_truth", "redteam_attacker_A_truth.md"), ("yf_p2_redteam", "attack_world", "redteam_attacker_B_world.md")):
+    for run, task, name in (
+            ("yf_p2_build1", "roads", "p2_build_roads.md"),
+            ("yf_p2_build1", "interp", "p2_build_record_interp.md"),
+            ("yf_p2_build1", "inventory", "p2_build_world_inventory.md"),
+            ("yf_p2_build1", "vehicle_kin", "p2_build_vehicle_kinematics.md"),
+            ("yf_p2_build2", "loop_audit", "p2_build_loop_audit.md"),
+            ("yf_p2_fix1", "roads_fix", "p2_fix_roads.md"),
+            ("yf_p2_build4", "playback_v2", "p2_build_playback_v2.md"),
+            ("yf_p2_build5", "humans", "p2_build_humans.md"),
+            ("yf_p2_redteam", "attack_truth", "p2_redteam_A_truth.md"),
+            ("yf_p2_redteam", "attack_world", "p2_redteam_B_world.md"),
+            # closure pass
+            ("yf_p2c_w1", "verify3d", "closure_build_verify3d.md"),
+            ("yf_p2c_w1", "sequence", "closure_build_sequence_bake.md"),
+            ("yf_p2c_w2", "roadgeom", "closure_build_road_geometry.md"),
+            ("yf_p2c_w3", "lots", "closure_build_city_layout.md"),
+            ("yf_p2d_w1", "facade", "closure_build_facade_spec.md"),
+            ("yf_p2d_w1", "dressing_tests", "closure_build_dressing_tests.md"),
+            ("yf_p2d_w1", "shot_planner", "closure_build_shot_planner.md"),
+            ("yf_p2d_w1", "dressing_check", "closure_dressing_check_NO_WRITE_run.md"),
+            ("yf_p2d_w3", "dressing_check", "closure_build_dressing_check.md"),
+            ("yf_p2e_rt", "measure", "closure_redteam_A_measurements.md"),
+            ("yf_p2e_rt", "claims", "closure_redteam_B_claim_table.md"),
+            ("yf_p2e_rt", "render", "closure_redteam_C_render_and_loops.md")):
         src = RUNS / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
@@ -114,14 +153,26 @@ def stage() -> None:
     up.mkdir()
     shutil.copy2(proj / "LivingDioramaYF.uproject", up / "LivingDioramaYF.uproject")
     shutil.copy2(proj / "Config" / "DefaultEngine.ini", up / "DefaultEngine.ini")
-    for rel in ("Content/LD/L_LivingDiorama.umap", "Content/PCG/PCG_LD_Roads.uasset", "Content/LD/Materials/MI_LD_Ground.uasset", "Content/LD/Materials/MI_LD_Sidewalk.uasset",
+    for rel in ("Content/LD/L_LivingDiorama.umap", "Content/PCG/PCG_LD_Roads.uasset",
+                "Content/LD/Materials/MI_LD_Ground.uasset",
+                "Content/LD/Materials/MI_LD_Sidewalk.uasset",
+                # authored in this pass: road paint and the procedural facade
+                "Content/LD/Materials/M_LD_Paint.uasset",
+                "Content/LD/Materials/MI_LD_Paint_White.uasset",
+                "Content/LD/Materials/MI_LD_Paint_Yellow.uasset",
+                "Content/LD/Materials/M_LD_Facade.uasset",
+                "Content/LD/Materials/MI_LD_Facade_CHA.uasset",
+                "Content/LD/Materials/MI_LD_Facade_NYA.uasset",
+                "Content/LD/Materials/MI_LD_Facade_SFA.uasset",
                 "Plugins/CitySamplePCG/CitySamplePCG.uplugin", "Plugins/Traffic/Traffic.uplugin"):
         src = proj / rel
         if src.exists():
             dst = up / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
-    for tool in ("tools_author_pcg_roads.py", "build_master_p2.py"):
+    for tool in sorted(WS.glob("tools_*.py")):
+        shutil.copy2(tool, art / tool.name)
+    for tool in ("build_master_p2.py", "FREE_DEPENDENCY_LOCK.json"):
         if (WS / tool).exists():
             shutil.copy2(WS / tool, art / tool)
     for tool in ("import_city_sample_subset.py", "update_pcg_ground.py", "probe_vehicle_mesh.py", "inspect_city_sample_fast.py"):

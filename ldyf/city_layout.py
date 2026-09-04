@@ -486,13 +486,22 @@ def _edge_outer_lane_side(edge: dict, ln: dict) -> float | None:
 def furniture_slots(spec: dict, *, spacing_cm: float = 2500.0,
                     offset_cm: float | None = None,
                     kinds=("lamp", "sign", "bin")) -> dict:
-    """Points along every normal lane's *outer* edge.
+    """Points along the outer edge of every **pedestrian** lane.
 
     ``offset_cm`` defaults to half the lane's ``width_cm_effective`` + 150 cm
     (the sidewalk offset beyond the kerb).  Kinds alternate deterministically
     by global emission index over edges/lanes sorted by id.  Each slot carries
     ``x``, ``y``, ``yaw``, ``kind``, ``lane_id``, ``distance_cm`` and
-    ``offset_cm``; ``yaw`` faces the road centre (back across the lane)."""
+    ``offset_cm``; ``yaw`` faces the road centre (back across the lane).
+
+    Lanes that DISALLOW pedestrians are skipped. This walked every normal lane
+    once, carriageway lanes included, and the "outer" offset of an outer car
+    lane lands in the road: 336 of 672 lamp posts, bins and benches stood in
+    live traffic, which is visible in the rendered frames. Street furniture
+    belongs on the footway. The test is on ``disallow`` rather than on ``allow``
+    so a lane that declares neither is still used, which is what the older
+    fixtures rely on.
+    """
     if not kinds:
         raise ValueError("kinds must be a non-empty sequence")
     slots: list[dict] = []
@@ -501,6 +510,8 @@ def furniture_slots(spec: dict, *, spacing_cm: float = 2500.0,
         if e.get("function") not in (None, "normal"):
             continue
         for ln in sorted(e.get("lanes", []), key=lambda l: l["id"]):
+            if "pedestrian" in (ln.get("disallow") or []):
+                continue  # carriageway lane: furniture there would be in the road
             outward = _edge_outer_lane_side(e, ln)
             if outward is None:
                 continue  # interior lane: no outer edge
@@ -529,9 +540,15 @@ def furniture_slots(spec: dict, *, spacing_cm: float = 2500.0,
                 # yaw faces the road centre: from the furniture back across the lane
                 inx, iny = -ox, -oy
                 yaw = normalise_deg(math.degrees(math.atan2(iny, inx)))
+                kind = kinds[idx % len(kinds)]
+                # The spawner used to roll the mesh variant itself, so the plan
+                # did not say which of a kind's meshes a slot wears and the
+                # verifier could not check it. The plan decides it here.
+                key = "%s|%s|%s" % (ln["id"], _f3(s), kind)
                 slots.append({"x": _f3(pt["x"] + ox), "y": _f3(pt["y"] + oy),
                               "yaw": yaw,
-                              "kind": kinds[idx % len(kinds)],
+                              "kind": kind,
+                              "variant": _digest(key, "furniture_variant") % 8,
                               "lane_id": ln["id"],
                               "distance_cm": _f3(s),
                               "offset_cm": _f3(off)})

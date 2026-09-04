@@ -581,7 +581,9 @@ def test_tree_slots_trees_on_far_side_of_sidewalk():
     for r in rows:
         assert r["x"] == pytest.approx(930.0)
         assert r["x"] > 900.0        # far half of the pavement
-        assert r["yaw"] == pytest.approx(90.0)  # faces along the walk
+        # `yaw` is now the planned variety rotation; the walk alignment moved
+        # to `lane_yaw` so both are stated and both are verifiable.
+        assert r["lane_yaw"] == pytest.approx(90.0)
 
 
 def test_tree_slots_edge_without_sidewalk_lane_yields_none():
@@ -771,3 +773,46 @@ def test_build_dressing_custom_values_reach_rows():
     # EN_0 centre x=600, setback 300 -> s=700 -> y=700 on a 1000 edge
     assert 1000.0 - sig["y"] == pytest.approx(300.0)
     assert [r["distance_cm"] for r in doc["trees"]] == [200.0, 600.0]
+
+
+def test_tree_rows_carry_the_variant_scale_and_yaw_the_spawner_must_use():
+    """The spawner used to roll a tree's mesh variant, scale and yaw itself,
+    which meant the plan promised a yaw the spawner discarded and the verifier
+    had to skip yaw AND mesh -- so a tree rotated into the carriageway, or the
+    wrong species, passed. The plan owns all three now. Would break if any of
+    them went back to being decided at spawn time."""
+    rows = tree_slots(_sidewalk_spec(), spacing_cm=400.0, phase_cm=200.0)
+    assert rows
+    for r in rows:
+        assert set(("variant", "scale", "yaw", "lane_yaw")) <= set(r)
+        assert r["variant"] in (0, 1, 2)
+        assert 0.85 <= r["scale"] <= 1.15
+        assert 0.0 <= r["yaw"] < 360.0
+
+
+def test_tree_variant_scale_and_yaw_are_deterministic():
+    """Two builds must agree, or a replay would re-dress the street."""
+    a = tree_slots(_sidewalk_spec(), spacing_cm=400.0, phase_cm=200.0)
+    b = tree_slots(_sidewalk_spec(), spacing_cm=400.0, phase_cm=200.0)
+    assert [(r["variant"], r["scale"], r["yaw"]) for r in a] == \
+           [(r["variant"], r["scale"], r["yaw"]) for r in b]
+
+
+def test_tree_yaw_is_not_the_lane_direction():
+    """A street tree has no meaningful facing, so its yaw is deterministic
+    variety rather than geometry -- but it must still be stated so it can be
+    verified. Would break if yaw silently became the lane alignment again."""
+    rows = tree_slots(_sidewalk_spec(), spacing_cm=400.0, phase_cm=200.0)
+    assert any(r["yaw"] != r["lane_yaw"] for r in rows)
+
+
+def test_crosswalk_stripes_state_their_colour():
+    """Stripes carried no colour, so the verifier had no expected material and
+    a crossing painted in centre-line yellow passed. Would break if the field
+    were dropped."""
+    spec = _spec([_edge("X0", "J0", "J0",
+                        [_walk("X0_0", 0, 0, 0, 1000, 0, width=400.0)],
+                        function="crossing")],
+                 [_junction("J0", "priority")])
+    rows = crosswalk_stripes(spec)
+    assert rows and all(r["colour"] == "white" for r in rows)

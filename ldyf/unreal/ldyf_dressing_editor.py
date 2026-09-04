@@ -279,13 +279,17 @@ def build_trees(dressing_path, *, surface_z_cm, label_prefix=TREE_PREFIX,
     offsets = dict(offsets); offsets.update(base_offsets)
     made = {"placed": 0, "bases": 0, "variants": {}, "contact_offsets": {}}
     for row in sorted(rows, key=lambda r: r["id"]):
-        pick = TREE_MESHES[_digest(row["id"] + "|tree", len(TREE_MESHES))]
+        # variant, scale and yaw come from the PLAN, not from a roll made here.
+        # When the spawner rolled them itself the plan promised a yaw the
+        # spawner discarded, and the verifier had to skip yaw and mesh entirely
+        # -- so a tree rotated into the carriageway, or the wrong species,
+        # passed. Now the plan decides and the verifier can check.
+        pick = TREE_MESHES[int(row.get("variant", 0)) % len(TREE_MESHES)]
         c = comps.get(pick)
         if c is None:
             continue
-        # deterministic size variation so a street is not a row of clones
-        scale = 0.85 + 0.30 * (_digest(row["id"] + "|scale", 7) / 6.0)
-        yaw = float(_digest(row["id"] + "|yaw", 360))
+        scale = float(row.get("scale", 1.0))
+        yaw = float(row.get("yaw", 0.0))
         # The contact offset is a distance in the MESH's own space, so it must
         # scale with the instance. Tree_Maple_Red_A's root flare sits 42 cm
         # below its origin; with the offset left unscaled, scale 1.15 buried it
@@ -321,8 +325,10 @@ def build_furniture(layout_path, *, surface_z_cm, label_prefix=FURNITURE_PREFIX)
             if kind not in made["unknown_kinds"]:
                 made["unknown_kinds"].append(kind)
             continue
-        key = "%s|%s|%s" % (row["lane_id"], row["distance_cm"], kind)
-        pick = options[_digest(key, len(options))]
+        # variant comes from the PLAN, so the verifier can check which mesh a
+        # slot wears; rolling it here made that uncheckable (same defect as
+        # the trees).
+        pick = options[int(row.get("variant", 0)) % len(options)]
         c = comps.get(pick)
         if c is None:
             continue

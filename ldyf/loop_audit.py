@@ -422,7 +422,13 @@ def audit_record_v2(frames_path, manifest, *, windows_s=(6.0, 8.0, 12.0, 20.0),
         "boundary": [
             "route_repeats and cross_actor_windows are informational: on a rectangular grid every vehicle shares four headings and the lane cells of the car ahead.",
             "A loop whose period exceeds the longest horizon (%s s) is only caught by the horizon=None pass." % max(h for h in horizons_s if h),
-            "Motion that never crosses a %.0f cm cell boundary is invisible to the cell tests." % cell_cm,
+            # Corrected after the closure-pass red team: saying such motion is
+            # "invisible" understated it. Constant windows are ACTIVELY
+            # EXEMPTED as stationary, which is a different and worse thing.
+            "Motion that never crosses a %.0f cm cell boundary produces constant windows, which this audit EXEMPTS as stationary rather than merely failing to see. An actor pacing inside one cell is recorded as parked." % cell_cm,
+            "KNOWN-PASSING PATTERN P1 (sub-cell pacing): an actor oscillating within one %.0f cm cell for the whole record. Constant windows -> exempted as stationary -> zero repeats. A viewer sees an obvious jiggle." % cell_cm,
+            "KNOWN-PASSING PATTERN P2 (short-leg shuttle with dwell jitter): a leg shorter than the smallest window (%.0f s) means no window ever fits inside the repeatable unit, and a dwell that varies by >= 1 s each visit keeps every straddling window unequal. A ~30 s shuttle passes." % min(windows_s),
+            "KNOWN-PASSING PATTERN P3 (two-actor alternation): actor A drives a circuit, then actor B drives the same circuit, and so on. No actor repeats its OWN windows; the identical windows land in cross_actor_windows, which is informational. A viewer sees one pattern repeating all record long.",
             "Sub-second phase drift breaks exact window equality; near-repeats are not scored.",
             "Route repetition is quantised to 45 deg headings, so gentle curves may not match.",
             "Two actors alternating identical windows are reported under cross_actor_windows, not as per-actor repeats.",
