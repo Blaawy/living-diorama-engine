@@ -432,7 +432,23 @@ def classify_level_actor(actor: dict) -> dict:
                                         "skeletalmeshcomponent", "poseablemeshcomponent",
                                         "splinemeshcomponent", "dynamicmeshcomponent"))
     role, reason = "unknown", "no rule matched"
-    if "pcgcomponent" in comps:
+    # Street dressing is identified by the tag its spawner wrote, not by
+    # guessing from components: a lane-marking actor carries only
+    # DecalComponents, so every mesh-shaped rule below would miss it and it
+    # would land in "unknown" -- 92 unclassified actors reading as a defect.
+    dressing = {
+        "ld_marking": ("road_marking", "ld_marking tag (deferred-decal paint)"),
+        "ld_crosswalk": ("crosswalk", "ld_crosswalk tag (deferred-decal zebra)"),
+        "ld_signal": ("traffic_signal", "ld_signal tag"),
+        "ld_tree_base": ("tree_pit", "ld_tree_base tag"),
+        "ld_tree": ("tree", "ld_tree tag"),
+        "ld_furniture": ("street_furniture", "ld_furniture tag"),
+        "ld_closure": ("closure_prop", "ld_closure tag"),
+    }
+    hit = next((k for k in dressing if k in tags), None)
+    if hit is not None:
+        role, reason = dressing[hit]
+    elif "pcgcomponent" in comps:
         role, reason = "pcg_volume", "actor carries a PCGComponent"
     elif not has_mesh and "splinecomponent" in comps:
         role, reason = "authoring", "spline-only actor (authoring input, renders nothing)"

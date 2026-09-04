@@ -27,62 +27,25 @@ PAINT_MASTER = MAT_DIR + "/M_LD_Paint"
 PAINT_WHITE = MAT_DIR + "/MI_LD_Paint_White"
 PAINT_YELLOW = MAT_DIR + "/MI_LD_Paint_Yellow"
 
-MARK_PREFIX = "LD_Mark"
-CROSSWALK_PREFIX = "LD_Crosswalk"
-SIGNAL_PREFIX = "LD_Signal"
-TREE_PREFIX = "LD_Tree"
-# Tree pits live on their OWN actor. Under one shared actor the verifier sees
-# two instances per planned tree (the tree and its pit) and, pairing 1:1, marks
-# correctly placed trees as unmatched. Splitting them keeps the label prefix a
-# real discriminator, which is the only one a flat snapshot has.
-# NOT "LD_TreeBase": every prefix filter in this project and in
-# ldyf.dressing_check uses str.startswith, and "LD_Tree" is a prefix of
-# "LD_TreeBase", so the two families would merge again exactly as before.
-TREE_BASE_PREFIX = "LD_Pit"
-FURNITURE_PREFIX = "LD_Furniture"
-CLOSURE_PREFIX = "LD_ClosureProp"
-
-DRESSING_PREFIXES = (MARK_PREFIX, CROSSWALK_PREFIX, SIGNAL_PREFIX,
-                     TREE_BASE_PREFIX, TREE_PREFIX, FURNITURE_PREFIX,
-                     CLOSURE_PREFIX)
-
-PAINT_COLOURS = {
-    "white": (0.92, 0.92, 0.90),
-    "yellow": (0.86, 0.66, 0.08),
-}
-
-# Meshes chosen from `prop_probe.json`: only meshes whose material slots all
-# resolve (the StopLight A/C/D/E variants each have one null slot and are
-# excluded), and, for trees, only the street-scale variants — the 12.8 m
-# Alder_B canopy and the 1.96 m root flare of Maple_Red_A are park trees.
-SIGNAL_MESH = {
-    "traffic_light": "/Game/Prop/Kit_StreetLamp_A/Mesh/SM_StreetLamp_A_StopLight_B",
-    "stop_sign": "/Game/Prop/Kit_StopSign_A/Mesh/SM_StopSign_A",
-}
-# Only trees that actually carry FOLIAGE materials. The City Sample birches and
-# the alder resolve to a single bark material and render as bare winter
-# branches, which read as dead trees in daylight (seen in the first dressed
-# capture); the maples carry a separate bough/canopy material. Sizes here are
-# 4.2-6.9 m wide, which is a street tree rather than a park specimen.
-TREE_MESHES = [
-    "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_A",
-    "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_B",
-    "/Game/Prop/Kit_Tree_Maple_Red/Mesh/Tree_Maple_Red_A",
-]
-TREE_BASE_MESH = "/Game/Prop/Kit_TreeBase_A/Mesh/SM_TreeBase_Circle_A"
-FURNITURE_MESH = {
-    "lamp": ["/Game/Prop/Kit_StreetLamp_A/Mesh/SM_StreetLamp_A_Pole_Large"],
-    "bin": ["/Game/Prop/Kit_Trashcan_A/Mesh/SM_Trashcan_A_01"],
-    "sign": ["/Game/Prop/Kit_bench_RR/mesh/SM_street_bench",
-             "/Game/Prop/Kit_bench_RR/mesh/SM_park_bench_N01"],
-}
-CLOSURE_MESH = {
-    "barricade": "/Game/Prop/Kit_Barricade_A/Mesh/SM_Barricade_A",
-    "cone": "/Game/Prop/Kit_ConstructionCone_RR/Mesh/SM_ConstCone_a_N1",
-}
-
-TREE_BURY_CM = 10.0        # a street tree's root flare sits just below grade
-DECAL_DEPTH_CM = 60.0      # projection depth; deep enough for the kerb camber
+# One definition, shared with the pure-Python verifier: see ldyf.dressing_assets.
+from ..dressing_assets import (            # noqa: E402
+    CLOSURE_MESH,
+    CLOSURE_PREFIX,
+    CROSSWALK_PREFIX,
+    DECAL_DEPTH_CM,
+    DRESSING_PREFIXES,
+    FURNITURE_MESH,
+    FURNITURE_PREFIX,
+    MARK_PREFIX,
+    PAINT_COLOURS,
+    SIGNAL_MESH,
+    SIGNAL_PREFIX,
+    TREE_BASE_MESH,
+    TREE_BASE_PREFIX,
+    TREE_BURY_CM,
+    TREE_MESHES,
+    TREE_PREFIX,
+)
 
 
 # --------------------------------------------------------------------------- helpers
@@ -323,8 +286,13 @@ def build_trees(dressing_path, *, surface_z_cm, label_prefix=TREE_PREFIX,
         # deterministic size variation so a street is not a row of clones
         scale = 0.85 + 0.30 * (_digest(row["id"] + "|scale", 7) / 6.0)
         yaw = float(_digest(row["id"] + "|yaw", 360))
+        # The contact offset is a distance in the MESH's own space, so it must
+        # scale with the instance. Tree_Maple_Red_A's root flare sits 42 cm
+        # below its origin; with the offset left unscaled, scale 1.15 buried it
+        # a further 6.3 cm and scale 0.9 floated it 4.2 cm. The dressing check
+        # found exactly 69 such trees, which is what that check is for.
         _add_instance(c, row["x"], row["y"],
-                      surface_z_cm + offsets[pick] - bury_cm, yaw, scale)
+                      surface_z_cm + offsets[pick] * scale - bury_cm, yaw, scale)
         made["placed"] += 1
         made["variants"][pick] = made["variants"].get(pick, 0) + 1
         base = comps.get(TREE_BASE_MESH)
@@ -465,8 +433,10 @@ def sample_dressing(out_path, prefixes=DRESSING_PREFIXES) -> dict:
                                           "max_z": round(float(bb.max.z), 3)}
                 base = c.get_world_transform()
                 for i in range(int(c.get_instance_count())):
-                    ok, xf = c.get_instance_transform(i, True)
-                    if not ok:
+                    # UE 5.8 Python returns the Transform itself here, not the
+                    # (bool, Transform) pair the C++ signature suggests.
+                    xf = c.get_instance_transform(i, True)
+                    if xf is None:
                         continue
                     loc, rot, sc = xf.translation, xf.rotation.rotator(), xf.scale3d
                     instances.append({

@@ -26,8 +26,17 @@ for a in EAS.get_all_level_actors():
             "measured_width_cm": round(float(e.y * 2), 2),
             "top_z": round(float(o.z + e.z), 3), "tags": [str(x) for x in c.component_tags]})
     for c in a.get_components_by_class(unreal.DynamicMeshComponent):
+        # A junction slab is a ROAD SURFACE, identified by the material it
+        # wears -- not by being any dynamic mesh on the PCG actor. Since the
+        # buildings became PCG extrusions they are dynamic meshes too, and
+        # taking every one of them made the junction height check compare a
+        # junction against a 58 m building roof.
+        _m = c.get_material(0)
+        _mp = str(_m.get_path_name()).lower() if _m else ""
+        if "facade" in _mp:
+            continue
         o, e, r = unreal.SystemLibrary.get_component_bounds(c)
-        snap["slabs"].append({"id": str(c.get_name()),
+        snap["slabs"].append({"id": str(c.get_name()), "material": (str(_m.get_path_name()) if _m else None),
             "bounds_min": v3(unreal.Vector(o.x-e.x, o.y-e.y, o.z-e.z)),
             "bounds_max": v3(unreal.Vector(o.x+e.x, o.y+e.y, o.z+e.z)), "top_z": round(float(o.z + e.z), 3)})
 if snap["slabs"]:

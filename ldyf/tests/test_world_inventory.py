@@ -22,6 +22,7 @@ import pytest
 from ldyf.world_inventory import (
     INVENTORY_VERSION,
     classify_actor,
+    classify_level_actor,
     inventory,
     kit_of,
     write_inventory,
@@ -445,3 +446,54 @@ def test_reject_dump_without_level_is_tolerated():
     r = inventory({"schema_version": "actor_dump_v1", "actors": []})
     assert r["level"] is None
     assert r["pass"] is False
+
+
+# --------------------------------------------------------------------------- dressing roles
+
+def _dressing_actor(label, tag, comps):
+    return {"name": label, "class": "Actor", "label": label, "folder": None,
+            "tags": ["ld_dressing", tag],
+            "location": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "components": comps}
+
+
+def test_lane_marking_actor_is_classified_not_unknown():
+    """A marking actor carries only DecalComponents, so every mesh-shaped rule
+    misses it. Without an explicit tag rule the 48 marking actors land in
+    "unknown", which reads as an unidentified object in the world. Would break
+    if the tag rule were removed or reordered below the mesh rules."""
+    a = _dressing_actor("LD_Mark_A0A1", "ld_marking", [
+        {"name": "Decal0", "class": "DecalComponent", "asset": None,
+         "asset_lower": None, "instance_count": None, "anim_class": None,
+         "animation": None, "skeleton": None}])
+    r = classify_level_actor(a)
+    assert r["role"] == "road_marking"
+    assert r["blockout"] is False
+
+
+def test_crosswalk_and_signal_and_closure_roles():
+    for tag, want in (("ld_crosswalk", "crosswalk"), ("ld_signal", "traffic_signal"),
+                      ("ld_closure", "closure_prop"), ("ld_furniture", "street_furniture")):
+        a = _dressing_actor("LD_X", tag, [
+            {"name": "ISM", "class": "InstancedStaticMeshComponent",
+             "asset": "/Game/Prop/Kit/SM_Thing", "asset_lower": "/game/prop/kit/sm_thing",
+             "instance_count": 3, "anim_class": None, "animation": None, "skeleton": None}])
+        assert classify_level_actor(a)["role"] == want, tag
+
+
+def test_tree_pit_tag_beats_tree_tag():
+    """The pit actor carries both ld_tree_base and (historically) tree-ish
+    labels; the pit rule must win so pits are not counted as trees."""
+    a = _dressing_actor("LD_Pit", "ld_tree_base", [
+        {"name": "ISM", "class": "InstancedStaticMeshComponent",
+         "asset": "/Game/Prop/Kit_TreeBase_A/Mesh/SM_TreeBase_Circle_A",
+         "asset_lower": "/game/prop/kit_treebase_a/mesh/sm_treebase_circle_a",
+         "instance_count": 240, "anim_class": None, "animation": None, "skeleton": None}])
+    assert classify_level_actor(a)["role"] == "tree_pit"
+    b = _dressing_actor("LD_Tree", "ld_tree", [
+        {"name": "ISM", "class": "InstancedStaticMeshComponent",
+         "asset": "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_A",
+         "asset_lower": "/game/prop/kit_tree_maple_sugar/mesh/tree_maple_a",
+         "instance_count": 88, "anim_class": None, "animation": None, "skeleton": None}])
+    assert classify_level_actor(b)["role"] == "tree"
