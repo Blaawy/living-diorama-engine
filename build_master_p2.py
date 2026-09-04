@@ -78,12 +78,12 @@ def stage() -> None:
                 # stub naming it and its counts rather than silently dropping
                 # it or bloating the MASTER past reviewability.
                 (ev / (f.name + ".OMITTED.txt")).write_text(
-                    "%s was omitted from this MASTER: %d bytes, too large to review.
-"
-                    "Its counts block is quoted in reports/PHASE_2_REPORT.md and it is
-"
-                    "reproducible by ldyf.sequence_bake.bake_keys from the sealed record.
-"
+                    "%s was omitted from this MASTER: %d bytes, too large "
+                    "to review.\nIts counts block is quoted in "
+                    "reports/PHASE_2_REPORT.md and in "
+                    "evidence/sequence_bake_counts.json, and it is "
+                    "reproducible by ldyf.sequence_bake.bake_keys from the "
+                    "sealed record.\n"
                     % (f.name, f.stat().st_size), encoding="utf-8")
                 continue
             shutil.copy2(f, ev / f.name)
