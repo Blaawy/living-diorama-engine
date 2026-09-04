@@ -201,9 +201,15 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     add("ground_step", _CONST, {"R": _GROUND_STEP_K})
 
     # --- channel splits: X, Y, Z from WorldPosition (single unnamed input)
-    add("wx", _MASK, {"r": True}, x=200.0)
-    add("wy", _MASK, {"g": True}, x=200.0)
-    add("wz", _MASK, {"b": True}, x=200.0)
+    # Every channel is stated explicitly, including the ones being turned OFF.
+    # Unreal's ComponentMask defaults to R+G checked, so setting only ``r``
+    # leaves ``g`` on and the node yields the two-component vector (X, Y)
+    # instead of the scalar X the arithmetic below needs. That is not
+    # hypothetical: the first build of this material rendered every facade as
+    # one flat colour precisely because ``wx`` was really (X, Y).
+    add("wx", _MASK, {"r": True, "g": False, "b": False, "a": False}, x=200.0)
+    add("wy", _MASK, {"r": False, "g": True, "b": False, "a": False}, x=200.0)
+    add("wz", _MASK, {"r": False, "g": False, "b": True, "a": False}, x=200.0)
     link("wp", "wx", "")
     link("wp", "wy", "")
     link("wp", "wz", "")
@@ -299,13 +305,18 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
 
 # --------------------------------------------------------------------------- kits
 
+# NOTE: window_h and window_w are HALF-widths of the lit band inside a bay,
+# measured from the bay centre, so any value >= 0.5 makes the mask cover the
+# whole bay and the grid degenerates: window_h >= 0.5 gives continuous
+# vertical ribbons with no floor separation at all. Two kits shipped at 0.50
+# and 0.62 and rendered exactly that way. Keep both well under 0.5.
 _KIT_SPECS = {
     # Chicago: dark red brick, wide loft bays, moderate floors.
     "CHA": {
         "wall_colour": (0.44, 0.17, 0.15),
         "window_colour": (0.07, 0.13, 0.20),
         "spacing_h_cm": 380.0, "spacing_v_cm": 330.0,
-        "window_w": 0.30, "window_h": 0.50, "ground_floor_cm": 430.0,
+        "window_w": 0.30, "window_h": 0.34, "ground_floor_cm": 430.0,
         "wall_roughness": 0.92, "window_roughness": 0.08,
         "window_metallic": 0.60, "shopfront_mask": 0.90,
     },
@@ -314,7 +325,7 @@ _KIT_SPECS = {
         "wall_colour": (0.76, 0.71, 0.58),
         "window_colour": (0.10, 0.15, 0.18),
         "spacing_h_cm": 280.0, "spacing_v_cm": 370.0,
-        "window_w": 0.22, "window_h": 0.62, "ground_floor_cm": 460.0,
+        "window_w": 0.22, "window_h": 0.28, "ground_floor_cm": 460.0,
         "wall_roughness": 0.72, "window_roughness": 0.12,
         "window_metallic": 0.35, "shopfront_mask": 0.95,
     },
@@ -323,7 +334,7 @@ _KIT_SPECS = {
         "wall_colour": (0.55, 0.74, 0.71),
         "window_colour": (0.04, 0.06, 0.09),
         "spacing_h_cm": 340.0, "spacing_v_cm": 300.0,
-        "window_w": 0.34, "window_h": 0.44, "ground_floor_cm": 390.0,
+        "window_w": 0.34, "window_h": 0.40, "ground_floor_cm": 390.0,
         "wall_roughness": 0.88, "window_roughness": 0.05,
         "window_metallic": 0.45, "shopfront_mask": 0.88,
     },

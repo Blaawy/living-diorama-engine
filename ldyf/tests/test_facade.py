@@ -320,3 +320,48 @@ def test_determinism_node_order_stable():
     ids_a = [n["id"] for n in _graph()["nodes"]]
     ids_b = [n["id"] for n in _graph()["nodes"]]
     assert ids_a == ids_b
+
+
+def test_component_masks_state_every_channel_explicitly():
+    """Unreal's ComponentMask defaults to R+G checked, so a node that sets only
+    the channel it wants silently keeps a second channel and returns a vector
+    where the graph needs a scalar.  The first built material rendered every
+    facade as one flat colour for exactly this reason.  Would break if a mask
+    ever went back to relying on the engine default."""
+    g = facade_graph(spacing_h_cm=350.0, spacing_v_cm=400.0, window_w=0.3,
+                     window_h=0.34, edge_sharpness=40.0, ground_floor_cm=450.0)
+    masks = [n for n in g["nodes"] if n["class"] == "MaterialExpressionComponentMask"]
+    assert masks, "the graph must split WorldPosition into components"
+    for n in masks:
+        props = n["props"]
+        assert set(props) == {"r", "g", "b", "a"}, (
+            "mask %s states %s; it must state every channel" % (n["id"], sorted(props)))
+        assert sum(1 for v in props.values() if v) == 1, (
+            "mask %s selects %d channels; each must be a single scalar"
+            % (n["id"], sum(1 for v in props.values() if v)))
+
+
+def test_component_masks_select_x_y_and_z_once_each():
+    """The three masks must select X, Y and Z respectively -- one each, no
+    duplicates -- or the bay and floor coordinates collapse together."""
+    g = facade_graph(spacing_h_cm=350.0, spacing_v_cm=400.0, window_w=0.3,
+                     window_h=0.34, edge_sharpness=40.0, ground_floor_cm=450.0)
+    picked = {}
+    for n in g["nodes"]:
+        if n["class"] != "MaterialExpressionComponentMask":
+            continue
+        chan = [c for c in ("r", "g", "b", "a") if n["props"].get(c)][0]
+        picked[n["id"]] = chan
+    assert sorted(picked.values()) == ["b", "g", "r"]
+
+
+def test_kit_window_fractions_stay_below_the_degenerate_half():
+    """window_w/window_h are half-widths measured from a bay's centre, so at 0.5
+    the mask covers the entire bay and the grid disappears -- vertically that
+    means continuous ribbons with no floors.  Two kits originally shipped at
+    0.50 and 0.62 and rendered exactly that way.  Would break if a kit crept
+    back to >= 0.5."""
+    for kit in ("CHA", "NYA", "SFA"):
+        sc = kit_parameters(kit)["scalar"]
+        assert 0.0 < sc[P_WIN_W] < 0.5, "%s window_w %s" % (kit, sc[P_WIN_W])
+        assert 0.0 < sc[P_WIN_H] < 0.5, "%s window_h %s" % (kit, sc[P_WIN_H])
