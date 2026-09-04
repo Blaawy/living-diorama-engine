@@ -259,6 +259,22 @@ def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH) -> dict:
      "loc_end":[...] optional, "rot_end":[...] optional, "fov" optional}."""
     seq = unreal.EditorAssetLibrary.load_asset(seq_path)
     _clear(CAM_PREFIX)
+    # Re-aiming the cameras must REPLACE the cut track, not add a second one:
+    # add_track appends unconditionally, so a second call would leave the
+    # sequence with two camera-cut tracks and the renderer choosing between
+    # them. The bindings of the cameras just deleted go too, or the sequence
+    # keeps possessables pointing at actors that no longer exist.
+    MSE = unreal.MovieSceneSequenceExtensions
+    for t in list(MSE.get_tracks(seq)):
+        if isinstance(t, unreal.MovieSceneCameraCutTrack):
+            MSE.remove_track(seq, t)
+    for b in list(MSE.get_bindings(seq)):
+        try:
+            name = str(unreal.MovieSceneBindingExtensions.get_display_name(b))
+        except Exception:
+            continue
+        if name.startswith(CAM_PREFIX):
+            unreal.MovieSceneBindingExtensions.remove(b)
     cut = seq.add_track(unreal.MovieSceneCameraCutTrack)
     LINEAR = unreal.MovieSceneKeyInterpolation.LINEAR
     made = []

@@ -398,3 +398,85 @@ def plan_shots(frames_path, manifest, *, fps, shots, cell_cm, fov_deg,
         },
         "shots": rows,
     }
+
+
+# --------------------------------------------------------------------------- occlusion
+
+def point_in_polygon(x: float, y: float, poly) -> bool:
+    """Even-odd ray cast. ``poly`` is a sequence of ``{"x","y"}`` or ``(x, y)``.
+
+    Points exactly on an edge are not guaranteed either way; that is fine here,
+    because the caller uses this to reject camera positions and a camera on a
+    building's exact boundary is worth rejecting regardless.
+    """
+    pts = [(float(p["x"]), float(p["y"])) if isinstance(p, dict) else (float(p[0]), float(p[1]))
+           for p in poly]
+    n = len(pts)
+    if n < 3:
+        return False
+    inside = False
+    j = n - 1
+    for i in range(n):
+        xi, yi = pts[i]
+        xj, yj = pts[j]
+        if (yi > y) != (yj > y):
+            t = (y - yi) / (yj - yi) if yj != yi else 0.0
+            if x < xi + t * (xj - xi):
+                inside = not inside
+        j = i
+    return inside
+
+
+def segment_crosses_polygon(ax, ay, bx, by, poly, *, samples: int = 24) -> bool:
+    """True if the segment a->b passes through the polygon.
+
+    Sampled rather than analytic: the caller only needs to know whether a
+    camera can see its target, and a sampled test with enough points is honest
+    about what it is (it can miss a sliver thinner than the sample spacing,
+    which is recorded in the shot plan rather than hidden).
+    """
+    if samples < 2:
+        raise ValueError("samples must be >= 2")
+    for i in range(samples + 1):
+        t = i / samples
+        if point_in_polygon(ax + (bx - ax) * t, ay + (by - ay) * t, poly):
+            return True
+    return False
+
+
+def choose_bearing(target_x, target_y, *, distance_cm, preferred_deg, obstacles,
+                   step_deg: float = 15.0, samples: int = 24):
+    """The preferred bearing if the camera can see the target, else the nearest
+    bearing that can, searched outward in ``step_deg`` increments.
+
+    Returns ``(bearing_deg, tried, blocked_at_preferred)``. Raises ``ValueError``
+    if no bearing in the full circle is clear, rather than returning a blocked
+    camera and letting the render show a wall.
+    """
+    if step_deg <= 0:
+        raise ValueError("step_deg must be > 0")
+    obstacles = list(obstacles or ())
+    tried = []
+    n = max(1, int(round(360.0 / step_deg)))
+    order = [0.0]
+    for k in range(1, n // 2 + 1):
+        order += [k * step_deg, -k * step_deg]
+    blocked_pref = None
+    for delta in order:
+        b = (float(preferred_deg) + delta) % 360.0
+        rad = math.radians(b)
+        cx = float(target_x) + float(distance_cm) * math.cos(rad)
+        cy = float(target_y) + float(distance_cm) * math.sin(rad)
+        clear = True
+        for poly in obstacles:
+            if point_in_polygon(cx, cy, poly) or segment_crosses_polygon(
+                    cx, cy, float(target_x), float(target_y), poly, samples=samples):
+                clear = False
+                break
+        tried.append({"bearing_deg": _f3(b), "clear": clear})
+        if blocked_pref is None:
+            blocked_pref = not clear
+        if clear:
+            return _f3(b), tried, bool(blocked_pref)
+    raise ValueError("no unobstructed bearing found around (%s, %s) at %s cm"
+                     % (target_x, target_y, distance_cm))

@@ -31,11 +31,20 @@ MARK_PREFIX = "LD_Mark"
 CROSSWALK_PREFIX = "LD_Crosswalk"
 SIGNAL_PREFIX = "LD_Signal"
 TREE_PREFIX = "LD_Tree"
+# Tree pits live on their OWN actor. Under one shared actor the verifier sees
+# two instances per planned tree (the tree and its pit) and, pairing 1:1, marks
+# correctly placed trees as unmatched. Splitting them keeps the label prefix a
+# real discriminator, which is the only one a flat snapshot has.
+# NOT "LD_TreeBase": every prefix filter in this project and in
+# ldyf.dressing_check uses str.startswith, and "LD_Tree" is a prefix of
+# "LD_TreeBase", so the two families would merge again exactly as before.
+TREE_BASE_PREFIX = "LD_Pit"
 FURNITURE_PREFIX = "LD_Furniture"
 CLOSURE_PREFIX = "LD_ClosureProp"
 
 DRESSING_PREFIXES = (MARK_PREFIX, CROSSWALK_PREFIX, SIGNAL_PREFIX,
-                     TREE_PREFIX, FURNITURE_PREFIX, CLOSURE_PREFIX)
+                     TREE_BASE_PREFIX, TREE_PREFIX, FURNITURE_PREFIX,
+                     CLOSURE_PREFIX)
 
 PAINT_COLOURS = {
     "white": (0.92, 0.92, 0.90),
@@ -300,7 +309,11 @@ def build_trees(dressing_path, *, surface_z_cm, label_prefix=TREE_PREFIX,
     doc = json.loads(Path(dressing_path).read_text(encoding="utf-8"))
     rows = doc["trees"]
     a, comps, offsets = _ism_group(label_prefix, ("ld_dressing", "ld_tree"),
-                                   TREE_MESHES + [TREE_BASE_MESH])
+                                   TREE_MESHES)
+    base_a, base_comps, base_offsets = _ism_group(
+        TREE_BASE_PREFIX, ("ld_dressing", "ld_tree_base"), [TREE_BASE_MESH])
+    comps = dict(comps); comps.update(base_comps)
+    offsets = dict(offsets); offsets.update(base_offsets)
     made = {"placed": 0, "bases": 0, "variants": {}, "contact_offsets": {}}
     for row in sorted(rows, key=lambda r: r["id"]):
         pick = TREE_MESHES[_digest(row["id"] + "|tree", len(TREE_MESHES))]
@@ -321,6 +334,7 @@ def build_trees(dressing_path, *, surface_z_cm, label_prefix=TREE_PREFIX,
             made["bases"] += 1
     made["contact_offsets"] = {k: round(v, 3) for k, v in offsets.items()}
     made["actor"] = str(a.get_actor_label())
+    made["base_actor"] = str(base_a.get_actor_label())
     made["bury_cm"] = bury_cm
     return made
 
@@ -404,3 +418,75 @@ def dressing_summary() -> dict:
             if isinstance(c, unreal.DecalComponent):
                 out["decals"] += 1
     return out
+
+
+# --------------------------------------------------------------------------- sampling
+
+def sample_dressing(out_path, prefixes=DRESSING_PREFIXES) -> dict:
+    """Read back what is ACTUALLY in the level, as ``dressing_snapshot_v1``.
+
+    This is the input to ``ldyf.dressing_check``. It deliberately reads the
+    spawned components' own world transforms rather than the document that
+    created them: comparing the plan against itself would prove nothing, which
+    is the mistake the Phase 2 road proof was rejected for the first time.
+
+    Also returns ``mesh_bounds`` for every mesh it saw, so the ground-contact
+    law can be re-verified against the same asset bounds the spawner used.
+    """
+    decals, instances = [], []
+    mesh_bounds = {}
+    for a in _eas().get_all_level_actors():
+        if a is None:
+            continue
+        lab = str(a.get_actor_label())
+        if not any(lab.startswith(p) for p in prefixes):
+            continue
+        for c in a.get_components_by_class(unreal.ActorComponent):
+            cname = str(c.get_name())
+            if isinstance(c, unreal.DecalComponent):
+                t = c.get_world_transform()
+                loc, rot = t.translation, t.rotation.rotator()
+                size = c.get_editor_property("decal_size")
+                m = c.get_decal_material()
+                decals.append({
+                    "actor": lab, "component": cname,
+                    "x": round(float(loc.x), 3), "y": round(float(loc.y), 3),
+                    "z": round(float(loc.z), 3), "yaw": round(float(rot.yaw), 4),
+                    "size_x": round(float(size.x), 3), "size_y": round(float(size.y), 3),
+                    "size_z": round(float(size.z), 3),
+                    "material": str(m.get_path_name()) if m else None,
+                })
+            elif isinstance(c, unreal.InstancedStaticMeshComponent):
+                mesh = c.get_editor_property("static_mesh")
+                mpath = str(mesh.get_path_name()) if mesh else None
+                if mesh is not None and mpath not in mesh_bounds:
+                    bb = mesh.get_bounding_box()
+                    mesh_bounds[mpath] = {"min_z": round(float(bb.min.z), 3),
+                                          "max_z": round(float(bb.max.z), 3)}
+                base = c.get_world_transform()
+                for i in range(int(c.get_instance_count())):
+                    ok, xf = c.get_instance_transform(i, True)
+                    if not ok:
+                        continue
+                    loc, rot, sc = xf.translation, xf.rotation.rotator(), xf.scale3d
+                    instances.append({
+                        "actor": lab, "component": cname, "mesh": mpath,
+                        "x": round(float(loc.x), 3), "y": round(float(loc.y), 3),
+                        "z": round(float(loc.z), 3), "yaw": round(float(rot.yaw), 4),
+                        "scale_x": round(float(sc.x), 4),
+                        "scale_y": round(float(sc.y), 4),
+                        "scale_z": round(float(sc.z), 4),
+                    })
+    doc = {
+        "schema_version": "dressing_snapshot_v1",
+        "decals": sorted(decals, key=lambda r: (r["actor"], r["component"])),
+        "instances": sorted(instances, key=lambda r: (r["actor"], r["component"],
+                                                      r["x"], r["y"])),
+        "mesh_bounds": mesh_bounds,
+        "counts": {"decals": len(decals), "instances": len(instances),
+                   "meshes": len(mesh_bounds)},
+    }
+    p = Path(out_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(doc, indent=1, sort_keys=True), encoding="utf-8")
+    return doc["counts"]

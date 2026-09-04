@@ -22,9 +22,12 @@ from ldyf.shot_planner import (
     SHOT_PLAN_SCHEMA_VERSION,
     actor_density,
     busiest_cell,
+    choose_bearing,
     frame_shot,
     hotspots,
     plan_shots,
+    point_in_polygon,
+    segment_crosses_polygon,
 )
 from ldyf.sumo_record import build_record
 from ldyf.tests.test_sumo_record import write_fcd
@@ -427,3 +430,91 @@ def test_plan_overview_with_no_activity_raises(tmp_path):
     with pytest.raises(ValueError, match="no activity"):
         plan_shots(frames_path, man, fps=10.0, shots=[req], cell_cm=1000.0,
                    fov_deg=90.0, fit_bbox_cm=(2000.0, 1000.0))
+
+
+# --------------------------------------------------------------------------- occlusion
+
+_SQUARE = [{"x": 0.0, "y": 0.0}, {"x": 100.0, "y": 0.0},
+           {"x": 100.0, "y": 100.0}, {"x": 0.0, "y": 100.0}]
+
+
+def test_point_in_polygon_inside_and_outside():
+    """Even-odd containment on a simple square.  Would break if the ray cast
+    counted crossings wrongly."""
+    assert point_in_polygon(50.0, 50.0, _SQUARE)
+    assert not point_in_polygon(150.0, 50.0, _SQUARE)
+    assert not point_in_polygon(50.0, 150.0, _SQUARE)
+    assert not point_in_polygon(-1.0, 50.0, _SQUARE)
+
+
+def test_point_in_polygon_accepts_tuples_and_degenerate():
+    """Tuples work as well as dicts, and a polygon with fewer than 3 points can
+    contain nothing rather than raising."""
+    assert point_in_polygon(50.0, 50.0, [(0, 0), (100, 0), (100, 100), (0, 100)])
+    assert not point_in_polygon(0.0, 0.0, [(0, 0), (1, 1)])
+
+
+def test_point_in_polygon_concave_notch():
+    """A concave polygon must not report its notch as inside.  Would break if
+    the test used a convex-only method such as a sign-of-cross-product check."""
+    ell = [(0, 0), (100, 0), (100, 40), (40, 40), (40, 100), (0, 100)]
+    assert point_in_polygon(20.0, 20.0, ell)
+    assert not point_in_polygon(70.0, 70.0, ell)
+
+
+def test_segment_crosses_polygon_through_and_clear():
+    """A sight line through the block is blocked; one that misses it is not."""
+    assert segment_crosses_polygon(-50.0, 50.0, 150.0, 50.0, _SQUARE)
+    assert not segment_crosses_polygon(-50.0, -50.0, 150.0, -50.0, _SQUARE)
+
+
+def test_segment_crosses_polygon_rejects_too_few_samples():
+    with pytest.raises(ValueError):
+        segment_crosses_polygon(0.0, 0.0, 1.0, 1.0, _SQUARE, samples=1)
+
+
+def test_choose_bearing_keeps_a_clear_preferred_bearing():
+    """When the preferred bearing already sees the target it must be returned
+    unchanged, so a deliberate camera angle is never nudged for no reason."""
+    b, tried, blocked = choose_bearing(200.0, -200.0, distance_cm=150.0,
+                                       preferred_deg=270.0, obstacles=[_SQUARE])
+    assert b == pytest.approx(270.0)
+    assert blocked is False
+    assert tried[0]["clear"] is True
+
+
+def test_choose_bearing_rotates_away_from_a_blocking_block():
+    """A camera placed inside or behind a building must be moved to the nearest
+    bearing that can actually see the target.  This is the defect that put one
+    preview shot behind a building wall."""
+    b, tried, blocked = choose_bearing(200.0, 50.0, distance_cm=250.0,
+                                       preferred_deg=180.0, obstacles=[_SQUARE])
+    assert blocked is True
+    assert b != pytest.approx(180.0)
+    assert tried[-1]["clear"] is True
+    rad = math.radians(b)
+    cx = 200.0 + 250.0 * math.cos(rad)
+    cy = 50.0 + 250.0 * math.sin(rad)
+    assert not point_in_polygon(cx, cy, _SQUARE)
+    assert not segment_crosses_polygon(cx, cy, 200.0, 50.0, _SQUARE)
+
+
+def test_choose_bearing_with_no_obstacles_is_identity():
+    b, tried, blocked = choose_bearing(0.0, 0.0, distance_cm=100.0,
+                                       preferred_deg=33.0, obstacles=[])
+    assert b == pytest.approx(33.0) and blocked is False and len(tried) == 1
+
+
+def test_choose_bearing_raises_when_every_bearing_is_blocked():
+    """Enclosed on all sides, the planner must refuse rather than hand back a
+    camera pointing at a wall."""
+    ring = [(-1e6, -1e6), (1e6, -1e6), (1e6, 1e6), (-1e6, 1e6)]
+    with pytest.raises(ValueError):
+        choose_bearing(0.0, 0.0, distance_cm=100.0, preferred_deg=0.0,
+                       obstacles=[ring])
+
+
+def test_choose_bearing_rejects_nonpositive_step():
+    with pytest.raises(ValueError):
+        choose_bearing(0.0, 0.0, distance_cm=100.0, preferred_deg=0.0,
+                       obstacles=[_SQUARE], step_deg=0.0)
