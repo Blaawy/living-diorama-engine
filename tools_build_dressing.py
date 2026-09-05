@@ -17,6 +17,14 @@ CODE = r'''
 import unreal, json, sys
 sys.path.insert(0, r"__WS__")
 import importlib
+# Reload the DEPENDENCIES too, not just the editor module. The editor process
+# holds ldyf.dressing_assets from whenever it first imported it, so a change to
+# TREE_MESHES here reloads into nothing and the spawner keeps using the old
+# table while this driver uses the new one -- which showed up as 240 trees
+# compared, 78 matched, and nothing unmatched on either side.
+import ldyf.dressing_assets, ldyf.dressing
+importlib.reload(ldyf.dressing_assets)
+importlib.reload(ldyf.dressing)
 import ldyf.unreal.ldyf_dressing_editor as D
 importlib.reload(D)
 res = {}

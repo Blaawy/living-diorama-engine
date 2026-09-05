@@ -1,295 +1,315 @@
 {
-  "cost_law": "The Director pays only for the Claude Code subscription and existing DeepSeek worker usage. Every entry below must have verified_cost_usd = 0 for our actual use, or the component must be removed.",
-  "dependencies": [
-    {
-      "build": "++UE5+Release-5.8 CL 56702186 (promoted build)",
-      "cost_status": "FREE \u2014 see unreal_license_position",
-      "disk_gb": 29.9,
-      "install_path": "C:\\Program Files\\Epic Games\\UE_5.8",
-      "license": "Unreal Engine End User License Agreement",
-      "name": "Unreal Engine",
-      "source": "Epic Games Launcher (official)",
-      "verified_cost_usd": 0,
-      "version": "5.8.2"
-    },
-    {
-      "cost_status": "FREE",
-      "license": "covered by the Unreal Engine EULA",
-      "name": "Unreal engine-bundled plugin stack (all free, all verified enabled in Phase 1)",
-      "notes": "Verified by querying PluginToolset.IsEnabled against the live editor, not inferred from logs. PCGPrimitives is the dependency Epic names for City Sample PCG, and it is present. 299 plugins enabled in the project overall; editor launched with zero plugin errors.",
-      "plugins_verified_enabled_by_editor": [
-        "PCG",
-        "PCGPrimitives",
-        "PCGBiomeCore",
-        "PCGGeometryScriptInterop",
-        "PCGToolset",
-        "MassAI",
-        "MassCrowd",
-        "MassGameplay",
-        "Water",
-        "Landmass",
-        "ModelContextProtocol",
-        "ToolsetRegistry",
-        "AllToolsets",
-        "PythonScriptPlugin",
-        "EditorScriptingUtilities",
-        "MovieRenderPipeline",
-        "ModelingToolsEditorMode",
-        "Fab"
-      ],
-      "source": "Engine/Plugins",
-      "verified_cost_usd": 0,
-      "version": "ships with UE 5.8.2"
-    },
-    {
-      "cost_status": "FREE",
-      "disk_mb": 368.4,
-      "hash_verification": "Downloaded from the official DLR URL and independently cross-checked against the Microsoft winget-pkgs manifest InstallerSha256. Exact match.",
-      "install_path": "C:\\Program Files (x86)\\Eclipse\\Sumo",
-      "known_defect": "1.27.1 crashes (0xC0000409 / 0xC0000005) on <closingReroute> when pedestrians are present. Worked around in ldyf.closure by using TraCI lane-level permission changes instead; see RISK-1 CLOSED.",
-      "license": "Eclipse Public License 2.0",
-      "name": "Eclipse SUMO",
-      "sha256": "8B6FE108DA4D1196A9DD9F558DD21B59CDF2B5CA13F369F3DF41968272BCE385",
-      "source": "https://sumo.dlr.de/releases/1.27.1/sumo-win64-1.27.1.msi (official DLR)",
-      "verified_cost_usd": 0,
-      "version": "1.27.1"
-    },
-    {
-      "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03; download completed 14:38Z the same day (103.1 GB downloaded per the launcher, 87.7 GB project). OPENED in UE 5.8.2 and INSPECTED over MCP at revision 6: CitySamplePCG plugin enabled, 18 PCG graphs located, five read node-by-node. No Houdini plugin present or required.",
-      "cost_status": "FREE",
-      "decision": "Phase 1 established that every plugin City Sample depends on is already enabled and working here, so City Sample supplies content and example graphs rather than capability. It is a 1 km dense city built from 18 interdependent PCG graphs; our world is 600 x 600 m. The 87.7 GB project is never copied into ours; Phase 2 reuses the CitySamplePCG graphs (roads, lots, buildings) and selected content by reference/migration of the smallest useful subset. See CITY_SAMPLE_REUSE_PLAN.md.",
-      "houdini_required": false,
-      "license": "Epic Content License",
-      "name": "City Sample (PCG)",
-      "notes": "Epic's 5.8 documentation confirms the PCG version needs no external software; the original 5.0 City Sample's Houdini dependency is gone. This keeps the project clear of any paid-tool pathway.",
-      "source": "Fab \u2014 https://www.fab.com/listings/4898e707-7855-404b-af0e-a505ee690e68",
-      "verified_cost_usd": 0,
-      "version": "UE 5.8 PCG rebuild"
-    },
-    {
-      "cost_status": "FREE",
-      "license": "PSF License",
-      "name": "Python",
-      "notes": "Base install lacks stdlib venv/ensurepip; environments are created with virtualenv 21.7.4.",
-      "source": "pre-existing user install (NOT newly installed \u2014 machine kept lean)",
-      "verified_cost_usd": 0,
-      "version": "3.13.15"
-    },
-    {
-      "cost_status": "FREE",
-      "license": "Eclipse Public License 2.0",
-      "name": "traci",
-      "source": "PyPI",
-      "verified_cost_usd": 0
-    },
-    {
-      "cost_status": "FREE",
-      "license": "Eclipse Public License 2.0",
-      "name": "sumolib",
-      "source": "PyPI",
-      "verified_cost_usd": 0
-    },
-    {
-      "cost_status": "FREE",
-      "license": "MIT",
-      "name": "pytest",
-      "source": "PyPI",
-      "verified_cost_usd": 0
-    },
-    {
-      "cost_status": "FREE",
-      "license": "MIT",
-      "name": "jsonschema",
-      "source": "PyPI",
-      "verified_cost_usd": 0
-    },
-    {
-      "cost_status": "FREE",
-      "license": "GNU GPL v2",
-      "name": "Git",
-      "source": "pre-existing",
-      "verified_cost_usd": 0,
-      "version": "2.55.0.windows.4"
-    },
-    {
-      "cost_status": "FREE",
-      "license": "GPL (full build)",
-      "name": "FFmpeg",
-      "notes": "Not yet used by the YouTube Factory; retained for Phase 4 encoding.",
-      "source": "pre-existing winget install Gyan.FFmpeg",
-      "verified_cost_usd": 0,
-      "version": "9.0.1-full_build (gyan.dev)"
-    },
-    {
-      "cost_status": "FREE",
-      "license": "Epic Games Launcher EULA",
-      "name": "Epic Games Launcher",
-      "notes": "Needed only to install/update the engine. Not a runtime dependency of the factory.",
-      "source": "winget EpicGames.EpicGamesLauncher (official MSI, hash verified by winget)",
-      "verified_cost_usd": 0,
-      "version": "20.2.6-0+UE5"
-    },
-    {
-      "authored_by_this_project_not_imported": [
-        "/Game/LD/Materials/M_LD_Paint + MI_LD_Paint_White/Yellow (road paint, built from Unreal's own material graph API - no third-party asset)",
-        "/Game/LD/Materials/M_LD_Facade + MI_LD_Facade_CHA/NYA/SFA (procedural window-grid facade, ldyf/facade.py)"
-      ],
-      "cost_status": "FREE",
-      "how_obtained": "file copy from the local City Sample project into the Living Diorama project at the SAME /Game package path, so internal references resolve; nothing is redistributed and none of it is committed to git",
-      "license": "Epic Content License",
-      "manifests": {
-        "prop_kits": {
-          "bytes": 1289205317,
-          "file": "evidence/prop_import_manifest.json",
-          "files": 158,
-          "kits": [
-            "Prop/Kit_StreetLamp_A",
-            "Prop/Kit_StopSign_A",
-            "Prop/Kit_Barricade_A",
-            "Prop/Kit_ConstructionCone_RR",
-            "Prop/Kit_Trashcan_A",
-            "Prop/Kit_bench_RR",
-            "Prop/Kit_Tree_Birch",
-            "Prop/Kit_Tree_Alder",
-            "Prop/Kit_Tree_Maple_Red",
-            "Prop/Kit_Tree_Maple_Sugar",
-            "Prop/Kit_TreeBase_A"
-          ]
-        },
-        "roads_vehicles_humans_surfaces": {
-          "file": "evidence/import_manifest.json",
-          "files": 297
-        }
-      },
-      "name": "City Sample content subsets imported into LivingDioramaYF (Phase 2)",
-      "reproducible_by": [
-        "tools_import_props.py (prop kits)",
-        "CACHE/import_city_sample_subset.py (road graph, vehicles, humans, surfaces)"
-      ],
-      "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
-      "verified_cost_usd": 0,
-      "version": "City Sample for UE 5.8",
-      "what_was_added_in_this_pass": [
-        "Prop/Kit_StreetLamp_A (traffic signals, walk signals, lamp poles)",
-        "Prop/Kit_StopSign_A",
-        "Prop/Kit_Barricade_A",
-        "Prop/Kit_ConstructionCone_RR",
-        "Prop/Kit_Trashcan_A",
-        "Prop/Kit_bench_RR",
-        "Prop/Kit_Tree_Birch",
-        "Prop/Kit_Tree_Alder",
-        "Prop/Kit_Tree_Maple_Red",
-        "Prop/Kit_Tree_Maple_Sugar",
-        "Prop/Kit_TreeBase_A"
-      ]
-    },
-    {
-      "authored_by_this_project_not_imported": [
-        "/Game/LD/Materials/M_LD_Surface + the ground and sidewalk instances reparented onto it (ldyf/surface_material.py)",
-        "/Game/LD/Materials/M_LD_Foliage (authored leaf material; tried and did not fix the leaves, kept as evidence of the elimination)"
-      ],
-      "cost_status": "FREE",
-      "license": "Epic Content License",
-      "name": "City Sample content imported during the unattended Phase 2 session",
-      "reproducible_by": [
-        "tools_import_props.py",
-        "CACHE/import_foliage.py",
-        "CACHE/import_matfuncs.py",
-        "CACHE/import_targeted_closure.py"
-      ],
-      "rolled_back": {
-        "size": "5,679 files, 29,836,890,689 bytes",
-        "state": "fully removed; free space restored to 52 GB",
-        "what": "an over-broad reference closure seeded from every already-imported asset",
-        "why_rolled_back": "it was effectively the whole City Sample project and took free disk from 52 GB to 23.7 GB, close to the Director's dangerous-disk-space stop condition"
-      },
-      "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
-      "verified_cost_usd": 0,
-      "what_and_why": {
-        "foliage_and_street_props": {
-          "bytes": 887211467,
-          "files": 210,
-          "manifest": "evidence/foliage_import_manifest.json",
-          "outcome": "their leaf sections still render nothing in this project; reported as a NOT DONE, see reports/PHASE_2_REPORT.md 5.1",
-          "why": "the gate asks for appropriate vegetation and every tree in the prop kits is a bare branch skeleton; these are the real Megascans plants the first import deliberately excluded"
-        },
-        "material_functions": {
-          "bytes": 14813151,
-          "files": 127,
-          "manifest": "evidence/matfunc_import_manifest.json",
-          "outcome": "did not resolve them; the surface material was authored instead (ldyf/surface_material.py)",
-          "why": "MS_DefaultMaterial and the human skin materials were logged as 'Failed to compile ... Missing Material Function'"
-        },
-        "targeted_reference_closure": {
-          "bytes": 162357784,
-          "files": 42,
-          "manifest": "evidence/targeted_closure_manifest.json",
-          "why": "packages the broken materials reference but that were absent"
-        }
-      }
-    }
+ "authored_assets": {
+  "materials": [
+   "/Game/LD/Materials/M_LD_Leaf (MSM_TWO_SIDED_FOLIAGE leaf master)",
+   "/Game/LD/Materials/M_LD_Skin (MSM_SUBSURFACE crowd skin master)",
+   "/Game/LD/Materials/M_LD_Cloth (plain lit garment master)",
+   "/Game/LD/Materials/MI_LD_Bark, MI_LD_Leaf_Maple",
+   "/Game/LD/Materials/MI_LD_Skin_<8 tones>, MI_LD_Cloth_<32 colours>",
+   "/Game/LD/Materials/MI_LD_BackdropGround, MI_LD_BackdropMass"
   ],
-  "explicitly_rejected": [
-    {
-      "name": "Houdini",
-      "reason": "Paid subscription. Avoided entirely \u2014 the 5.8 City Sample is PCG-based and needs no external DCC."
-    },
-    {
-      "name": "Paid Fab assets, paid Unreal plugins, paid simulation packages",
-      "reason": "Forbidden by the cost law. None used."
-    },
-    {
-      "name": "Cloud rendering",
-      "reason": "Forbidden. All rendering is local on the RTX 5070."
-    },
-    {
-      "name": "Paid AI APIs beyond the Director's existing Claude and DeepSeek usage",
-      "reason": "Forbidden. The factory calls no third-party AI service."
-    },
-    {
-      "name": "Visual Studio / MSVC build tools",
-      "reason": "NOT INSTALLED. The Unreal project is deliberately Blueprint-only with no C++ modules."
-    },
-    {
-      "name": "Unreal Engine for Creators seat subscription (USD 1,850/seat/yr)",
-      "reason": "NOT REQUIRED at current revenue. Listed so the trigger condition is explicit and auditable."
-    }
+  "meshes": [
+   "/Game/LD/Meshes/SM_LD_Tree_Maple, SM_LD_Tree_Columnar, SM_LD_Tree_Sapling",
+   "/Game/LD/Meshes/SM_LD_BackdropSkirt",
+   "/Game/LD/Meshes/SM_LD_BackdropMass (authored box; NOT /Engine/BasicShapes/Cube, which the level inventory's blockout rule correctly rejects)"
   ],
-  "hardware": {
-    "cpu": "Intel Core i9-14900KF (24 cores / 32 threads)",
-    "disk_c_free_gb": 307.0,
-    "gpu_primary": "NVIDIA GeForce RTX 5070, 12227 MiB VRAM, driver 610.88",
-    "gpu_secondary": "NVIDIA GeForce RTX 4060, 8188 MiB VRAM",
-    "measured_headroom": "With the full plugin stack loaded and a PCG graph executing: editor 4.04 GB working set, system RAM 14.59/31.79 GB, VRAM 2990/12227 MiB. Roughly 17 GB RAM and 9 GB VRAM spare.",
-    "os": "Windows 11 Pro 10.0.26200",
-    "ram_gb": 31.79
+  "note": "Authored in-project through Unreal's material-graph and StaticMeshDescription APIs. These carry no licence beyond the engine's own, because this project made them.",
+  "textures_reused": [
+   "/Game/Prop/Kit_Tree_Maple_Red/Texture/Cap and Cap_Opacity (leaf cutout)",
+   "/Game/Prop/Kit_Tree_Maple_Red/Texture/Bark"
+  ]
+ },
+ "cost_law": "The Director pays only for the Claude Code subscription and existing DeepSeek worker usage. Every entry below must have verified_cost_usd = 0 for our actual use, or the component must be removed.",
+ "dependencies": [
+  {
+   "build": "++UE5+Release-5.8 CL 56702186 (promoted build)",
+   "cost_status": "FREE \u2014 see unreal_license_position",
+   "disk_gb": 29.9,
+   "install_path": "C:\\Program Files\\Epic Games\\UE_5.8",
+   "license": "Unreal Engine End User License Agreement",
+   "name": "Unreal Engine",
+   "source": "Epic Games Launcher (official)",
+   "verified_cost_usd": 0,
+   "version": "5.8.2"
   },
-  "phase_recorded": 2,
-  "project": "The Living Diorama \u2014 YouTube Factory",
-  "recorded_utc": "2026-09-05T05:45:22Z",
-  "revision_note": "v4 supersedes v3. Records the unattended-session imports (Megascans foliage, material functions, a targeted reference closure), the 29.8 GB over-broad closure that was rolled back, and the two material families this project authored itself. Everything remains free; total_recurring_cost_usd is still 0.",
-  "schema_version": "free_dependency_lock_v4",
-  "total_recurring_cost_usd": 0,
-  "unreal_license_position": {
-    "classification": "NON-ENGINE PRODUCT",
-    "our_output": "Linear, non-interactive video published to YouTube.",
-    "reasoning": "We ship no interactive product, no application, and nothing that relies on Unreal Engine code at runtime. The deliverable is a rendered video file. Under Epic's terms this is linear content, which carries NO Unreal royalty regardless of revenue.",
-    "royalty_owed": "NONE",
-    "royalty_rule_that_does_not_apply_to_us": "The 5% royalty applies to off-the-shelf INTERACTIVE products past USD 1,000,000 lifetime gross. We ship no such product.",
-    "seat_license_exception": {
-      "RECHECK_TRIGGER": "If the Director's annual gross revenue from any source relevant to Epic's definition approaches or crosses USD 1,000,000, this licence MUST be re-evaluated before further production. This is the single re-check condition for the entire project.",
-      "applies_to": "Non-game commercial users (film, broadcast, simulation, archviz) at companies whose ANNUAL GROSS REVENUE exceeds the threshold below.",
-      "confidence": "HIGH on the no-royalty position for linear video. MEDIUM on the exact seat-licence wording: epicgames.com returns HTTP 403 to automated retrieval and no EULA text ships in the install, so the threshold and price come from Epic's published pricing announcement and consistent secondary reporting, not from primary licence text. DIRECTOR/CHATGPT VERIFICATION REQUESTED.",
-      "cost_if_threshold_crossed": {
-        "price_usd_per_seat_per_year": 1850,
-        "product": "Unreal Engine for Creators (seat-based subscription)"
-      },
-      "current_status": "BELOW THRESHOLD \u2014 the Director is an individual creator far under USD 1,000,000 annual gross revenue. Unreal Engine is therefore free for this project today.",
-      "threshold_usd_annual_gross_revenue": 1000000
+  {
+   "cost_status": "FREE",
+   "license": "covered by the Unreal Engine EULA",
+   "name": "Unreal engine-bundled plugin stack (all free, all verified enabled in Phase 1)",
+   "notes": "Verified by querying PluginToolset.IsEnabled against the live editor, not inferred from logs. PCGPrimitives is the dependency Epic names for City Sample PCG, and it is present. 299 plugins enabled in the project overall; editor launched with zero plugin errors.",
+   "plugins_verified_enabled_by_editor": [
+    "PCG",
+    "PCGPrimitives",
+    "PCGBiomeCore",
+    "PCGGeometryScriptInterop",
+    "PCGToolset",
+    "MassAI",
+    "MassCrowd",
+    "MassGameplay",
+    "Water",
+    "Landmass",
+    "ModelContextProtocol",
+    "ToolsetRegistry",
+    "AllToolsets",
+    "PythonScriptPlugin",
+    "EditorScriptingUtilities",
+    "MovieRenderPipeline",
+    "ModelingToolsEditorMode",
+    "Fab"
+   ],
+   "source": "Engine/Plugins",
+   "verified_cost_usd": 0,
+   "version": "ships with UE 5.8.2"
+  },
+  {
+   "cost_status": "FREE",
+   "disk_mb": 368.4,
+   "hash_verification": "Downloaded from the official DLR URL and independently cross-checked against the Microsoft winget-pkgs manifest InstallerSha256. Exact match.",
+   "install_path": "C:\\Program Files (x86)\\Eclipse\\Sumo",
+   "known_defect": "1.27.1 crashes (0xC0000409 / 0xC0000005) on <closingReroute> when pedestrians are present. Worked around in ldyf.closure by using TraCI lane-level permission changes instead; see RISK-1 CLOSED.",
+   "license": "Eclipse Public License 2.0",
+   "name": "Eclipse SUMO",
+   "sha256": "8B6FE108DA4D1196A9DD9F558DD21B59CDF2B5CA13F369F3DF41968272BCE385",
+   "source": "https://sumo.dlr.de/releases/1.27.1/sumo-win64-1.27.1.msi (official DLR)",
+   "verified_cost_usd": 0,
+   "version": "1.27.1"
+  },
+  {
+   "acquisition_status": "CLAIMED to the Director's Fab library 2026-09-03; download completed 14:38Z the same day (103.1 GB downloaded per the launcher, 87.7 GB project). OPENED in UE 5.8.2 and INSPECTED over MCP at revision 6: CitySamplePCG plugin enabled, 18 PCG graphs located, five read node-by-node. No Houdini plugin present or required.",
+   "cost_status": "FREE",
+   "decision": "Phase 1 established that every plugin City Sample depends on is already enabled and working here, so City Sample supplies content and example graphs rather than capability. It is a 1 km dense city built from 18 interdependent PCG graphs; our world is 600 x 600 m. The 87.7 GB project is never copied into ours; Phase 2 reuses the CitySamplePCG graphs (roads, lots, buildings) and selected content by reference/migration of the smallest useful subset. See CITY_SAMPLE_REUSE_PLAN.md.",
+   "houdini_required": false,
+   "license": "Epic Content License",
+   "name": "City Sample (PCG)",
+   "notes": "Epic's 5.8 documentation confirms the PCG version needs no external software; the original 5.0 City Sample's Houdini dependency is gone. This keeps the project clear of any paid-tool pathway.",
+   "source": "Fab \u2014 https://www.fab.com/listings/4898e707-7855-404b-af0e-a505ee690e68",
+   "verified_cost_usd": 0,
+   "version": "UE 5.8 PCG rebuild"
+  },
+  {
+   "cost_status": "FREE",
+   "license": "PSF License",
+   "name": "Python",
+   "notes": "Base install lacks stdlib venv/ensurepip; environments are created with virtualenv 21.7.4.",
+   "source": "pre-existing user install (NOT newly installed \u2014 machine kept lean)",
+   "verified_cost_usd": 0,
+   "version": "3.13.15"
+  },
+  {
+   "cost_status": "FREE",
+   "license": "Eclipse Public License 2.0",
+   "name": "traci",
+   "source": "PyPI",
+   "verified_cost_usd": 0
+  },
+  {
+   "cost_status": "FREE",
+   "license": "Eclipse Public License 2.0",
+   "name": "sumolib",
+   "source": "PyPI",
+   "verified_cost_usd": 0
+  },
+  {
+   "cost_status": "FREE",
+   "license": "MIT",
+   "name": "pytest",
+   "source": "PyPI",
+   "verified_cost_usd": 0
+  },
+  {
+   "cost_status": "FREE",
+   "license": "MIT",
+   "name": "jsonschema",
+   "source": "PyPI",
+   "verified_cost_usd": 0
+  },
+  {
+   "cost_status": "FREE",
+   "license": "GNU GPL v2",
+   "name": "Git",
+   "source": "pre-existing",
+   "verified_cost_usd": 0,
+   "version": "2.55.0.windows.4"
+  },
+  {
+   "cost_status": "FREE",
+   "license": "GPL (full build)",
+   "name": "FFmpeg",
+   "notes": "Not yet used by the YouTube Factory; retained for Phase 4 encoding.",
+   "source": "pre-existing winget install Gyan.FFmpeg",
+   "verified_cost_usd": 0,
+   "version": "9.0.1-full_build (gyan.dev)"
+  },
+  {
+   "cost_status": "FREE",
+   "license": "Epic Games Launcher EULA",
+   "name": "Epic Games Launcher",
+   "notes": "Needed only to install/update the engine. Not a runtime dependency of the factory.",
+   "source": "winget EpicGames.EpicGamesLauncher (official MSI, hash verified by winget)",
+   "verified_cost_usd": 0,
+   "version": "20.2.6-0+UE5"
+  },
+  {
+   "authored_by_this_project_not_imported": [
+    "/Game/LD/Materials/M_LD_Paint + MI_LD_Paint_White/Yellow (road paint, built from Unreal's own material graph API - no third-party asset)",
+    "/Game/LD/Materials/M_LD_Facade + MI_LD_Facade_CHA/NYA/SFA (procedural window-grid facade, ldyf/facade.py)"
+   ],
+   "cost_status": "FREE",
+   "how_obtained": "file copy from the local City Sample project into the Living Diorama project at the SAME /Game package path, so internal references resolve; nothing is redistributed and none of it is committed to git",
+   "license": "Epic Content License",
+   "manifests": {
+    "prop_kits": {
+     "bytes": 1289205317,
+     "file": "evidence/prop_import_manifest.json",
+     "files": 158,
+     "kits": [
+      "Prop/Kit_StreetLamp_A",
+      "Prop/Kit_StopSign_A",
+      "Prop/Kit_Barricade_A",
+      "Prop/Kit_ConstructionCone_RR",
+      "Prop/Kit_Trashcan_A",
+      "Prop/Kit_bench_RR",
+      "Prop/Kit_Tree_Birch",
+      "Prop/Kit_Tree_Alder",
+      "Prop/Kit_Tree_Maple_Red",
+      "Prop/Kit_Tree_Maple_Sugar",
+      "Prop/Kit_TreeBase_A"
+     ]
     },
-    "sources": [
-      "https://www.unrealengine.com/eula/unreal",
-      "https://www.unrealengine.com/en-US/blog/we-are-updating-unreal-engine-twinmotion-and-realitycapture-pricing-in-late-april"
-    ]
+    "roads_vehicles_humans_surfaces": {
+     "file": "evidence/import_manifest.json",
+     "files": 297
+    }
+   },
+   "name": "City Sample content subsets imported into LivingDioramaYF (Phase 2)",
+   "reproducible_by": [
+    "tools_import_props.py (prop kits)",
+    "CACHE/import_city_sample_subset.py (road graph, vehicles, humans, surfaces)"
+   ],
+   "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
+   "verified_cost_usd": 0,
+   "version": "City Sample for UE 5.8",
+   "what_was_added_in_this_pass": [
+    "Prop/Kit_StreetLamp_A (traffic signals, walk signals, lamp poles)",
+    "Prop/Kit_StopSign_A",
+    "Prop/Kit_Barricade_A",
+    "Prop/Kit_ConstructionCone_RR",
+    "Prop/Kit_Trashcan_A",
+    "Prop/Kit_bench_RR",
+    "Prop/Kit_Tree_Birch",
+    "Prop/Kit_Tree_Alder",
+    "Prop/Kit_Tree_Maple_Red",
+    "Prop/Kit_Tree_Maple_Sugar",
+    "Prop/Kit_TreeBase_A"
+   ]
+  },
+  {
+   "authored_by_this_project_not_imported": [
+    "/Game/LD/Materials/M_LD_Surface + the ground and sidewalk instances reparented onto it (ldyf/surface_material.py)",
+    "/Game/LD/Materials/M_LD_Foliage (authored leaf material; tried and did not fix the leaves, kept as evidence of the elimination)"
+   ],
+   "cost_status": "FREE",
+   "license": "Epic Content License",
+   "name": "City Sample content imported during the unattended Phase 2 session",
+   "reproducible_by": [
+    "tools_import_props.py",
+    "CACHE/import_foliage.py",
+    "CACHE/import_matfuncs.py",
+    "CACHE/import_targeted_closure.py"
+   ],
+   "rolled_back": {
+    "size": "5,679 files, 29,836,890,689 bytes",
+    "state": "fully removed; free space restored to 52 GB",
+    "what": "an over-broad reference closure seeded from every already-imported asset",
+    "why_rolled_back": "it was effectively the whole City Sample project and took free disk from 52 GB to 23.7 GB, close to the Director's dangerous-disk-space stop condition"
+   },
+   "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
+   "verified_cost_usd": 0,
+   "what_and_why": {
+    "foliage_and_street_props": {
+     "bytes": 887211467,
+     "files": 210,
+     "manifest": "evidence/foliage_import_manifest.json",
+     "outcome": "their leaf sections still render nothing in this project; reported as a NOT DONE, see reports/PHASE_2_REPORT.md 5.1",
+     "why": "the gate asks for appropriate vegetation and every tree in the prop kits is a bare branch skeleton; these are the real Megascans plants the first import deliberately excluded"
+    },
+    "material_functions": {
+     "bytes": 14813151,
+     "files": 127,
+     "manifest": "evidence/matfunc_import_manifest.json",
+     "outcome": "did not resolve them; the surface material was authored instead (ldyf/surface_material.py)",
+     "why": "MS_DefaultMaterial and the human skin materials were logged as 'Failed to compile ... Missing Material Function'"
+    },
+    "targeted_reference_closure": {
+     "bytes": 162357784,
+     "files": 42,
+     "manifest": "evidence/targeted_closure_manifest.json",
+     "why": "packages the broken materials reference but that were absent"
+    }
+   }
   }
+ ],
+ "explicitly_rejected": [
+  {
+   "name": "Houdini",
+   "reason": "Paid subscription. Avoided entirely \u2014 the 5.8 City Sample is PCG-based and needs no external DCC."
+  },
+  {
+   "name": "Paid Fab assets, paid Unreal plugins, paid simulation packages",
+   "reason": "Forbidden by the cost law. None used."
+  },
+  {
+   "name": "Cloud rendering",
+   "reason": "Forbidden. All rendering is local on the RTX 5070."
+  },
+  {
+   "name": "Paid AI APIs beyond the Director's existing Claude and DeepSeek usage",
+   "reason": "Forbidden. The factory calls no third-party AI service."
+  },
+  {
+   "name": "Visual Studio / MSVC build tools",
+   "reason": "NOT INSTALLED. The Unreal project is deliberately Blueprint-only with no C++ modules."
+  },
+  {
+   "name": "Unreal Engine for Creators seat subscription (USD 1,850/seat/yr)",
+   "reason": "NOT REQUIRED at current revenue. Listed so the trigger condition is explicit and auditable."
+  }
+ ],
+ "hardware": {
+  "cpu": "Intel Core i9-14900KF (24 cores / 32 threads)",
+  "disk_c_free_gb": 307.0,
+  "gpu_primary": "NVIDIA GeForce RTX 5070, 12227 MiB VRAM, driver 610.88",
+  "gpu_secondary": "NVIDIA GeForce RTX 4060, 8188 MiB VRAM",
+  "measured_headroom": "With the full plugin stack loaded and a PCG graph executing: editor 4.04 GB working set, system RAM 14.59/31.79 GB, VRAM 2990/12227 MiB. Roughly 17 GB RAM and 9 GB VRAM spare.",
+  "os": "Windows 11 Pro 10.0.26200",
+  "ram_gb": 31.79
+ },
+ "phase_recorded": 2,
+ "project": "The Living Diorama \u2014 YouTube Factory",
+ "recorded_utc": "2026-09-05T11:56:10Z",
+ "revision_note": "v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
+ "schema_version": "free_dependency_lock_v5",
+ "total_recurring_cost_usd": 0,
+ "unreal_license_position": {
+  "classification": "NON-ENGINE PRODUCT",
+  "our_output": "Linear, non-interactive video published to YouTube.",
+  "reasoning": "We ship no interactive product, no application, and nothing that relies on Unreal Engine code at runtime. The deliverable is a rendered video file. Under Epic's terms this is linear content, which carries NO Unreal royalty regardless of revenue.",
+  "royalty_owed": "NONE",
+  "royalty_rule_that_does_not_apply_to_us": "The 5% royalty applies to off-the-shelf INTERACTIVE products past USD 1,000,000 lifetime gross. We ship no such product.",
+  "seat_license_exception": {
+   "RECHECK_TRIGGER": "If the Director's annual gross revenue from any source relevant to Epic's definition approaches or crosses USD 1,000,000, this licence MUST be re-evaluated before further production. This is the single re-check condition for the entire project.",
+   "applies_to": "Non-game commercial users (film, broadcast, simulation, archviz) at companies whose ANNUAL GROSS REVENUE exceeds the threshold below.",
+   "confidence": "HIGH on the no-royalty position for linear video. MEDIUM on the exact seat-licence wording: epicgames.com returns HTTP 403 to automated retrieval and no EULA text ships in the install, so the threshold and price come from Epic's published pricing announcement and consistent secondary reporting, not from primary licence text. DIRECTOR/CHATGPT VERIFICATION REQUESTED.",
+   "cost_if_threshold_crossed": {
+    "price_usd_per_seat_per_year": 1850,
+    "product": "Unreal Engine for Creators (seat-based subscription)"
+   },
+   "current_status": "BELOW THRESHOLD \u2014 the Director is an individual creator far under USD 1,000,000 annual gross revenue. Unreal Engine is therefore free for this project today.",
+   "threshold_usd_annual_gross_revenue": 1000000
+  },
+  "sources": [
+   "https://www.unrealengine.com/eula/unreal",
+   "https://www.unrealengine.com/en-US/blog/we-are-updating-unreal-engine-twinmotion-and-realitycapture-pricing-in-late-april"
+  ]
+ }
 }

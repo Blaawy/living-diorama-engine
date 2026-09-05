@@ -4,6 +4,12 @@ Not circular: the snapshot is read from the spawned components' own world
 transforms inside the editor (`ldyf.unreal.ldyf_dressing_editor.sample_dressing`)
 and compared against the `dressing_v1` document that the SUMO network produced.
 """
+# HAZARD: this script is DESTRUCTIVE. It clears the tree and pit actors and
+# rebuilds them before sampling. Running it while a Movie Render Queue job is in
+# flight makes actor spawning return None, so the clear succeeds, the rebuild
+# fails, and the level is left with NO TREES -- while the render quietly
+# continues and produces a treeless film. That happened once. Never run this
+# concurrently with a render.
 from __future__ import annotations
 import json, sys
 from pathlib import Path
@@ -23,6 +29,14 @@ DECAL_Z = SURFACE_Z + 20.0
 REBUILD = r'''
 import unreal, json, sys, importlib
 sys.path.insert(0, r"__WS__")
+# Reload the DEPENDENCIES too, not just the editor module. The editor process
+# holds ldyf.dressing_assets from whenever it first imported it, so a change to
+# TREE_MESHES here reloads into nothing and the spawner keeps using the old
+# table while this driver uses the new one -- which showed up as 240 trees
+# compared, 78 matched, and nothing unmatched on either side.
+import ldyf.dressing_assets, ldyf.dressing
+importlib.reload(ldyf.dressing_assets)
+importlib.reload(ldyf.dressing)
 import ldyf.unreal.ldyf_dressing_editor as D
 importlib.reload(D)
 out = {}
