@@ -39,18 +39,39 @@ blocks are axis-aligned, so this never bites, but the formula is not general.
 
 Mask and outputs (the dictated design, implemented exactly)::
 
-    mask  = saturate((win_w - abs(frac(h) - 0.5)) * K)
-          * saturate((win_h - abs(frac(v) - 0.5)) * K)
-    BaseColor = lerp(WallColor,  WindowColor,  mask)
-    Roughness = lerp(wall_rough, window_rough, mask)
-    Metallic  = lerp(0,          window_metal, mask)
+    grid_mask = saturate((win_w - abs(frac(h) - 0.5)) * K)
+              * saturate((win_h - abs(frac(v) - 0.5)) * K)
+
+Windows must appear on walls only, so the grid is gated by the surface
+orientation.  A wall's vertex normal is near-horizontal (``abs(normal.z)`` near
+0); a roof or pavement is near-vertical normal (``abs(normal.z)`` near 1):
+
+    wall_mask = saturate((FacadeWallNormalMaxZ - abs(normal.z))
+                         * FacadeOrientSharpness)
+
+Roofs get ``wall_mask == 0`` and fall back to plain wall colour.
+
+Ground floor (absolute world Z below ``FacadeGroundFloorCm``) reads as a
+shopfront instead of the same small windows: a separate, wider window grid with
+no vertical division (one tall pane per bay),
+
+    shop_grid = saturate((FacadeShopWindowW - abs(frac(h) - 0.5)) * K)
+
+selected by a sharp step ``saturate((ground_floor_cm - Z) * 100)``, plus a dark
+spandrel strip of height ``FacadeBandCm`` immediately above the ground floor
+(``saturate((Z - ground) * 100) * saturate((ground + band - Z) * 100)``) that
+visually separates the shopfront from the storeys:
+
+    glazing = lerp(lerp(grid_mask, shop_grid, below_ground_step),
+                   one, spandrel_strip)
+    mask    = glazing * wall_mask
+    BaseColor  = lerp(WallColor,  WindowColor,  mask)
+    Roughness  = lerp(wall_rough, window_rough, mask)
+    Metallic   = lerp(0,          window_metal, mask)
 
 Every tunable is a ``ScalarParameter``/``VectorParameter`` with a stable
 ``parameter_name`` so three building kits can share one master material and
-differ only through material instances.  Below ``ground_floor_cm`` (absolute
-world Z) the mask is replaced by a shopfront value instead of the window grid:
-a sharp step ``saturate((ground_floor_cm - Z) * 100)`` selects
-``lerp(window_grid_mask, shopfront_mask, step)``.
+differ only through material instances.
 
 props -> Unreal editor property mapping the executing module must apply
 -----------------------------------------------------------------------
@@ -74,16 +95,20 @@ P_WIN_W = "FacadeWindowW"
 P_WIN_H = "FacadeWindowH"
 P_EDGE = "FacadeEdgeSharpness"
 P_GROUND = "FacadeGroundFloorCm"
+P_SHOP_WIN_W = "FacadeShopWindowW"
+P_BAND = "FacadeBandCm"
+P_ORIENT_MAX_Z = "FacadeWallNormalMaxZ"
+P_ORIENT_SHARP = "FacadeOrientSharpness"
 P_WALL_ROUGH = "FacadeWallRoughness"
 P_WIN_ROUGH = "FacadeWindowRoughness"
 P_WIN_METAL = "FacadeWindowMetallic"
-P_SHOPFRONT = "FacadeShopfrontMask"
 P_WALL_COL = "FacadeWallColor"
 P_WIN_COL = "FacadeWindowColor"
 
 SCALAR_PARAMETER_NAMES = (P_SPACING_H, P_SPACING_V, P_WIN_W, P_WIN_H, P_EDGE,
-                          P_GROUND, P_WALL_ROUGH, P_WIN_ROUGH, P_WIN_METAL,
-                          P_SHOPFRONT)
+                          P_GROUND, P_SHOP_WIN_W, P_BAND, P_ORIENT_MAX_Z,
+                          P_ORIENT_SHARP, P_WALL_ROUGH, P_WIN_ROUGH,
+                          P_WIN_METAL)
 VECTOR_PARAMETER_NAMES = (P_WALL_COL, P_WIN_COL)
 PARAMETER_NAMES = SCALAR_PARAMETER_NAMES + VECTOR_PARAMETER_NAMES
 
@@ -97,10 +122,13 @@ MASTER_DEFAULTS = {
     P_WIN_H: 0.52,
     P_EDGE: 60.0,
     P_GROUND: 400.0,
+    P_SHOP_WIN_W: 0.42,     # wide shop pane (half-width); one pane, no mullions
+    P_BAND: 40.0,           # dark spandrel strip above the ground floor
+    P_ORIENT_MAX_Z: 0.5,    # |normal.z| below this reads as a wall
+    P_ORIENT_SHARP: 8.0,    # wall/roof transition sharpness
     P_WALL_ROUGH: 0.85,
     P_WIN_ROUGH: 0.10,
     P_WIN_METAL: 0.55,
-    P_SHOPFRONT: 0.90,
     P_WALL_COL: (0.45, 0.42, 0.38),   # master fallback; never a kit colour
     P_WIN_COL: (0.05, 0.08, 0.10),
 }
@@ -108,9 +136,11 @@ MASTER_DEFAULTS = {
 _GROUND_STEP_K = 100.0   # 1 cm transition at the shopfront/upper-wall boundary
 _HALF = 0.5
 _ZERO = 0.0
+_ONE = 1.0
 
 # Expression class names exactly as Unreal spells them.
 _WORLD_POS = "MaterialExpressionWorldPosition"
+_NORMAL_WS = "MaterialExpressionVertexNormalWS"
 _MASK = "MaterialExpressionComponentMask"
 _ADD = "MaterialExpressionAdd"
 _DIV = "MaterialExpressionDivide"
@@ -124,8 +154,8 @@ _CONST = "MaterialExpressionConstant"
 _SCALAR = "MaterialExpressionScalarParameter"
 _VECTOR = "MaterialExpressionVectorParameter"
 
-EXPRESSION_CLASSES = (_WORLD_POS, _MASK, _ADD, _DIV, _FRAC, _SUB, _ABS, _MUL,
-                      _SAT, _LERP, _CONST, _SCALAR, _VECTOR)
+EXPRESSION_CLASSES = (_WORLD_POS, _NORMAL_WS, _MASK, _ADD, _DIV, _FRAC, _SUB,
+                      _ABS, _MUL, _SAT, _LERP, _CONST, _SCALAR, _VECTOR)
 
 
 def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
@@ -170,8 +200,9 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
         connections.append({"from": frm, "from_output": from_output,
                             "to": to, "to_input": to_input})
 
-    # --- raw inputs (x = 0): world position, every parameter, every constant
+    # --- raw inputs (x = 0): world position, vertex normal, parameters, consts
     add("wp", _WORLD_POS)
+    add("vn", _NORMAL_WS)
     add("spacing_h", _SCALAR, {"parameter_name": P_SPACING_H,
                                "default_value": params[P_SPACING_H]})
     add("spacing_v", _SCALAR, {"parameter_name": P_SPACING_V,
@@ -184,6 +215,14 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
                           "default_value": params[P_EDGE]})
     add("ground_cm", _SCALAR, {"parameter_name": P_GROUND,
                                "default_value": params[P_GROUND]})
+    add("shop_win_w", _SCALAR, {"parameter_name": P_SHOP_WIN_W,
+                                "default_value": params[P_SHOP_WIN_W]})
+    add("band_cm", _SCALAR, {"parameter_name": P_BAND,
+                             "default_value": params[P_BAND]})
+    add("norm_maxz", _SCALAR, {"parameter_name": P_ORIENT_MAX_Z,
+                               "default_value": params[P_ORIENT_MAX_Z]})
+    add("orient_sharp", _SCALAR, {"parameter_name": P_ORIENT_SHARP,
+                                  "default_value": params[P_ORIENT_SHARP]})
     add("wall_col", _VECTOR, {"parameter_name": P_WALL_COL,
                               "default_value": params[P_WALL_COL]})
     add("win_col", _VECTOR, {"parameter_name": P_WIN_COL,
@@ -194,13 +233,12 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
                                "default_value": params[P_WIN_ROUGH]})
     add("win_metal", _SCALAR, {"parameter_name": P_WIN_METAL,
                                "default_value": params[P_WIN_METAL]})
-    add("shopfront", _SCALAR, {"parameter_name": P_SHOPFRONT,
-                               "default_value": params[P_SHOPFRONT]})
     add("half", _CONST, {"R": _HALF})
     add("zero", _CONST, {"R": _ZERO})
+    add("one", _CONST, {"R": _ONE})
     add("ground_step", _CONST, {"R": _GROUND_STEP_K})
 
-    # --- channel splits: X, Y, Z from WorldPosition (single unnamed input)
+    # --- channel splits: X, Y, Z from WorldPosition, Z from the vertex normal.
     # Every channel is stated explicitly, including the ones being turned OFF.
     # Unreal's ComponentMask defaults to R+G checked, so setting only ``r``
     # leaves ``g`` on and the node yields the two-component vector (X, Y)
@@ -210,9 +248,28 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     add("wx", _MASK, {"r": True, "g": False, "b": False, "a": False}, x=200.0)
     add("wy", _MASK, {"r": False, "g": True, "b": False, "a": False}, x=200.0)
     add("wz", _MASK, {"r": False, "g": False, "b": True, "a": False}, x=200.0)
+    add("vnz", _MASK, {"r": False, "g": False, "b": True, "a": False}, x=200.0)
     link("wp", "wx", "")
     link("wp", "wy", "")
     link("wp", "wz", "")
+    link("vn", "vnz", "")
+
+    # --- orientation wall mask: wall_mask = saturate((max_z - |normal.z|)
+    #                                               * sharpness)
+    # A wall has |normal.z| near 0 (horizontal normal); a roof/pavement is a
+    # horizontal surface with |normal.z| near 1.  abs(normal.z) is the
+    # discriminant: subtract it from FacadeWallNormalMaxZ, scale by the
+    # sharpness and saturate -- walls land at 1, roofs at 0.
+    add("abs_nz", _ABS, x=400.0)
+    add("orient_sub", _SUB, x=600.0)
+    add("orient_mul", _MUL, x=800.0)
+    add("wall_mask", _SAT, x=1000.0)
+    link("vnz", "abs_nz", "")
+    link("norm_maxz", "orient_sub", "A")
+    link("abs_nz", "orient_sub", "B")
+    link("orient_sub", "orient_mul", "A")
+    link("orient_sharp", "orient_mul", "B")
+    link("orient_mul", "wall_mask", "")
 
     # --- horizontal bay: h = (X + Y) / spacing_h
     add("sum_xy", _ADD, x=400.0)
@@ -237,6 +294,17 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     link("edge", "mul_h", "B")
     link("mul_h", "sat_h", "")
 
+    # --- shopfront pane: same bay columns (reuse abs_h), wider opening and NO
+    # vertical division -- a shopfront is one tall pane, not small windows.
+    add("shop_open", _SUB, x=1400.0)  # shop_win_w - abs(frac(h) - 0.5)
+    add("shop_mul", _MUL, x=1600.0)
+    add("shop_sat", _SAT, x=1800.0)
+    link("shop_win_w", "shop_open", "A")
+    link("abs_h", "shop_open", "B")
+    link("shop_open", "shop_mul", "A")
+    link("edge", "shop_mul", "B")
+    link("shop_mul", "shop_sat", "")
+
     # --- vertical floor: v = Z / spacing_v
     add("div_v", _DIV, x=600.0)
     add("frac_v", _FRAC, x=800.0)
@@ -257,12 +325,13 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     link("edge", "mul_v", "B")
     link("mul_v", "sat_v", "")
 
-    # --- window grid mask = sat_h * sat_v
+    # --- storey window grid mask = sat_h * sat_v (small, repeated windows)
     add("grid_mask", _MUL, x=2000.0)
     link("sat_h", "grid_mask", "A")
     link("sat_v", "grid_mask", "B")
 
-    # --- ground-floor shopfront band: step = saturate((ground - Z) * 100)
+    # --- ground-floor selection: step = saturate((ground - Z) * 100),
+    # 1 below FacadeGroundFloorCm (the shopfront), 0 above it.
     add("below_ground", _SUB, x=400.0)
     add("ground_mul", _MUL, x=600.0)
     add("ground_band", _SAT, x=800.0)
@@ -272,16 +341,51 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     link("ground_step", "ground_mul", "B")
     link("ground_mul", "ground_band", "")
 
-    # --- final mask: grid above the ground floor, shopfront below it
-    add("mask", _LERP, x=2400.0)
-    link("grid_mask", "mask", "A")
-    link("shopfront", "mask", "B")
-    link("ground_band", "mask", "Alpha")
+    # --- spandrel strip: 1 only for ground < Z < ground + FacadeBandCm, the
+    # dark band that visually separates the shopfront from the storeys above.
+    add("ground_plus", _ADD, x=400.0)
+    add("sp_above", _SUB, x=600.0)          # Z - ground
+    add("sp_above_mul", _MUL, x=800.0)
+    add("sp_above_sat", _SAT, x=1000.0)
+    add("sp_below_edge", _SUB, x=600.0)     # (ground + band) - Z
+    add("sp_below_mul", _MUL, x=800.0)
+    add("sp_below_sat", _SAT, x=1000.0)
+    add("spandrel", _MUL, x=1200.0)
+    link("ground_cm", "ground_plus", "A")
+    link("band_cm", "ground_plus", "B")
+    link("wz", "sp_above", "A")
+    link("ground_cm", "sp_above", "B")
+    link("sp_above", "sp_above_mul", "A")
+    link("ground_step", "sp_above_mul", "B")
+    link("sp_above_mul", "sp_above_sat", "")
+    link("ground_plus", "sp_below_edge", "A")
+    link("wz", "sp_below_edge", "B")
+    link("sp_below_edge", "sp_below_mul", "A")
+    link("ground_step", "sp_below_mul", "B")
+    link("sp_below_mul", "sp_below_sat", "")
+    link("sp_above_sat", "spandrel", "A")
+    link("sp_below_sat", "spandrel", "B")
+
+    # --- glazing composition:
+    #   glazing_a = lerp(grid_mask, shop_grid, ground_band)   shop below, grid above
+    #   glazing_b = lerp(glazing_a, one, spandrel)            solid dark spandrel strip
+    #   mask      = glazing_b * wall_mask                     windows on walls only
+    add("glazing_a", _LERP, x=2200.0)
+    add("glazing_b", _LERP, x=2400.0)
+    add("mask", _MUL, x=2600.0)
+    link("grid_mask", "glazing_a", "A")
+    link("shop_sat", "glazing_a", "B")
+    link("ground_band", "glazing_a", "Alpha")
+    link("glazing_a", "glazing_b", "A")
+    link("one", "glazing_b", "B")
+    link("spandrel", "glazing_b", "Alpha")
+    link("glazing_b", "mask", "A")
+    link("wall_mask", "mask", "B")
 
     # --- material outputs
-    add("base_color", _LERP, x=2600.0)
-    add("roughness", _LERP, x=2600.0)
-    add("metallic", _LERP, x=2600.0)
+    add("base_color", _LERP, x=2800.0)
+    add("roughness", _LERP, x=2800.0)
+    add("metallic", _LERP, x=2800.0)
     link("wall_col", "base_color", "A")
     link("win_col", "base_color", "B")
     link("mask", "base_color", "Alpha")
@@ -310,15 +414,20 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
 # whole bay and the grid degenerates: window_h >= 0.5 gives continuous
 # vertical ribbons with no floor separation at all. Two kits shipped at 0.50
 # and 0.62 and rendered exactly that way. Keep both well under 0.5.
+#
+# Bay widths (spacing_h_cm) sit in 240-320 cm and floor heights
+# (spacing_v_cm) in 300-380 cm so the kits read as architecture at street
+# distance; each kit is genuinely distinct in wall colour, bay width and
+# floor height.
 _KIT_SPECS = {
     # Chicago: dark red brick, wide loft bays, moderate floors.
     "CHA": {
         "wall_colour": (0.44, 0.17, 0.15),
         "window_colour": (0.07, 0.13, 0.20),
-        "spacing_h_cm": 380.0, "spacing_v_cm": 330.0,
+        "spacing_h_cm": 320.0, "spacing_v_cm": 330.0,
         "window_w": 0.30, "window_h": 0.34, "ground_floor_cm": 430.0,
         "wall_roughness": 0.92, "window_roughness": 0.08,
-        "window_metallic": 0.60, "shopfront_mask": 0.90,
+        "window_metallic": 0.60,
     },
     # New York: warm limestone, tall narrow windows, high floors.
     "NYA": {
@@ -327,16 +436,16 @@ _KIT_SPECS = {
         "spacing_h_cm": 280.0, "spacing_v_cm": 370.0,
         "window_w": 0.22, "window_h": 0.28, "ground_floor_cm": 460.0,
         "wall_roughness": 0.72, "window_roughness": 0.12,
-        "window_metallic": 0.35, "shopfront_mask": 0.95,
+        "window_metallic": 0.35,
     },
     # San Francisco: pale teal, squat wide windows, low floors.
     "SFA": {
         "wall_colour": (0.55, 0.74, 0.71),
         "window_colour": (0.04, 0.06, 0.09),
-        "spacing_h_cm": 340.0, "spacing_v_cm": 300.0,
+        "spacing_h_cm": 260.0, "spacing_v_cm": 300.0,
         "window_w": 0.34, "window_h": 0.40, "ground_floor_cm": 390.0,
         "wall_roughness": 0.88, "window_roughness": 0.05,
-        "window_metallic": 0.45, "shopfront_mask": 0.88,
+        "window_metallic": 0.45,
     },
 }
 
@@ -361,7 +470,6 @@ def kit_parameters(kit: str) -> dict:
         P_WALL_ROUGH: spec["wall_roughness"],
         P_WIN_ROUGH: spec["window_roughness"],
         P_WIN_METAL: spec["window_metallic"],
-        P_SHOPFRONT: spec["shopfront_mask"],
     }
     vector = {
         P_WALL_COL: list(spec["wall_colour"]),
