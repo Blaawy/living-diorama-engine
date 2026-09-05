@@ -193,9 +193,20 @@ def stage() -> None:
 
 
 def write_sha_manifest() -> None:
+    """Write the manifest with LF endings so ``sha256sum -c`` can consume it.
+
+    Written through the default text mode on Windows it came out CRLF, and the
+    trailing CR became part of every filename: a reviewer on any POSIX box saw
+    282 "No such file or directory" failures on an archive that was in fact
+    intact. The bytes were never wrong; the manifest was simply unusable by the
+    one tool a reviewer would reach for.
+    """
     files = sorted(p for p in STAGE.rglob("*") if p.is_file())
-    (STAGE / "identity" / "SHA256_MANIFEST.txt").write_text(
-        "\n".join(f"{sha256_file(p)}  {p.relative_to(STAGE).as_posix()}" for p in files) + "\n", encoding="utf-8")
+    body = "\n".join(f"{sha256_file(p)}  {p.relative_to(STAGE).as_posix()}"
+                     for p in files) + "\n"
+    with open(STAGE / "identity" / "SHA256_MANIFEST.txt", "w",
+              encoding="utf-8", newline="\n") as fh:
+        fh.write(body)
 
 
 def build_zip(out: Path) -> str:
