@@ -123,7 +123,19 @@ def stage() -> None:
             ("yf_p2d_w3", "dressing_check", "closure_build_dressing_check.md"),
             ("yf_p2e_rt", "measure", "closure_redteam_A_measurements.md"),
             ("yf_p2e_rt", "claims", "closure_redteam_B_claim_table.md"),
-            ("yf_p2e_rt", "render", "closure_redteam_C_render_and_loops.md")):
+            ("yf_p2e_rt", "render", "closure_redteam_C_render_and_loops.md"),
+            # unattended session
+            ("yf_p2f_w1", "ground", "unattended_build_ground_plan_REMOVED.md"),
+            ("yf_p2f_w1", "facade2", "unattended_build_facade_v2.md"),
+            ("yf_p2f_w1", "foliage", "unattended_build_foliage_plan.md"),
+            ("yf_p2f_w1", "perf", "unattended_build_perf_report.md"),
+            ("yf_p2f_w1", "roadcheck2", "unattended_roadcheck_NO_WRITE_run.md"),
+            ("yf_p2f_w1", "horizon", "unattended_horizon_NO_WRITE_run.md"),
+            ("yf_p2g_w2", "ground_fix", "unattended_fix_ground_plan.md"),
+            ("yf_p2g_w2", "foliage_fix", "unattended_fix_foliage_plan.md"),
+            ("yf_p2g_w2", "roadcheck2", "unattended_roadcheck_REIMPL_REVERTED.md"),
+            ("yf_p2g_w2", "horizon", "unattended_build_horizon_REMOVED.md"),
+            ("yf_p2h_w3", "horizon_fix", "unattended_fix_horizon.md")):
         src = RUNS / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
