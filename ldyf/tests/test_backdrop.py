@@ -18,8 +18,13 @@ Coverage:
   exactly, including the last -> first seam;
 * consistent winding -- every quad has the same signed area orientation;
 * massing -- no entry lands inside the world expanded by inner_margin_cm,
-  heights strictly fall with ring index, counts and ids are right, and the
-  same seed reproduces the same skyline;
+  heights strictly fall with ring index, counts and ids are right, the same
+  seed reproduces the same skyline, angles are NOT evenly spaced (real
+  variance and a guaranteed large empty band between focal arcs), widths span
+  the stated range (slender towers and broad slabs both occur), yaw is
+  independent of the block's bearing, a deterministic fraction of blocks
+  carries a narrower ``step`` top box while the rest do not, and full
+  silhouettes (base + step) still step down with ring index;
 * atmosphere -- view distance derives from half_diagonal_cm;
 * every required ``ValueError`` path.
 """
@@ -232,6 +237,10 @@ def test_ring_quads_wound_consistently(bounds):
 
 # --- massing ----------------------------------------------------------------
 
+# Keyword set shared by every massing test that needs the default variation.
+MASSING_KW = dict(rings=3, per_ring=14, min_h_cm=10000.0, max_h_cm=40000.0,
+                  ring_gap_cm=20000.0)
+
 
 def test_massing_never_lands_inside_world(bounds):
     margin = 5000.0
@@ -265,11 +274,20 @@ def test_massing_counts_ids_and_fields(bounds):
     assert len(m) == rings * per_ring
     assert [e["id"] for e in m] == sorted(e["id"] for e in m)
     assert sorted({e["ring"] for e in m}) == [0, 1, 2]
+    base = {"id", "x", "y", "yaw_deg", "w_cm", "d_cm", "h_cm", "ring"}
+    step_keys = {"step_w_cm", "step_d_cm", "step_h_cm"}
     for e in m:
-        assert set(e) == {"id", "x", "y", "yaw_deg", "w_cm", "d_cm",
-                          "h_cm", "ring"}
+        assert set(e) == base | step_keys
         assert 0.0 <= e["yaw_deg"] < 360.0
         assert e["h_cm"] > 0.0 and e["w_cm"] > 0.0 and e["d_cm"] > 0.0
+        # step keys are always present; either all null (no top box) or all
+        # positive with a strictly narrower footprint than the base box.
+        if e["step_h_cm"] is None:
+            assert e["step_w_cm"] is None and e["step_d_cm"] is None
+        else:
+            assert 0.0 < e["step_h_cm"]
+            assert 0.0 < e["step_w_cm"] < e["w_cm"]
+            assert 0.0 < e["step_d_cm"] < e["d_cm"]
 
 
 def test_massing_same_seed_reproducible_different_seed_differs(bounds):
@@ -280,6 +298,121 @@ def test_massing_same_seed_reproducible_different_seed_differs(bounds):
     c = backdrop_massing(bounds, seed=12, **kw)
     assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
     assert json.dumps(a, sort_keys=True) != json.dumps(c, sort_keys=True)
+
+
+# --- massing variation: angles, widths, yaw, steps --------------------------
+
+
+def _bearing_deg(bounds, entry: dict) -> float:
+    """Bearing of a massing entry from the world centre, degrees in [0, 360)."""
+    return math.degrees(math.atan2(
+        entry["y"] - bounds["centre_y"], entry["x"] - bounds["centre_x"])) \
+        % 360.0
+
+
+def _circ_diff_deg(a: float, b: float) -> float:
+    d = abs(a - b) % 360.0
+    return min(d, 360.0 - d)
+
+
+def _sorted_gaps(entries: list[dict], bounds) -> list[float]:
+    """Circular successive gaps (radians) between a ring's sorted bearings."""
+    angles = sorted(_bearing_deg(bounds, e) * math.pi / 180.0 for e in entries)
+    n = len(angles)
+    gaps = [(angles[(k + 1) % n] - angles[k]) % (2.0 * math.pi)
+            for k in range(n)]
+    assert math.isclose(sum(gaps), 2.0 * math.pi, rel_tol=1e-9)
+    return gaps
+
+
+def test_massing_angles_not_evenly_spaced(bounds):
+    """No picket fence: the per-ring angular gaps must show real variance and
+    a guaranteed wide empty band between the focal arcs.  With the defaults
+    (3 focal arcs, cluster_fill 0.55) each arc keeps its outer margins empty,
+    so every ring has 3 angular gaps of at least arc - window = 54 deg while
+    the mean slot is 360/14 ~= 25.7 deg -- a distribution an even grid can
+    never produce (an even grid would make every gap equal the mean)."""
+    m = backdrop_massing(bounds, seed=7, **MASSING_KW)
+    gaps = []
+    for r in range(3):
+        gaps.extend(_sorted_gaps([e for e in m if e["ring"] == r], bounds))
+    mean_gap = 2.0 * math.pi / MASSING_KW["per_ring"]
+    assert max(gaps) > 2.05 * mean_gap, "no nearly-empty arc between clumps"
+    assert min(gaps) < mean_gap, "no dense clump"
+    avg = sum(gaps) / len(gaps)
+    var = sum((g - avg) ** 2 for g in gaps) / len(gaps)
+    assert var ** 0.5 > 0.3 * mean_gap, "spacing distribution has no variance"
+
+
+def test_massing_widths_span_stated_range(bounds):
+    """Widths span [0.2, 1.6] x height by default: slender towers AND broad
+    slabs both occur, and the observed factor range is wide (the old code
+    pinned every block inside a 0.5-0.85 x height band)."""
+    m = backdrop_massing(bounds, seed=7, **MASSING_KW)
+    ratios = [e["w_cm"] / e["h_cm"] for e in m]
+    assert min(ratios) < 0.65, "no slender tower occurred"
+    assert max(ratios) > 1.0, "no broad slab occurred"
+    assert max(ratios) - min(ratios) > 0.7, "width factors barely vary"
+    assert max(ratios) <= 1.6 + 1e-6 and min(ratios) >= 0.2 - 1e-6
+
+
+def test_massing_yaw_independent_of_bearing(bounds):
+    """Yaw must not be the block's bearing (that would present one radially
+    aligned face and make the ring look machined).  Yaw is drawn from its own
+    digest slice, so it is independent of the bearing: circular offsets spread
+    across the full circle, mean offset near 90 deg, and linear correlation
+    with the bearing is ~0.  An implementation that set yaw == bearing fails
+    every one of these assertions."""
+    m = backdrop_massing(bounds, seed=7, **MASSING_KW)
+    diffs = [_circ_diff_deg(e["yaw_deg"], _bearing_deg(bounds, e)) for e in m]
+    assert min(diffs) > 0.01, "some block's yaw equals its bearing"
+    assert max(diffs) > 90.0
+    mean_diff = sum(diffs) / len(diffs)
+    assert 60.0 < mean_diff < 120.0
+    n = len(m)
+    bearings = [_bearing_deg(bounds, e) for e in m]
+    b_mean = sum(bearings) / n
+    y_mean = sum(e["yaw_deg"] for e in m) / n
+    num = sum((b - b_mean) * (e["yaw_deg"] - y_mean)
+              for b, e in zip(bearings, m))
+    den = (sum((b - b_mean) ** 2 for b in bearings)
+           * sum((e["yaw_deg"] - y_mean) ** 2 for e in m)) ** 0.5
+    assert den > 0.0
+    assert abs(num / den) < 0.35, "yaw correlates with bearing"
+
+
+def test_massing_steps_present_and_absent(bounds):
+    """A deterministic fraction (default 0.4) of blocks carries a narrower
+    step box on top; the rest carry all-null step keys.  Step footprints must
+    be strictly inside the base footprint."""
+    m = backdrop_massing(bounds, seed=7, **MASSING_KW)
+    stepped = [e for e in m if e["step_h_cm"] is not None]
+    plain = [e for e in m if e["step_h_cm"] is None]
+    assert stepped and plain, "step mix missing at the default fraction"
+    assert len(stepped) < len(m)
+    for e in stepped:
+        assert e["step_w_cm"] is not None and e["step_d_cm"] is not None
+        assert 0.0 < e["step_w_cm"] < e["w_cm"]
+        assert 0.0 < e["step_d_cm"] < e["d_cm"]
+        assert e["step_h_cm"] > 0.0
+    for e in plain:
+        assert e["step_w_cm"] is None and e["step_d_cm"] is None
+        assert e["step_h_cm"] is None
+
+
+def test_massing_silhouette_tops_fall_with_ring_index(bounds):
+    """Base heights fall with ring index (tested above); steps must not undo
+    that.  Step height is capped at the ring's own band top, which sits below
+    the nearer ring's shortest plain box, so full silhouettes (base + step)
+    still step strictly down ring by ring."""
+    m = backdrop_massing(bounds, seed=7, **MASSING_KW)
+    tops: dict[int, list[float]] = {}
+    for e in m:
+        tops.setdefault(e["ring"], []).append(
+            e["h_cm"] + (e["step_h_cm"] if e["step_h_cm"] is not None else 0.0))
+    for r in range(2):
+        assert max(tops[r + 1]) < min(tops[r]), \
+            f"silhouette tops of ring {r + 1} not strictly below ring {r}"
 
 
 # --- atmosphere -------------------------------------------------------------
@@ -371,3 +504,18 @@ def test_value_errors_massing(bounds):
         backdrop_massing(bounds, **{**ok, "ring_gap_cm": 0.0})
     with pytest.raises(ValueError):
         backdrop_massing(bounds, **{**ok, "max_h_cm": 5000.0})
+    # New variation knobs are validated with the same contract.
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "cluster_centres": 0})
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "cluster_centres": 99})
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "cluster_fill": 1.0})
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "width_max_frac": 0.1})
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "depth_min_frac": 0.0})
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "step_fraction": 1.5})
+    with pytest.raises(ValueError):
+        backdrop_massing(bounds, **{**ok, "step_scale": -1.0})

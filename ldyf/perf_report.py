@@ -15,6 +15,20 @@ earlier report quoted a stale 0.4x figure measured with 16 actors as though it
 described a 736-actor world.  Staleness therefore has to be detectable by
 code, not by a reader remembering.
 
+Geometry budgeting
+------------------
+This pass also ships the geometry the frame rate will be measured on: stepped
+building masses with parapets and storefronts, dressing, vehicles, crowd,
+instanced trees and a distant skyline.  None of it was previously budgeted, so
+this module now also carries :data:`GEOMETRY_BUDGET` -- a triangle cap per
+category, a total ceiling and the assumption behind that ceiling -- plus
+:func:`estimate_world_cost`, :func:`budget_report` and :func:`validate_budget`,
+which turn per-category instance counts into totals and refuse an estimate that
+cannot be defended.  The budget is a *gate for what may be shipped*, never a
+measurement: measured cost still comes from :func:`render_cost` /
+:func:`summarise_samples`, and :func:`is_stale` still guards those measurements
+against a world that has grown since they were taken.
+
 Pure standard library only -- no numpy, no ``import unreal``.
 """
 
@@ -254,3 +268,250 @@ def is_stale(report: dict, current_actor_count: int, *,
         raise ValueError("is_stale: measured actor count must be positive")
     growth = (current_actor_count - measured) / measured
     return growth > tolerance_fraction
+
+
+# ---------------------------------------------------------------------------
+# Geometry budget (Phase 2 geometry pass)
+# ---------------------------------------------------------------------------
+#
+# The pass adds per-building stepped masses with parapets, storefronts, signs
+# and rooftop props for 252 buildings, ~1816 dressing pieces, 150 parked
+# vehicles, 65 people, 240 instanced trees and a ~100-instance distant
+# skyline.  None of that was previously budgeted, so this section states the
+# triangle cap per category, the ceiling over all categories and the
+# assumption the ceiling rests on.
+#
+# The budget is a shipping gate -- geometry past a line must be justified or
+# cut -- never a measurement.  Measured cost still comes from render_cost()
+# and summarise_samples() above, and is_stale() still guards those
+# measurements against a world that has grown since they were taken.
+
+GEOMETRY_BUDGET_VERSION = "geometry_budget_v1"
+
+# Caps are stated as LOD0 *drawn* triangles per category at full population:
+# what the renderer is asked to rasterise each frame.  Instancing is assumed
+# for the heavy categories -- trees by design (tree_mesh.py: "240 instanced
+# maples ... comfortably inside an ISM budget").
+GEOMETRY_BUDGET = {
+    "version": GEOMETRY_BUDGET_VERSION,
+    # Assumption behind the ceiling: with the heavy categories instanced
+    # (ISM/HISM), ~2M drawn triangles per frame keeps the interactive path
+    # inside its frame-time target on mid-tier hardware.  The realistic world
+    # this pass ships is ~1.01M drawn, roughly half the ceiling: headroom for
+    # a pass to grow, not a licence to ignore the per-category lines.  The
+    # sum of the per-category caps (1,560,000) sits below the ceiling on
+    # purpose, so the ceiling fires only when several categories overrun
+    # their lines at once.
+    "ceiling_triangles": 2_000_000,
+    "ceiling_assumption": (
+        "Every category is instanced (trees by design, tree_mesh.py), so the "
+        "count that matters is LOD0 drawn triangles per frame.  ~2M drawn "
+        "triangles per frame is a defensible ceiling for an interactive 60 "
+        "fps target on mid-tier hardware once the heavy categories run "
+        "instanced; the world this pass ships is ~1.01M, about half of that "
+        "ceiling."
+    ),
+    "categories": {
+        # 252 stepped masses with parapets, storefronts, signs and rooftop
+        # props at ~800 tris per building -> 201,600 drawn.
+        "buildings": {
+            "budget_triangles": 250_000,
+            "note": (
+                "252 stepped masses with parapets, storefronts, signs and "
+                "rooftop props; ~800 tris/building is the pass target."
+            ),
+        },
+        # 240 instanced trees; worst-case maple = 488 tris each (80 trunk +
+        # 6*48 branches + 2*60 cards, tree_mesh.py budget table) -> 117,120.
+        "trees": {
+            "budget_triangles": 200_000,
+            "note": (
+                "240 instanced trees; worst-case maple 488 tris each "
+                "(tree_mesh.py triangle budget)."
+            ),
+        },
+        # Distant skyline: backdrop_massing silhouette towers on concentric
+        # rings (backdrop.py), one closed 6-face box (12 tris) per tower.
+        "backdrop": {
+            "budget_triangles": 10_000,
+            "note": (
+                "~100 low-detail silhouette massing towers (backdrop.py); "
+                "one closed 6-face box, 12 tris, per tower."
+            ),
+        },
+        # 1816 street props at ~150 tris each -> 272,400.  Authored City
+        # Sample props run 2.5k-5k tris each (dressing_assets.py) and are
+        # refused at this count; purpose-built cheap props are the line.
+        "dressing": {
+            "budget_triangles": 400_000,
+            "note": (
+                "1816 street props at ~150 tris each; authored kits of "
+                "2.5k-5k tris/prop are refused (dressing_assets.py note)."
+            ),
+        },
+        # 150 parked vehicles, single-body LOD0 at ~1500 tris -> 225,000.
+        "vehicles": {
+            "budget_triangles": 400_000,
+            "note": (
+                "150 vehicles at ~1500 tris each (body only, no interior "
+                "detail)."
+            ),
+        },
+        # 65 people at ~3000 tris each -> 195,000.  crowd_spec.py is sized
+        # so that 65 people do not visibly repeat.
+        "crowd": {
+            "budget_triangles": 300_000,
+            "note": (
+                "65 people at ~3000 tris each (crowd_spec.py palette is "
+                "sized so 65 people do not visibly repeat)."
+            ),
+        },
+    },
+}
+
+
+def estimate_world_cost(counts: dict) -> dict:
+    """Total drawn triangles for the world described by ``counts``.
+
+    ``counts`` maps a category name to ``{"instances": int,
+    "triangles_per_instance": int}``.  Pure arithmetic only, no guessing:
+    per-category ``triangles = instances * triangles_per_instance``, plus the
+    grand total, each category's share of the grand total, and the
+    ``over_budget`` list naming any category whose total exceeds its
+    ``GEOMETRY_BUDGET`` line.  Validation is deliberately not here -- that is
+    :func:`validate_budget`'s job -- so a caller can see the arithmetic even
+    when it fails validation.  The raw inputs are copied into the result so
+    :func:`validate_budget` can refuse negative or non-integer counts.
+    """
+    categories = {}
+    grand_total = 0
+    for name in sorted(counts):
+        entry = counts[name]
+        instances = entry["instances"]
+        per_instance = entry["triangles_per_instance"]
+        tris = instances * per_instance
+        grand_total += tris
+        categories[name] = {
+            "instances": instances,
+            "triangles_per_instance": per_instance,
+            "triangles": tris,
+        }
+    over_budget = []
+    for name, cat in categories.items():
+        line = GEOMETRY_BUDGET["categories"].get(name)
+        if line is not None and cat["triangles"] > line["budget_triangles"]:
+            over_budget.append(name)
+    for name, cat in categories.items():
+        cat["share"] = (cat["triangles"] / grand_total) if grand_total else 0.0
+        line = GEOMETRY_BUDGET["categories"].get(name)
+        cat["budget_triangles"] = (
+            line["budget_triangles"] if line is not None else None
+        )
+    return {
+        "budget_version": GEOMETRY_BUDGET_VERSION,
+        "categories": categories,
+        "grand_total_triangles": grand_total,
+        "ceiling_triangles": GEOMETRY_BUDGET["ceiling_triangles"],
+        "over_budget": over_budget,
+    }
+
+
+def budget_report(estimate: dict) -> str:
+    """Short human-readable table of the estimate.
+
+    One row per category (instances, triangles per instance, total triangles,
+    budget line, share of the grand total, status) plus a grand-total row
+    against the ceiling and the over-budget list -- readable in a review
+    report without opening JSON.
+    """
+    rows = []
+    for name in sorted(estimate["categories"]):
+        cat = estimate["categories"][name]
+        if cat["budget_triangles"] is None:
+            budget = "none"
+            status = "UNBUDGETED"
+        else:
+            budget = format(cat["budget_triangles"], ",")
+            status = "OVER" if name in estimate["over_budget"] else "ok"
+        rows.append(
+            "  %-10s %10d %10d %12s %12s %7.1f%%  %s" % (
+                name,
+                cat["instances"],
+                cat["triangles_per_instance"],
+                format(cat["triangles"], ","),
+                budget,
+                cat["share"] * 100.0,
+                status,
+            )
+        )
+    total = estimate["grand_total_triangles"]
+    ceiling = estimate["ceiling_triangles"]
+    if ceiling:
+        ceiling_status = (
+            "OVER CEILING" if total > ceiling else "ok"
+        )
+        summary = (
+            "  grand total %s of ceiling %s (%5.1f%%)  -- %s" % (
+                format(total, ","), format(ceiling, ","),
+                (total / ceiling) * 100.0, ceiling_status,
+            )
+        )
+    else:
+        summary = "  grand total %s (no ceiling set)  -- ok" % format(total, ",")
+    return "\n".join([
+        "GEOMETRY BUDGET (%s)" % estimate["budget_version"],
+        "  category     instances  tris/inst   triangles     budget  "
+        "   share  status",
+    ] + rows + [
+        summary,
+        "  over budget: %s" % (", ".join(estimate["over_budget"]) or "none"),
+    ])
+
+
+def validate_budget(estimate: dict) -> list:
+    """Problems with ``estimate``; an empty list means the world is valid.
+
+    Refuses, each reported as one string in the returned list:
+
+    * any budgeted category whose total exceeds its ``GEOMETRY_BUDGET`` line;
+    * a grand total over the ceiling;
+    * a negative or non-integer instance or per-instance count; and
+    * a category present in the counts but absent from ``GEOMETRY_BUDGET`` --
+      an unbudgeted category is how a world silently gets heavy.
+    """
+    problems = []
+    for name in sorted(estimate["categories"]):
+        cat = estimate["categories"][name]
+        instances = cat["instances"]
+        per_instance = cat["triangles_per_instance"]
+        for label, value in (("instance count", instances),
+                             ("triangles per instance", per_instance)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                problems.append(
+                    "category %r: %s must be an integer, got %r"
+                    % (name, label, value)
+                )
+            elif value < 0:
+                problems.append(
+                    "category %r: %s must not be negative, got %r"
+                    % (name, label, value)
+                )
+        if name not in GEOMETRY_BUDGET["categories"]:
+            problems.append(
+                "category %r is not in GEOMETRY_BUDGET; add a budget line "
+                "for it or remove it from the world" % (name,)
+            )
+            continue
+        line = GEOMETRY_BUDGET["categories"][name]["budget_triangles"]
+        if cat["triangles"] > line:
+            problems.append(
+                "category %r is over budget: %d triangles > %d"
+                % (name, cat["triangles"], line)
+            )
+    if estimate["grand_total_triangles"] > estimate["ceiling_triangles"]:
+        problems.append(
+            "grand total %d triangles exceeds the ceiling of %d"
+            % (estimate["grand_total_triangles"],
+               estimate["ceiling_triangles"])
+        )
+    return problems

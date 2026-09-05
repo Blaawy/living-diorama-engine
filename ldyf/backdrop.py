@@ -19,6 +19,11 @@ lattice.  In a wide aerial shot the plane visibly runs out.  This module builds
 * ``backdrop_massing`` -- low-detail silhouette towers on concentric rings
   beyond the world that break the horizon.  Heights live in per-ring height
   bands that step down with distance, so a farther ring is lower on average.
+  Within a ring the blocks are deliberately irregular (no even picket-fence
+  grid): they clump into ``cluster_centres`` focal arcs with empty bands
+  between them, widths span a wide range, yaw is decoupled from the block's
+  bearing, and a deterministic fraction carries a ``step_*`` top box that a
+  driver emits as a second instance.
 * ``atmosphere`` -- fog presets; ``view_distance_cm`` is derived from
   ``half_diagonal_cm`` (arithmetic in the docstring).
 * ``build_backdrop`` -- assembles all of the above into one schema dict.
@@ -238,7 +243,12 @@ def point_in_ring(bounds: dict, ring: list[dict], x: float, y: float) -> bool:
 
 def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
                      min_h_cm: float, max_h_cm: float, ring_gap_cm: float,
-                     seed: int, inner_margin_cm: float = 0.0) -> list[dict]:
+                     seed: int, inner_margin_cm: float = 0.0,
+                     cluster_centres: int = 3, cluster_fill: float = 0.55,
+                     width_min_frac: float = 0.2, width_max_frac: float = 1.6,
+                     depth_min_frac: float = 0.2, depth_max_frac: float = 1.6,
+                     step_fraction: float = 0.4,
+                     step_scale: float = 0.55) -> list[dict]:
     """Distant low-detail silhouettes on concentric rings beyond the city.
 
     Placement: ring ``r`` (0 = nearest, highest) sits at radius
@@ -249,27 +259,70 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
     corner distance of the centre, so every building centre (on any ring, any
     angle) is strictly outside ``bounds`` expanded by ``inner_margin_cm``.
 
-    Heights step down with distance *by construction*: the height range
-    ``[min_h_cm, max_h_cm]`` is partitioned into ``rings`` equal bands and ring
-    ``r`` is assigned band ``rings - 1 - r`` (nearest ring owns the tallest
-    band).  Inside its band a building's height comes from a slice of
+    Heights step down with distance *by construction* (unchanged): the height
+    range ``[min_h_cm, max_h_cm]`` is partitioned into ``rings`` equal bands
+    and ring ``r`` is assigned band ``rings - 1 - r`` (nearest ring owns the
+    tallest band).  Inside its band a building's height comes from a slice of
     ``sha256(f"{seed}|{ring}|{i}").hexdigest()`` mapped into ``(0.0, 1.0]``.
     Because the slice never maps to zero and adjacent bands touch exactly, the
     tallest building of a farther ring is strictly shorter than the shortest
     building of the nearer ring -- a farther ring is lower on average with no
     possible inversion.
 
-    Footprint and yaw also come from slices of the same hexdigest (offsets 4,
-    8, 12, 16): ``width/depth`` scale with the building's height and ``yaw``
-    sweeps ``[0, 360)``.  Each entry is
-    ``{"id", "x", "y", "yaw_deg", "w_cm", "d_cm", "h_cm", "ring"}`` and the
-    list is emitted in ascending id order.
+    Angle rule (this is the anti-"picket fence" variation).  Ring ``r`` is
+    rotated by ``sha256(f"{seed}|ringrot|{r}")`` and divided into
+    ``cluster_centres`` equal arcs; block ``i`` belongs to the arc
+    ``i * cluster_centres // per_ring`` and is jittered deterministically
+    (digest slice 16) across the central ``cluster_fill`` fraction of that
+    arc's angular width.  The outer ``(1 - cluster_fill)`` margins of every
+    arc are left empty by construction, so each ring always contains
+    ``cluster_centres`` dense focal arcs separated by guaranteed empty bands
+    ("some arcs dense, others nearly empty"), and the per-block jitter spans
+    the whole focal window so blocks inside an arc are unordered and
+    irregular.  Blocks never sit on an even angular grid.
+
+    Footprint and orientation.  Width and depth each span
+    ``[width_min_frac, width_max_frac]`` x ``height`` (defaults: slender
+    towers down to ~0.2 h, long low slabs up to ~1.6 h) from digest slices 4
+    and 8.  ``yaw`` sweeps ``[0, 360)`` from its own slice (12) and is
+    independent of the block's bearing from the centre, so the ring does not
+    present one radially aligned face all round.
+
+    Silhouette variation.  A deterministic fraction ``step_fraction`` of
+    blocks (digest slice 20) carries a second, narrower box on top:
+    ``step_w_cm``/``step_d_cm`` are 0.5-0.8 x the base footprint (slices 24,
+    28) and ``step_h_cm`` is the extra height above the base (slice 32, scaled
+    by ``step_scale``).  All three keys are always present, ``None`` when the
+    block has no step.  For rings beyond the nearest the step height is capped
+    so the full silhouette never exceeds the ring's own band top, which sits
+    strictly below the nearest ring's shortest plain box -- so heights still
+    fall with distance including the step boxes.  A driver emits one instance
+    per entry plus one more per stepped entry: rendered instance count is
+    ``rings*per_ring`` + number of stepped entries (out of the box
+    3 x 14 = 42 base blocks plus roughly ``step_fraction`` of them as tops,
+    ~59 instances).
+
+    Each entry is ``{"id", "x", "y", "yaw_deg", "w_cm", "d_cm", "h_cm",
+    "ring", "step_w_cm", "step_d_cm", "step_h_cm"}`` and the list is emitted
+    in ascending id order.
 
     Raises ``ValueError`` for a non-positive ``rings`` or ``per_ring``, a
-    non-positive ``ring_gap_cm``, or ``max_h_cm < min_h_cm``.
+    non-positive ``ring_gap_cm``, ``max_h_cm < min_h_cm``,
+    ``cluster_centres`` outside ``[1, per_ring]``, ``cluster_fill`` outside
+    ``(0, 1)``, width/depth fractions that are non-positive or have
+    ``min > max``, ``step_fraction`` outside ``[0, 1]``, or a non-positive
+    ``step_scale``.
     """
     rings_n = _positive_int("rings", rings)
     per_ring_n = _positive_int("per_ring", per_ring)
+    clusters = _positive_int("cluster_centres", cluster_centres)
+    if clusters > per_ring_n:
+        raise ValueError(
+            f"cluster_centres ({clusters}) must not exceed per_ring "
+            f"({per_ring_n})")
+    cluster_fill = float(cluster_fill)
+    if not 0.0 < cluster_fill < 1.0:
+        raise ValueError(f"cluster_fill must be in (0, 1), got {cluster_fill}")
     ring_gap_cm = float(ring_gap_cm)
     if ring_gap_cm <= 0.0:
         raise ValueError(f"ring_gap_cm must be positive, got {ring_gap_cm}")
@@ -277,6 +330,25 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
     max_h = float(max_h_cm)
     if max_h < min_h:
         raise ValueError(f"max_h_cm ({max_h}) must be >= min_h_cm ({min_h})")
+    width_min = float(width_min_frac)
+    width_max = float(width_max_frac)
+    if not (0.0 < width_min <= width_max):
+        raise ValueError(
+            f"width fractions must satisfy 0 < min <= max, "
+            f"got min={width_min}, max={width_max}")
+    depth_min = float(depth_min_frac)
+    depth_max = float(depth_max_frac)
+    if not (0.0 < depth_min <= depth_max):
+        raise ValueError(
+            f"depth fractions must satisfy 0 < min <= max, "
+            f"got min={depth_min}, max={depth_max}")
+    step_fraction = float(step_fraction)
+    if not 0.0 <= step_fraction <= 1.0:
+        raise ValueError(
+            f"step_fraction must be in [0, 1], got {step_fraction}")
+    step_scale = float(step_scale)
+    if step_scale <= 0.0:
+        raise ValueError(f"step_scale must be positive, got {step_scale}")
 
     m = float(inner_margin_cm)
     half_w = (float(bounds["max_x"]) - float(bounds["min_x"])) / 2.0 + m
@@ -294,6 +366,12 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
         lo = min_h + span * band_top / rings_n
         hi = lo + band_w
         radius = clear + ring_gap_cm * (r + 1)
+        # Ring rotation keeps consecutive rings from sharing one angular grid.
+        rot_hex = hashlib.sha256(
+            f"{seed}|ringrot|{r}".encode("utf-8")).hexdigest()
+        rot = _slice01(rot_hex, 0) * two_pi
+        arc = two_pi / clusters            # width of one focal arc
+        window = arc * cluster_fill        # angular window actually used
         for i in range(per_ring_n):
             hexd = hashlib.sha256(
                 f"{seed}|{r}|{i}".encode("utf-8")).hexdigest()
@@ -301,20 +379,43 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
             u_w = _slice01(hexd, 4)
             u_d = _slice01(hexd, 8)
             u_yaw = _slice01(hexd, 12)
-            u_ang = _slice01(hexd, 16)
+            u_j = _slice01(hexd, 16)   # angular jitter inside the focal arc
+            u_s = _slice01(hexd, 20)   # step selector (u_s <= step_fraction)
+            u_sw = _slice01(hexd, 24)
+            u_sd = _slice01(hexd, 28)
+            u_sh = _slice01(hexd, 32)
             height = lo + (hi - lo) * u_h
-            width = height * (0.5 + 0.35 * u_w)
-            depth = height * (0.5 + 0.35 * u_d)
+            width = height * (width_min + u_w * (width_max - width_min))
+            depth = height * (depth_min + u_d * (depth_max - depth_min))
             yaw = u_yaw * 360.0
-            theta = two_pi * (i + u_ang) / per_ring_n
+            # Angle: block i lives in arc floor(i*clusters/per_ring), jittered
+            # across that arc's central window; the arc margins stay empty so
+            # clumps and gaps are real, never an even angular grid.
+            arc_k = i * clusters // per_ring_n
+            centre = rot + (arc_k + 0.5) * arc
+            theta = (centre + (u_j - 0.5) * window) % two_pi
             x = cx + radius * math.cos(theta)
             y = cy + radius * math.sin(theta)
+            # Optional narrower top box (step).  Null keys when absent; for
+            # rings beyond the nearest, cap so h + step_h stays <= the ring's
+            # own band top (strictly below the nearer ring's shortest block).
+            step_w = step_d = step_h = None
+            if u_s <= step_fraction:
+                cap = math.inf if r == 0 else hi - height
+                s_h = min(height * step_scale * u_sh, cap)
+                if s_h > 0.0:
+                    step_w = width * (0.5 + 0.3 * u_sw)
+                    step_d = depth * (0.5 + 0.3 * u_sd)
+                    step_h = s_h
             out.append({
                 "id": f"massing_{r:03d}_{i:03d}",
                 "x": _f3(x), "y": _f3(y),
                 "yaw_deg": _f3(yaw),
                 "w_cm": _f3(width), "d_cm": _f3(depth), "h_cm": _f3(height),
                 "ring": r,
+                "step_w_cm": _f3(step_w) if step_w is not None else None,
+                "step_d_cm": _f3(step_d) if step_d is not None else None,
+                "step_h_cm": _f3(step_h) if step_h is not None else None,
             })
     return out
 

@@ -24,13 +24,17 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from ldyf.perf_report import (  # noqa: E402
+    GEOMETRY_BUDGET,
     PERF_REPORT_VERSION,
+    budget_report,
     build_report,
     classify,
+    estimate_world_cost,
     is_stale,
     realtime_ratio,
     render_cost,
     summarise_samples,
+    validate_budget,
     write_report,
 )
 
@@ -434,6 +438,99 @@ def test_full_pipeline_stale_interactive_number_is_detectable():
     # because its mean is fine: p95 felt rate 4 fps vs target 20 -> slow.
     s = summarise_samples(SPIKY, warmup_drop=0)
     assert classify(realtime_ratio(s, target_fps=20)) == "slow"
+
+
+# --- geometry budget --------------------------------------------------------
+
+# The realistic world this pass ships.  Per-instance triangle figures are the
+# committed pass targets stated in GEOMETRY_BUDGET's notes; only the tree
+# figure (488 worst-case maple tris) is re-derived geometry (tree_mesh.py).
+# Hand totals: buildings 252*800=201600, trees 240*488=117120,
+# backdrop 100*12=1200, dressing 1816*150=272400, vehicles 150*1500=225000,
+# crowd 65*3000=195000; grand total 1,012,320 against ceiling 2,000,000.
+REALISTIC_WORLD = {
+    "buildings": {"instances": 252, "triangles_per_instance": 800},
+    "trees": {"instances": 240, "triangles_per_instance": 488},
+    "backdrop": {"instances": 100, "triangles_per_instance": 12},
+    "dressing": {"instances": 1816, "triangles_per_instance": 150},
+    "vehicles": {"instances": 150, "triangles_per_instance": 1500},
+    "crowd": {"instances": 65, "triangles_per_instance": 3000},
+}
+
+
+def test_geometry_budget_covers_every_realistic_world_category():
+    # The budget must name every category the realistic world carries, or an
+    # unbudgeted category slips into the world unchecked.
+    for name in REALISTIC_WORLD:
+        assert name in GEOMETRY_BUDGET["categories"]
+
+
+def test_within_budget_world_validates_clean():
+    estimate = estimate_world_cost(REALISTIC_WORLD)
+    assert estimate["grand_total_triangles"] == 1_012_320
+    assert estimate["over_budget"] == []
+    assert validate_budget(estimate) == []
+
+
+def test_shares_sum_to_one_within_tolerance():
+    estimate = estimate_world_cost(REALISTIC_WORLD)
+    total = sum(cat["share"] for cat in estimate["categories"].values())
+    assert abs(total - 1.0) < 1e-9
+
+
+def test_over_budget_category_is_named():
+    # Doubling dressing past its 400,000 line: 1816*2 = 3632 pieces at 150
+    # tris -> 544,800 > 400,000.  Every other category stays inside its line.
+    counts = dict(REALISTIC_WORLD)
+    counts["dressing"] = {"instances": 3632, "triangles_per_instance": 150}
+    estimate = estimate_world_cost(counts)
+    assert "dressing" in estimate["over_budget"]
+    problems = validate_budget(estimate)
+    assert any("dressing" in p for p in problems)
+    assert any("over budget" in p for p in problems)
+
+
+def test_unbudgeted_category_is_refused():
+    counts = dict(REALISTIC_WORLD)
+    counts["pigeons"] = {"instances": 40, "triangles_per_instance": 60}
+    estimate = estimate_world_cost(counts)
+    problems = validate_budget(estimate)
+    assert any("pigeons" in p for p in problems)
+    assert any("not in GEOMETRY_BUDGET" in p for p in problems)
+
+
+def test_negative_count_is_refused():
+    counts = dict(REALISTIC_WORLD)
+    counts["trees"] = {"instances": -3, "triangles_per_instance": 488}
+    problems = validate_budget(estimate_world_cost(counts))
+    assert any("trees" in p and "negative" in p for p in problems)
+
+
+def test_non_integer_count_is_refused():
+    counts = dict(REALISTIC_WORLD)
+    counts["crowd"] = {"instances": 65.5, "triangles_per_instance": 3000}
+    problems = validate_budget(estimate_world_cost(counts))
+    assert any("crowd" in p and "integer" in p for p in problems)
+
+
+def test_grand_total_over_ceiling_is_refused():
+    # 20,000 vehicles * 1500 tris = 30,000,000, far past the 2,000,000
+    # ceiling; the vehicles line (400,000) is overrun too, so expect both.
+    counts = dict(REALISTIC_WORLD)
+    counts["vehicles"] = {"instances": 20000, "triangles_per_instance": 1500}
+    problems = validate_budget(estimate_world_cost(counts))
+    assert any("ceiling" in p for p in problems)
+    assert any("vehicles" in p for p in problems)
+
+
+def test_budget_report_mentions_every_category():
+    estimate = estimate_world_cost(REALISTIC_WORLD)
+    text = budget_report(estimate)
+    for name in REALISTIC_WORLD:
+        assert name in text
+    # And it is a table a reviewer can read: grand total vs ceiling present.
+    assert "1,012,320" in text
+    assert "2,000,000" in text
 
 
 if __name__ == "__main__":
