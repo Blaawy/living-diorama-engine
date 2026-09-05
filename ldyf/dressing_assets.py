@@ -38,22 +38,27 @@ SIGNAL_MESH = {
     "stop_sign": "/Game/Prop/Kit_StopSign_A/Mesh/SM_StopSign_A",
 }
 
-# Real Megascans plants with leaf geometry, from the CitySamplePCG Megaplants
-# set. The prop-kit "trees" imported earlier (birch, alder, maple) are branch
-# skeletons of 2.5-5k triangles with no leaf cards at all and render as dead
-# winter trees in daylight; these carry 42k-85k triangles of actual foliage and
-# resolve every material slot. Chosen for street scale: 3.7-4.7 m wide,
-# 7.3-10.9 m tall. Note they ship with a single LOD, so the triangle budget is
-# roughly 240 x 57k = 13.7M and is carried by Nanite, not by LOD reduction.
+# TREES ARE BARE, AND THIS IS THE LEAST-BAD SET. Two families were tried:
+#
+#   * the City Sample prop kits (used here) - branch skeletons of 2.5-5k
+#     triangles with no leaf cards at all, by construction;
+#   * CitySamplePCG/Megaplants - real Megascans plants with a separate foliage
+#     material and 41k-239k triangles, whose LEAF SECTIONS RENDER NOTHING in
+#     this project under all four of: the shipped material (which compiles
+#     without error and whose textures resolve), Nanite on, Nanite off, and a
+#     purpose-authored BLEND_MASKED two-sided material of ours with the _CA
+#     texture bound and verified by readback.
+#
+# Since both render bare, these prop-kit maples are kept because they read as
+# street trees at street scale (4.2-6.9 m wide) where the Megaplants aspen
+# renders as a 14.6 m pole. The defect is reported, not hidden.
 TREE_MESHES = [
-    "/CitySamplePCG/Megaplants/Tree_European_Beech/Tree_European_Beech_01/SM_European_Beech_01_C",
-    "/CitySamplePCG/Megaplants/Tree_European_Beech/Tree_European_Beech_01/SM_European_Beech_01_D",
-    "/CitySamplePCG/Megaplants/Tree_European_Aspen/Tree_European_Aspen_01/SM_European_Aspen_01_B",
+    "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_A",
+    "/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_B",
+    "/Game/Prop/Kit_Tree_Maple_Red/Mesh/Tree_Maple_Red_A",
 ]
-# shrub used for hedges and block-interior planting
 SHRUB_MESHES = [
     "/CitySamplePCG/Megaplants/Tree_Common_Hazel/Tree_Common_Hazel_01/SM_Common_Hazel_01_B",
-    "/CitySamplePCG/Megaplants/Tree_Common_Hazel/Tree_Common_Hazel_01/SM_Common_Hazel_01_A",
 ]
 TREE_BASE_MESH = "/Game/Prop/Kit_TreeBase_A/Mesh/SM_TreeBase_Circle_A"
 

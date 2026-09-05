@@ -182,6 +182,51 @@
         "Prop/Kit_Tree_Maple_Sugar",
         "Prop/Kit_TreeBase_A"
       ]
+    },
+    {
+      "authored_by_this_project_not_imported": [
+        "/Game/LD/Materials/M_LD_Surface + the ground and sidewalk instances reparented onto it (ldyf/surface_material.py)",
+        "/Game/LD/Materials/M_LD_Foliage (authored leaf material; tried and did not fix the leaves, kept as evidence of the elimination)"
+      ],
+      "cost_status": "FREE",
+      "license": "Epic Content License",
+      "name": "City Sample content imported during the unattended Phase 2 session",
+      "reproducible_by": [
+        "tools_import_props.py",
+        "CACHE/import_foliage.py",
+        "CACHE/import_matfuncs.py",
+        "CACHE/import_targeted_closure.py"
+      ],
+      "rolled_back": {
+        "size": "5,679 files, 29,836,890,689 bytes",
+        "state": "fully removed; free space restored to 52 GB",
+        "what": "an over-broad reference closure seeded from every already-imported asset",
+        "why_rolled_back": "it was effectively the whole City Sample project and took free disk from 52 GB to 23.7 GB, close to the Director's dangerous-disk-space stop condition"
+      },
+      "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
+      "verified_cost_usd": 0,
+      "what_and_why": {
+        "foliage_and_street_props": {
+          "bytes": 887211467,
+          "files": 210,
+          "manifest": "evidence/foliage_import_manifest.json",
+          "outcome": "their leaf sections still render nothing in this project; reported as a NOT DONE, see reports/PHASE_2_REPORT.md 5.1",
+          "why": "the gate asks for appropriate vegetation and every tree in the prop kits is a bare branch skeleton; these are the real Megascans plants the first import deliberately excluded"
+        },
+        "material_functions": {
+          "bytes": 14813151,
+          "files": 127,
+          "manifest": "evidence/matfunc_import_manifest.json",
+          "outcome": "did not resolve them; the surface material was authored instead (ldyf/surface_material.py)",
+          "why": "MS_DefaultMaterial and the human skin materials were logged as 'Failed to compile ... Missing Material Function'"
+        },
+        "targeted_reference_closure": {
+          "bytes": 162357784,
+          "files": 42,
+          "manifest": "evidence/targeted_closure_manifest.json",
+          "why": "packages the broken materials reference but that were absent"
+        }
+      }
     }
   ],
   "explicitly_rejected": [
@@ -221,9 +266,9 @@
   },
   "phase_recorded": 2,
   "project": "The Living Diorama \u2014 YouTube Factory",
-  "recorded_utc": "2026-09-04T03:11:35Z",
-  "revision_note": "v3 supersedes v2. Phase 2 closure pass: records the City Sample content subsets imported by file copy (road graph, vehicles, City Sample humans, Megascans surfaces and 11 prop kits) with their manifests and their reproduction scripts, and records the two material families this project authored itself rather than imported. Everything remains free; total_recurring_cost_usd is still 0.",
-  "schema_version": "free_dependency_lock_v3",
+  "recorded_utc": "2026-09-05T05:45:22Z",
+  "revision_note": "v4 supersedes v3. Records the unattended-session imports (Megascans foliage, material functions, a targeted reference closure), the 29.8 GB over-broad closure that was rolled back, and the two material families this project authored itself. Everything remains free; total_recurring_cost_usd is still 0.",
+  "schema_version": "free_dependency_lock_v4",
   "total_recurring_cost_usd": 0,
   "unreal_license_position": {
     "classification": "NON-ENGINE PRODUCT",
