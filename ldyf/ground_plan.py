@@ -334,12 +334,16 @@ def block_ground_polygons(layout, *, margin_cm):
 
 
 def gap_polygons(layout, spec, *, margin_cm):
-    """Ground that is neither a block nor carriageway: the axis-aligned strips
-    between a block's (margin-expanded) edge and the adjacent road-corridor
-    rectangle already computed by city_layout.  Strips are derived from the
+    """Ground that is neither a block nor carriageway: the axis-aligned strip
+    between a block's (margin-expanded) edge and the corridor band that runs
+    along that side, as computed by city_layout.  Strips are derived from the
     *expanded* block edges, so the output is disjoint from
-    ``block_ground_polygons`` by construction.  Rotated corridor rectangles
-    and corridor/block pairs with no positive gap produce nothing."""
+    ``block_ground_polygons`` by construction.  A verge strip is emitted for a
+    block on the side facing the corridor band that lies on its north side
+    (corridor above the block); a block that sits on the corridor's far side
+    (corridor below the block) generates no strip from that corridor.  Rotated
+    corridor rectangles and corridor/block pairs with no positive gap produce
+    nothing."""
     blocks = _validate_layout(layout)
     if margin_cm < 0:
         raise ValueError("margin_cm must be >= 0")
@@ -374,8 +378,10 @@ def gap_polygons(layout, spec, *, margin_cm):
 
 
 def _strips_between(block_bb, corridor_bb):
-    """Axis-aligned rectangles lying strictly between a block bbox edge and a
-    corridor bbox edge, wherever the two are separated by a positive gap."""
+    """Axis-aligned rectangles lying between a block edge and a corridor band
+    on the block's north side (the corridor runs along that side of the block),
+    wherever the two are separated by a positive gap.  A block that lies on the
+    far (north) side of a corridor does not face it and gets no verge strip."""
     out = []
 
     def maybe(tag, x0, y0, x1, y1):
@@ -385,20 +391,11 @@ def _strips_between(block_bb, corridor_bb):
 
     ox = (max(block_bb["min_x"], corridor_bb["min_x"]),
           min(block_bb["max_x"], corridor_bb["max_x"]))
-    oy = (max(block_bb["min_y"], corridor_bb["min_y"]),
-          min(block_bb["max_y"], corridor_bb["max_y"]))
-    # corridor above the block
+    # corridor above the block: the block faces it across the strip that spans
+    # the shared x-overlap between the block's north edge and the corridor's
+    # near (kerb) edge.
     if corridor_bb["min_y"] >= block_bb["max_y"] + _EPS:
         maybe("above", ox[0], block_bb["max_y"], ox[1], corridor_bb["min_y"])
-    # corridor below the block
-    if corridor_bb["max_y"] <= block_bb["min_y"] - _EPS:
-        maybe("below", ox[0], corridor_bb["max_y"], ox[1], block_bb["min_y"])
-    # corridor to the right of the block
-    if corridor_bb["min_x"] >= block_bb["max_x"] + _EPS:
-        maybe("right", block_bb["max_x"], oy[0], corridor_bb["min_x"], oy[1])
-    # corridor to the left of the block
-    if corridor_bb["max_x"] <= block_bb["min_x"] - _EPS:
-        maybe("left", corridor_bb["max_x"], oy[0], block_bb["min_x"], oy[1])
     return out
 
 

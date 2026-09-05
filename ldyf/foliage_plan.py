@@ -403,7 +403,8 @@ def foliage_plan(layout, *, spacing_cm=500.0, inset_cm=40.0, size_cm=120.0,
                              inset_cm=inset_cm, size_cm=size_cm)
     hedges = hedge_runs(layout, min_run_cm=min_run_cm, offset_cm=offset_cm,
                         segment_cm=segment_cm)
-    clusters = courtyard_clusters(layout, per_block=per_block,
+    per = _require_positive("per_block", per_block, integer=True)
+    clusters = courtyard_clusters(layout, per_block=per,
                                   radius_cm=radius_cm, seed=seed)
     params = {
         "spacing_cm": _f3(spacing_cm),
