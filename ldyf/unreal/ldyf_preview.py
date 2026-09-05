@@ -1,4 +1,4 @@
-"""Deterministic preview: cast, baked Level Sequence, cameras, Movie Render Queue.
+﻿"""Deterministic preview: cast, baked Level Sequence, cameras, Movie Render Queue.
 
 Render authority is the FRAME, never the wall clock (contract C3): output frame f
 is presentation second f/fps and simulation second t_begin + (f/fps)*rate. The
@@ -253,12 +253,18 @@ def build_sequence(bake_path: str, *, fps: int, contact_offsets: dict, surface_z
             "seconds": round(time.perf_counter() - t0, 2)}
 
 
-def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH) -> dict:
+def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH,
+                cam_prefix: str = CAM_PREFIX) -> dict:
     """One CineCameraActor per shot plus a camera-cut track. `shots` items:
     {"name","start_s","end_s","loc":[x,y,z],"rot":[pitch,yaw,roll],
      "loc_end":[...] optional, "rot_end":[...] optional, "fov" optional}."""
     seq = unreal.EditorAssetLibrary.load_asset(seq_path)
-    _clear(CAM_PREFIX)
+    # The prefix is a parameter because these camera ACTORS are shared across
+    # sequences. Clearing "LD_CAM" while building a throwaway look sequence
+    # destroyed the deliverable preview sequence's camera bindings, and it then
+    # rendered a garbage frame from a dangling binding. A second sequence must
+    # own a second prefix.
+    _clear(cam_prefix)
     # Re-aiming the cameras must REPLACE the cut track, not add a second one:
     # add_track appends unconditionally, so a second call would leave the
     # sequence with two camera-cut tracks and the renderer choosing between
@@ -273,7 +279,7 @@ def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH) -> dict:
             name = str(unreal.MovieSceneBindingExtensions.get_display_name(b))
         except Exception:
             continue
-        if name.startswith(CAM_PREFIX):
+        if name.startswith(cam_prefix):
             unreal.MovieSceneBindingExtensions.remove(b)
     cut = seq.add_track(unreal.MovieSceneCameraCutTrack)
     LINEAR = unreal.MovieSceneKeyInterpolation.LINEAR
@@ -283,7 +289,7 @@ def add_cameras(shots: list, *, fps: int, seq_path: str = SEQ_PATH) -> dict:
         rot = s["rot"]
         cam = unreal.EditorLevelLibrary.spawn_actor_from_class(
             unreal.CineCameraActor, unreal.Vector(*loc), unreal.Rotator(rot[2], rot[0], rot[1]))
-        cam.set_actor_label(f"{CAM_PREFIX}_{s['name']}")
+        cam.set_actor_label(f"{cam_prefix}_{s['name']}")
         cam.set_editor_property("tags", ["ld_camera", f"shot:{s['name']}"])
         # A CineCameraActor defaults to 35 mm on a 23.76 mm sensor, i.e. a
         # 37.5-degree horizontal FOV -- but the shot planner sizes its overview

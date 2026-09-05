@@ -22,6 +22,8 @@ from ldyf.facade import (
     P_GROUND,
     P_ORIENT_MAX_Z,
     P_ORIENT_SHARP,
+    P_ROOF_ROUGH,
+    P_ROOF_TINT,
     P_SHOP_WIN_W,
     P_SPACING_H,
     P_SPACING_V,
@@ -29,9 +31,11 @@ from ldyf.facade import (
     P_WIN_COL,
     P_WIN_H,
     P_WIN_W,
+    evaluate_masks,
     facade_graph,
     kit_parameters,
     validate_graph,
+    validate_spec,
 )
 
 KITS = ("CHA", "NYA", "SFA")
@@ -42,6 +46,15 @@ def _graph(**over):
           "window_h": 0.52, "edge_sharpness": 60.0, "ground_floor_cm": 400.0}
     kw.update(over)
     return facade_graph(**kw)
+
+
+def _spec(**over):
+    """A facade spec dict (the shape of facade_graph()['params']) for the mask
+    oracle and validate_spec, using the same defaults as ``_graph``."""
+    kw = {"spacing_h_cm": 320.0, "spacing_v_cm": 340.0, "window_w": 0.30,
+          "window_h": 0.52, "edge_sharpness": 60.0, "ground_floor_cm": 400.0}
+    kw.update(over)
+    return dict(facade_graph(**kw)["params"])
 
 
 def _broken(over):
@@ -369,6 +382,153 @@ def test_no_flat_shopfront_scalar_remains():
     assert {P_SHOP_WIN_W, P_BAND} <= names
 
 
+# ------------------------------------------------------------------ roof output
+
+def test_spacing_parameter_names_are_the_cm_family_read_back():
+    """The material instance reads are made under FacadeSpacingHCm /
+    FacadeSpacingVCm (the -Cm suffix family with FacadeGroundFloorCm).  The
+    graph must create exactly those names: any other spelling reads back 0.0
+    (Unreal's value for a scalar that does not exist on the material)."""
+    g = _graph()
+    assert P_SPACING_H == "FacadeSpacingHCm"
+    assert P_SPACING_V == "FacadeSpacingVCm"
+    scalar = {n["props"]["parameter_name"] for n in g["nodes"]
+              if n["class"] == "MaterialExpressionScalarParameter"}
+    assert "FacadeSpacingHCm" in scalar
+    assert "FacadeSpacingVCm" in scalar
+    # and non-zero documented defaults (validate_spec refuses 0.0)
+    assert g["params"][P_SPACING_H] > 0.0
+    assert g["params"][P_SPACING_V] > 0.0
+
+
+def test_roof_parameters_exist_with_stable_names():
+    g = _graph()
+    assert P_ROOF_TINT == "FacadeRoofTint"
+    assert P_ROOF_ROUGH == "FacadeRoofRoughness"
+    tint_default = g["params"][P_ROOF_TINT]
+    assert len(tint_default) == 3 and all(isinstance(c, float) for c in tint_default)
+    rough_default = g["params"][P_ROOF_ROUGH]
+    assert isinstance(rough_default, float) and 0.0 < rough_default <= 1.0
+    # present as nodes of the right class, defaulting to the params dict
+    classes = {n["id"]: n["class"] for n in g["nodes"]}
+    assert classes["roof_tint"] == "MaterialExpressionVectorParameter"
+    assert classes["roof_rough"] == "MaterialExpressionScalarParameter"
+
+
+def test_roof_mask_is_saturate_of_complement_gap():
+    """roof_mask = saturate((|normal.z| - FacadeWallNormalMaxZ) *
+    FacadeOrientSharpness): the exact complement of wall_mask, sharing
+    abs_nz and FacadeOrientSharpness, so the wall/roof choice is sharp."""
+    g = _graph()
+    assert _inputs_of(g, "roof_sub") == {("abs_nz", "A"), ("norm_maxz", "B")}
+    assert _inputs_of(g, "roof_mul") == {("roof_sub", "A"),
+                                         ("orient_sharp", "B")}
+    assert _node(g, "roof_mask")["class"] == "MaterialExpressionSaturate"
+    # feeds both colour and roughness of the roof branch
+    assert _inputs_of(g, "roof_base") == {("wall_col", "A"),
+                                          ("roof_tint", "B"),
+                                          ("roof_mask", "Alpha")}
+    assert _inputs_of(g, "roof_rough_l") == {("wall_rough", "A"),
+                                             ("roof_rough", "B"),
+                                             ("roof_mask", "Alpha")}
+    # and those blend into the final outputs' A side (walls unchanged:
+    # roof_mask == 0 on a wall means roof_base == wall_col).
+    assert ("roof_base", "A") in _inputs_of(g, "base_color")
+    assert ("roof_rough_l", "A") in _inputs_of(g, "roughness")
+    # outputs still lerp by exactly the window mask node
+    for prop, nid in g["outputs"].items():
+        alphas = {frm for frm, _in in _inputs_of(g, nid) if _in == "Alpha"}
+        assert alphas == {"mask"}, prop
+
+
+def test_oracle_keys_present_and_wall_semantics():
+    spec = _spec()
+    r = evaluate_masks(spec, 0.0, 0.0, 0.0, (1.0, 0.0, 0.0))
+    assert set(r) >= {"wall_mask", "roof_mask", "window_mask", "shop_mask",
+                      "final_window"}
+    # wall: |nz| = 0 -> wall_mask 1, roof_mask 0
+    assert r["wall_mask"] == 1.0
+    assert r["roof_mask"] == 0.0
+    # roof: |nz| = 1 -> wall_mask 0, roof_mask 1
+    r2 = evaluate_masks(spec, 0.0, 0.0, 0.0, (0.0, 0.0, 1.0))
+    assert r2["wall_mask"] == 0.0
+    assert r2["roof_mask"] == 1.0
+    # far from the threshold exactly one mask is fully on (sum == 1)
+    for nz in (0.0, 0.25, 0.75, 1.0):
+        rr = evaluate_masks(spec, 0.0, 0.0, 0.0, (0.0, 0.0, nz))
+        assert rr["wall_mask"] + rr["roof_mask"] == 1.0, nz
+    # inside the soft band around |nz| == 0.5 the wall mask falls off and the
+    # roof mask rises; at the midpoint neither is on (sharpness 8, max_z 0.5)
+    wall_band = [evaluate_masks(spec, 0.0, 0.0, 0.0,
+                                (0.0, 0.0, nz))["wall_mask"]
+                 for nz in (0.4, 0.5, 0.6)]
+    roof_band = [evaluate_masks(spec, 0.0, 0.0, 0.0,
+                                (0.0, 0.0, nz))["roof_mask"]
+                 for nz in (0.4, 0.5, 0.6)]
+    # Exact float equality on a value that comes out of a multiply and a
+    # saturate is a test bug, not a contract: (0.5 - 0.4) * 8 lands at
+    # 0.7999999999999998 in real arithmetic. The claim being made is about the
+    # band's shape, so compare it as such.
+    assert wall_band == pytest.approx([0.8, 0.0, 0.0])
+    assert roof_band == pytest.approx([0.0, 0.0, 0.8])
+
+
+def test_roof_point_gets_no_windows_even_inside_a_window_band():
+    """normal.z = 1 (a roof) at (x, y) that would land inside a window on a
+    wall must give wall_mask == 0.0 and final_window == 0.0."""
+    spec = _spec()          # spacing_h 320, spacing_v 340
+    z = 1190.0              # 3.5 floors: frac(z / 340) == 0.5, a window centre
+    for x, y in ((80.0, 80.0), (240.0, 240.0), (400.0, 400.0)):
+        # frac((x + y) / 320) == 0.5 in each case: a bay centre
+        r = evaluate_masks(spec, x, y, z, (0.0, 0.0, 1.0))
+        assert r["wall_mask"] == 0.0, (x, y)
+        assert r["final_window"] == 0.0, (x, y)
+        # sanity: the same point with a wall normal is inside the window
+        w = evaluate_masks(spec, x, y, z, (1.0, 0.0, 0.0))
+        assert w["final_window"] > 0.9, (x, y)
+
+
+def test_wall_bay_centre_and_between_bays():
+    spec = _spec()
+    z = 1190.0              # storey window centre, far above the shop/band
+    for normal in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        # bay centre: x + y = 800 -> frac(800 / 320) == 0.5
+        centre = evaluate_masks(spec, 400.0, 400.0, z, normal)
+        assert centre["wall_mask"] == 1.0
+        assert centre["final_window"] > 0.9, normal
+        assert centre["window_mask"] > 0.9
+        # between bays: x + y = 320 -> frac(320 / 320) == 0.0
+        gap = evaluate_masks(spec, 320.0, 0.0, z, normal)
+        assert gap["wall_mask"] == 1.0
+        assert gap["final_window"] < 0.1, normal
+
+
+def test_ground_floor_takes_shopfront_upper_floor_does_not():
+    spec = _spec()          # ground floor 400 cm, band 40 cm
+    normal = (1.0, 0.0, 0.0)
+    # inside the ground floor at a bay centre: the shop pane is on
+    low = evaluate_masks(spec, 400.0, 400.0, 200.0, normal)
+    assert low["shop_mask"] > 0.9
+    assert low["final_window"] > 0.9
+    # an upper-floor bay centre: no shop pane at all
+    high = evaluate_masks(spec, 400.0, 400.0, 1190.0, normal)
+    assert high["shop_mask"] == 0.0
+    assert high["final_window"] > 0.9
+
+
+def test_oracle_matches_the_node_grid_arithmetic():
+    """window_mask at a bay centre must equal the sat_h * sat_v formula with
+    the same numbers the graph would use (spacing 320/340, win 0.30/0.52,
+    edge 60): saturates to exactly 1 inside, exactly 0 between bays."""
+    spec = _spec()
+    # bay centre frac(h) = frac(v) = 0.5 -> (win_w * edge) saturates to 1
+    r = evaluate_masks(spec, 400.0, 400.0, 1190.0, (1.0, 0.0, 0.0))
+    assert r["window_mask"] == 1.0
+    # vertical: one floor higher (z + 340) is the *next* window band
+    r2 = evaluate_masks(spec, 400.0, 400.0, 1190.0 + 340.0, (1.0, 0.0, 0.0))
+    assert r2["window_mask"] == 1.0
+
+
 # ------------------------------------------------------------------ kits
 
 def test_kits_return_scalar_and_vector_maps():
@@ -488,6 +648,42 @@ def test_validate_catches_cycle():
     assert any("cycle" in p for p in problems)
 
 
+def test_validate_spec_accepts_master_defaults():
+    spec = _spec()
+    assert validate_spec(spec) == []
+
+
+def test_validate_spec_refuses_zero_sharpness():
+    spec = _spec()
+    bad = dict(spec)
+    bad[P_ORIENT_SHARP] = 0.0
+    problems = validate_spec(bad)
+    assert any(P_ORIENT_SHARP in p for p in problems)
+
+
+def test_validate_spec_refuses_zero_spacing_h():
+    spec = _spec()
+    bad = dict(spec)
+    bad[P_SPACING_H] = 0.0
+    problems = validate_spec(bad)
+    assert any(P_SPACING_H in p for p in problems)
+
+
+def test_validate_spec_refuses_zero_spacing_v():
+    spec = _spec()
+    bad = dict(spec)
+    bad[P_SPACING_V] = 0.0
+    problems = validate_spec(bad)
+    assert any(P_SPACING_V in p for p in problems)
+
+
+def test_validate_spec_reports_missing_critical_parameter():
+    spec = _spec()
+    del spec[P_SPACING_H]
+    problems = validate_spec(spec)
+    assert any("missing" in p and P_SPACING_H in p for p in problems)
+
+
 # ------------------------------------------------------------------ determinism
 
 def test_determinism_two_calls_identical():
@@ -504,6 +700,19 @@ def test_determinism_includes_v2_parameters():
     for name in (P_SHOP_WIN_W, P_BAND, P_ORIENT_MAX_Z, P_ORIENT_SHARP):
         assert a["params"][name] == b["params"][name]
         assert a["params"][name] == b["params"][name]
+
+
+def test_determinism_includes_roof_branch_and_spacing_names():
+    a = _graph()
+    b = _graph()
+    assert a == b
+    ids = {n["id"] for n in a["nodes"]}
+    assert {"roof_sub", "roof_mul", "roof_mask", "roof_base",
+            "roof_rough_l", "roof_tint", "roof_rough"} <= ids
+    assert set(a["params"]) == set(PARAMETER_NAMES)
+    assert {P_ROOF_TINT, P_ROOF_ROUGH} <= set(a["params"])
+    # roof branch is deterministic in content, not just in equality
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
 
 
 def test_determinism_node_order_stable():
@@ -557,3 +766,31 @@ def test_kit_window_fractions_stay_below_the_degenerate_half():
         sc = kit_parameters(kit)["scalar"]
         assert 0.0 < sc[P_WIN_W] < 0.5, "%s window_w %s" % (kit, sc[P_WIN_W])
         assert 0.0 < sc[P_WIN_H] < 0.5, "%s window_h %s" % (kit, sc[P_WIN_H])
+
+
+# ------------------------------------------------------------------ oracle vs emitted graph
+
+def test_oracle_matches_graph_wall_mask_formula():
+    """The oracle's orientation arithmetic must equal the formula the graph's
+    wall_mask node encodes, at the same threshold/sharpness values."""
+    spec = _spec()
+    for nz in (0.0, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0):
+        got = evaluate_masks(spec, 0.0, 0.0, 0.0, (0.0, 0.0, nz))["wall_mask"]
+        want = max(0.0, min(1.0, (0.5 - nz) * 8.0))
+        assert got == want, nz
+
+
+def test_graph_wall_and_roof_masks_are_complements():
+    """roof_mask is built on the same terms as wall_mask (same abs_nz input,
+    same FacadeOrientSharpness) but with the subtraction reversed, so the
+    emitted graph can never leave a surface unclassified (windows gated off a
+    roof, roof colour kept off walls)."""
+    g = _graph()
+    assert _inputs_of(g, "roof_sub") == {("abs_nz", "A"), ("norm_maxz", "B")}
+    assert _inputs_of(g, "roof_mul") == {("roof_sub", "A"),
+                                         ("orient_sharp", "B")}
+    # same raw normal term as the wall branch
+    assert _inputs_of(g, "orient_sub") == {("norm_maxz", "A"), ("abs_nz", "B")}
+    # both orientation masks reach the colour outputs
+    reach = _reach_outputs(g)
+    assert {"wall_mask", "roof_mask"} <= reach

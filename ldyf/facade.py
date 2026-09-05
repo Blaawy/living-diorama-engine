@@ -44,12 +44,26 @@ Mask and outputs (the dictated design, implemented exactly)::
 
 Windows must appear on walls only, so the grid is gated by the surface
 orientation.  A wall's vertex normal is near-horizontal (``abs(normal.z)`` near
-0); a roof or pavement is near-vertical normal (``abs(normal.z)`` near 1):
+0); a roof or pavement is a horizontal surface with ``abs(normal.z)`` near 1::
 
     wall_mask = saturate((FacadeWallNormalMaxZ - abs(normal.z))
                          * FacadeOrientSharpness)
 
-Roofs get ``wall_mask == 0`` and fall back to plain wall colour.
+The roof is selected by the *complement* of the same orientation term, so the
+two branches share one threshold and one sharpness and the wall/roof boundary
+is exactly complementary::
+
+    roof_mask = saturate((abs(normal.z) - FacadeWallNormalMaxZ)
+                         * FacadeOrientSharpness)
+
+A roof therefore does not merely lose its windows (``wall_mask == 0`` zeroes
+the glazing) -- it reads as a roof, through its own ``FacadeRoofTint`` colour
+and ``FacadeRoofRoughness``:
+
+    BaseColor = lerp(lerp(FacadeWallColor, FacadeRoofTint, roof_mask),
+                     FacadeWindowColor, mask)
+    Roughness = lerp(lerp(wall_rough, FacadeRoofRoughness, roof_mask),
+                     window_rough, mask)
 
 Ground floor (absolute world Z below ``FacadeGroundFloorCm``) reads as a
 shopfront instead of the same small windows: a separate, wider window grid with
@@ -65,13 +79,38 @@ visually separates the shopfront from the storeys:
     glazing = lerp(lerp(grid_mask, shop_grid, below_ground_step),
                    one, spandrel_strip)
     mask    = glazing * wall_mask
-    BaseColor  = lerp(WallColor,  WindowColor,  mask)
-    Roughness  = lerp(wall_rough, window_rough, mask)
+    BaseColor  = lerp(lerp(WallColor, RoofTint, roof_mask),
+                      WindowColor, mask)
+    Roughness  = lerp(lerp(wall_rough, RoofRoughness, roof_mask),
+                      window_rough, mask)
     Metallic   = lerp(0,          window_metal, mask)
 
 Every tunable is a ``ScalarParameter``/``VectorParameter`` with a stable
 ``parameter_name`` so three building kits can share one master material and
-differ only through material instances.
+differ only through material instances.  Names are part of the contract: bay
+and floor spacings are *centimetre* quantities and carry the ``-Cm`` suffix
+(``FacadeSpacingHCm``, ``FacadeSpacingVCm``) exactly like ``FacadeGroundFloorCm``;
+window widths/heights are fractions of a bay and carry no suffix
+(``FacadeWindowW``, ``FacadeWindowH``).  The material instances that the live
+render reads back are queried by these names, so a graph parameter created
+under any other name silently reads back as 0.0 (Unreal's value for a scalar
+parameter that does not exist on the material) -- which is how an otherwise
+real spacing can look zeroed in the editor.
+
+Spec, oracle and validation
+---------------------------
+``facade_graph()`` returns ``{"schema_version", "params", "nodes",
+"connections", "outputs"}``; its ``params`` dict is the spec used by the two
+pure functions below:
+
+* ``evaluate_masks(spec, x_cm, y_cm, z_cm, normal)`` re-runs the graph's mask
+  arithmetic in Python (node id per formula is named in its docstring), so a
+  mask regression is caught by a unit test, not by looking at a render;
+* ``validate_spec(spec)`` refuses a spec that carries ``0.0`` for
+  ``FacadeOrientSharpness``, ``FacadeSpacingHCm`` or ``FacadeSpacingVCm``.
+  All three have documented non-zero ``MASTER_DEFAULTS`` below; a spacing of 0
+  is a divide by zero in ``h``/``v`` and a sharpness of 0 makes both
+  orientation masks constant, so either value would silently destroy the image.
 
 props -> Unreal editor property mapping the executing module must apply
 -----------------------------------------------------------------------
@@ -89,8 +128,10 @@ tuples), matching how the rest of ``ldyf`` stores its specs.
 from __future__ import annotations
 
 # Stable parameter names shared by the master material and every kit instance.
-P_SPACING_H = "FacadeSpacingH"
-P_SPACING_V = "FacadeFloorHeight"
+# Bay/floor spacings are centimetre quantities (the ``-Cm`` suffix matches the
+# live material instance reads in the editor); window fractions carry none.
+P_SPACING_H = "FacadeSpacingHCm"
+P_SPACING_V = "FacadeSpacingVCm"
 P_WIN_W = "FacadeWindowW"
 P_WIN_H = "FacadeWindowH"
 P_EDGE = "FacadeEdgeSharpness"
@@ -102,19 +143,23 @@ P_ORIENT_SHARP = "FacadeOrientSharpness"
 P_WALL_ROUGH = "FacadeWallRoughness"
 P_WIN_ROUGH = "FacadeWindowRoughness"
 P_WIN_METAL = "FacadeWindowMetallic"
+P_ROOF_ROUGH = "FacadeRoofRoughness"
 P_WALL_COL = "FacadeWallColor"
 P_WIN_COL = "FacadeWindowColor"
+P_ROOF_TINT = "FacadeRoofTint"
 
 SCALAR_PARAMETER_NAMES = (P_SPACING_H, P_SPACING_V, P_WIN_W, P_WIN_H, P_EDGE,
                           P_GROUND, P_SHOP_WIN_W, P_BAND, P_ORIENT_MAX_Z,
                           P_ORIENT_SHARP, P_WALL_ROUGH, P_WIN_ROUGH,
-                          P_WIN_METAL)
-VECTOR_PARAMETER_NAMES = (P_WALL_COL, P_WIN_COL)
+                          P_WIN_METAL, P_ROOF_ROUGH)
+VECTOR_PARAMETER_NAMES = (P_WALL_COL, P_WIN_COL, P_ROOF_TINT)
 PARAMETER_NAMES = SCALAR_PARAMETER_NAMES + VECTOR_PARAMETER_NAMES
 
 FACADE_SPEC_VERSION = "facade_spec_v1"
 
 # Master-material (non-instance) fallbacks; kits override these per instance.
+# FacadeSpacingHCm / FacadeSpacingVCm / FacadeOrientSharpness defaults are
+# deliberately non-zero -- validate_spec() refuses a 0.0 for any of them.
 MASTER_DEFAULTS = {
     P_SPACING_H: 320.0,
     P_SPACING_V: 340.0,
@@ -125,12 +170,14 @@ MASTER_DEFAULTS = {
     P_SHOP_WIN_W: 0.42,     # wide shop pane (half-width); one pane, no mullions
     P_BAND: 40.0,           # dark spandrel strip above the ground floor
     P_ORIENT_MAX_Z: 0.5,    # |normal.z| below this reads as a wall
-    P_ORIENT_SHARP: 8.0,    # wall/roof transition sharpness
+    P_ORIENT_SHARP: 8.0,    # wall/roof transition sharpness (never 0)
     P_WALL_ROUGH: 0.85,
     P_WIN_ROUGH: 0.10,
     P_WIN_METAL: 0.55,
+    P_ROOF_ROUGH: 0.90,     # roof branch roughness (separate from the wall)
     P_WALL_COL: (0.45, 0.42, 0.38),   # master fallback; never a kit colour
     P_WIN_COL: (0.05, 0.08, 0.10),
+    P_ROOF_TINT: (0.21, 0.23, 0.27),  # slate roof tint, distinct from wall/window
 }
 
 _GROUND_STEP_K = 100.0   # 1 cm transition at the shopfront/upper-wall boundary
@@ -233,6 +280,10 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
                                "default_value": params[P_WIN_ROUGH]})
     add("win_metal", _SCALAR, {"parameter_name": P_WIN_METAL,
                                "default_value": params[P_WIN_METAL]})
+    add("roof_tint", _VECTOR, {"parameter_name": P_ROOF_TINT,
+                               "default_value": params[P_ROOF_TINT]})
+    add("roof_rough", _SCALAR, {"parameter_name": P_ROOF_ROUGH,
+                                "default_value": params[P_ROOF_ROUGH]})
     add("half", _CONST, {"R": _HALF})
     add("zero", _CONST, {"R": _ZERO})
     add("one", _CONST, {"R": _ONE})
@@ -270,6 +321,21 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     link("orient_sub", "orient_mul", "A")
     link("orient_sharp", "orient_mul", "B")
     link("orient_mul", "wall_mask", "")
+
+    # --- orientation roof mask: roof_mask = saturate((|normal.z| - max_z)
+    #                                                * sharpness)
+    # The exact complement of the wall mask, built on the same abs(normal.z)
+    # and the same FacadeOrientSharpness term, so every surface is classified
+    # wall or roof and the transition is as sharp as the wall one.  A roof then
+    # reads as FacadeRoofTint / FacadeRoofRoughness instead of plain wall.
+    add("roof_sub", _SUB, x=600.0)      # |normal.z| - max_z
+    add("roof_mul", _MUL, x=800.0)
+    add("roof_mask", _SAT, x=1000.0)
+    link("abs_nz", "roof_sub", "A")
+    link("norm_maxz", "roof_sub", "B")
+    link("roof_sub", "roof_mul", "A")
+    link("orient_sharp", "roof_mul", "B")
+    link("roof_mul", "roof_mask", "")
 
     # --- horizontal bay: h = (X + Y) / spacing_h
     add("sum_xy", _ADD, x=400.0)
@@ -382,14 +448,25 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
     link("glazing_b", "mask", "A")
     link("wall_mask", "mask", "B")
 
-    # --- material outputs
+    # --- material outputs.  Base colour and roughness first blend the wall
+    # value into the roof value under roof_mask, and the result is then lerped
+    # towards window colour/roughness by the glazing mask; metallic stays flat
+    # 0 unless a window (mask == 1) is present, so roofs are not metallic.
+    add("roof_base", _LERP, x=2700.0)   # lerp(wall_col, roof_tint, roof_mask)
+    add("roof_rough_l", _LERP, x=2700.0)
     add("base_color", _LERP, x=2800.0)
     add("roughness", _LERP, x=2800.0)
     add("metallic", _LERP, x=2800.0)
-    link("wall_col", "base_color", "A")
+    link("wall_col", "roof_base", "A")
+    link("roof_tint", "roof_base", "B")
+    link("roof_mask", "roof_base", "Alpha")
+    link("wall_rough", "roof_rough_l", "A")
+    link("roof_rough", "roof_rough_l", "B")
+    link("roof_mask", "roof_rough_l", "Alpha")
+    link("roof_base", "base_color", "A")
     link("win_col", "base_color", "B")
     link("mask", "base_color", "Alpha")
-    link("wall_rough", "roughness", "A")
+    link("roof_rough_l", "roughness", "A")
     link("win_rough", "roughness", "B")
     link("mask", "roughness", "Alpha")
     link("zero", "metallic", "A")
@@ -404,6 +481,98 @@ def facade_graph(*, spacing_h_cm, spacing_v_cm, window_w, window_h,
         "outputs": {"BaseColor": "base_color",
                     "Roughness": "roughness",
                     "Metallic": "metallic"},
+    }
+
+
+# --------------------------------------------------------------------------- mask oracle
+
+def _clamp01(x: float) -> float:
+    """Mirror of Unreal's Saturate node on a scalar."""
+    if x < 0.0:
+        return 0.0
+    if x > 1.0:
+        return 1.0
+    return x
+
+
+def _spec_float(spec, name):
+    """One named scalar from a facade spec; missing names fall back to the
+    documented ``MASTER_DEFAULTS`` (so a partial kit override is a valid spec)."""
+    try:
+        return float(spec.get(name, MASTER_DEFAULTS[name]))
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(
+            "facade spec must give a number for %r (master default %r)"
+            % (name, MASTER_DEFAULTS.get(name))) from None
+
+
+def evaluate_masks(spec, x_cm, y_cm, z_cm, normal) -> dict:
+    """Pure-Python oracle for the mask arithmetic the node graph encodes.
+
+    ``spec`` has the shape of ``facade_graph()["params"]`` -- a dict of
+    ``{parameter_name: value}``; every missing scalar falls back to
+    ``MASTER_DEFAULTS``.  ``normal`` is the ``(nx, ny, nz)`` surface normal.
+
+    Returns (each key is computed by the node id in parentheses)::
+
+        wall_mask      saturate((FacadeWallNormalMaxZ - |nz|) * sharp)   (wall_mask)
+        roof_mask      saturate((|nz| - FacadeWallNormalMaxZ) * sharp)   (roof_mask)
+        window_mask    the storey grid  sat_h * sat_v                    (grid_mask)
+        shop_mask      shop pane * ground-floor step                     (shop_sat, ground_band)
+        final_window   glazing * wall_mask                               (mask)
+
+    This is exactly the graph arithmetic: the same spacing/edge/ground/band
+    values feed the same lerp/saturate/multiply sequence, so mask behaviour is
+    pinned by unit test without an Unreal editor.
+    """
+    spacing_h = _spec_float(spec, P_SPACING_H)
+    spacing_v = _spec_float(spec, P_SPACING_V)
+    window_w = _spec_float(spec, P_WIN_W)
+    window_h = _spec_float(spec, P_WIN_H)
+    edge = _spec_float(spec, P_EDGE)
+    ground = _spec_float(spec, P_GROUND)
+    shop_w = _spec_float(spec, P_SHOP_WIN_W)
+    band = _spec_float(spec, P_BAND)
+    max_z = _spec_float(spec, P_ORIENT_MAX_Z)
+    sharp = _spec_float(spec, P_ORIENT_SHARP)
+
+    z = float(z_cm)
+    nz = abs(float(normal[2]))
+
+    # orientation pair (nodes abs_nz/orient_sub/orient_mul/wall_mask and
+    # roof_sub/roof_mul/roof_mask) -- one is the complement of the other.
+    wall_mask = _clamp01((max_z - nz) * sharp)
+    roof_mask = _clamp01((nz - max_z) * sharp)
+
+    # bay + floor grid (nodes div_h/frac_h/abs_h/.../sat_h and the v twin).
+    # ``% 1.0`` is Python floor-mod, equal to Unreal Frac for the positive
+    # world coordinates the buildings use.
+    h = (float(x_cm) + float(y_cm)) / spacing_h
+    v = z / spacing_v
+    d_h = abs((h % 1.0) - _HALF)
+    d_v = abs((v % 1.0) - _HALF)
+    sat_h = _clamp01((window_w - d_h) * edge)
+    sat_v = _clamp01((window_h - d_v) * edge)
+    grid_mask = sat_h * sat_v                                    # node grid_mask
+    shop_sat = _clamp01((shop_w - d_h) * edge)                   # node shop_sat
+
+    # ground-floor step and spandrel strip (nodes below_ground/.../ground_band
+    # and sp_above/sp_below_edge/spandrel).
+    ground_band = _clamp01((ground - z) * _GROUND_STEP_K)
+    spandrel = (_clamp01((z - ground) * _GROUND_STEP_K)
+                * _clamp01((ground + band - z) * _GROUND_STEP_K))
+
+    # glazing composition = the two lerps (nodes glazing_a, glazing_b).
+    glazing_a = grid_mask + (shop_sat - grid_mask) * ground_band
+    glazing_b = glazing_a + (_ONE - glazing_a) * spandrel
+    final_window = glazing_b * wall_mask                         # node "mask"
+
+    return {
+        "wall_mask": wall_mask,
+        "roof_mask": roof_mask,
+        "window_mask": grid_mask,
+        "shop_mask": shop_sat * ground_band,
+        "final_window": final_window,
     }
 
 
@@ -479,6 +648,39 @@ def kit_parameters(kit: str) -> dict:
 
 
 # --------------------------------------------------------------------------- validation
+
+def validate_spec(spec) -> list:
+    """Problems with a facade ``spec`` (the ``facade_graph()["params"]`` shape),
+    ``[]`` when valid.
+
+    Refuses a missing or ``0.0`` value for ``FacadeOrientSharpness``,
+    ``FacadeSpacingHCm`` and ``FacadeSpacingVCm``.  All three have documented
+    non-zero ``MASTER_DEFAULTS``; a spacing of 0.0 is a divide by zero in the
+    bay/floor grid and a sharpness of 0.0 makes both orientation masks
+    constant, so either silently destroys the image and must be impossible to
+    ship.
+    """
+    problems = []
+    for name in (P_ORIENT_SHARP, P_SPACING_H, P_SPACING_V):
+        if name not in spec:
+            problems.append("%s is missing; it needs a non-zero value" % name)
+            continue
+        try:
+            value = float(spec[name])
+        except (TypeError, ValueError):
+            problems.append("%s must be a number, got %r" % (name, spec[name]))
+            continue
+        if value == 0.0:
+            if name == P_ORIENT_SHARP:
+                problems.append(
+                    "%s must be non-zero: sharpness 0.0 makes the wall/roof "
+                    "orientation masks constant" % name)
+            else:
+                problems.append(
+                    "%s must be non-zero: a bay/floor spacing of 0.0 is a "
+                    "divide by zero in the window grid" % name)
+    return problems
+
 
 def validate_graph(graph) -> list:
     """Return human-readable problems with ``graph``, [] when valid.
