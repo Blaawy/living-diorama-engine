@@ -161,3 +161,68 @@ def validate_graph(graph: dict) -> list:
         if n not in reach:
             problems.append("node %s cannot reach any output" % n)
     return problems
+
+
+# --------------------------------------------------------------------------- foliage
+
+FOLIAGE_MASTER_DEFAULTS = {
+    "FoliageOpacityClip": 0.33,
+    "FoliageRoughness": 0.65,
+    "FoliageSpecular": 0.25,
+}
+T_FOLIAGE = "FoliageColorAlpha"
+
+
+def foliage_graph(*, roughness: float = FOLIAGE_MASTER_DEFAULTS["FoliageRoughness"],
+                  specular: float = FOLIAGE_MASTER_DEFAULTS["FoliageSpecular"]) -> dict:
+    """A masked, two-sided leaf material.
+
+    The Megaplants trees ship with their own foliage material. It compiles
+    without error and its textures resolve, yet the leaf sections render
+    nothing: bare bark on every variant from a 41k-triangle sapling to a 135k
+    beech, with Nanite on and with Nanite off. Whatever drives its opacity mask
+    evaluates to zero in this project, and Unreal will not expose a Material's
+    expressions to Python so it cannot be inspected.
+
+    So the leaf material is authored here instead, the same way the ground
+    surface was after MS_DefaultMaterial turned out never to compile. Megascans
+    plant textures pack colour in RGB and the leaf cutout in ALPHA of a single
+    ``_CA`` map, so one sampler feeds both BaseColor and OpacityMask.
+
+    ``material_properties`` in the returned document are engine properties the
+    executor sets on the Material itself rather than graph nodes: a leaf card
+    needs BLEND_MASKED (so the cutout applies at all) and two-sided rendering
+    (so a card is not invisible from behind).
+    """
+    if roughness < 0.0:
+        raise ValueError("roughness must be >= 0, got %r" % (roughness,))
+    nodes, conns = [], []
+
+    def add(nid, cls, props=None, x=0.0, y=0.0):
+        nodes.append({"id": nid, "class": cls, "props": dict(props or {}),
+                      "x": float(x), "y": float(y)})
+
+    def link(frm, to, to_input, from_output=""):
+        conns.append({"from": frm, "from_output": from_output,
+                      "to": to, "to_input": to_input})
+
+    add("ca", _TEXPARAM, {"parameter_name": T_FOLIAGE}, x=-500, y=0)
+    add("rough", _SCALAR, {"parameter_name": "FoliageRoughness",
+                           "default_value": float(roughness)}, x=-500, y=260)
+    add("spec", _SCALAR, {"parameter_name": "FoliageSpecular",
+                          "default_value": float(specular)}, x=-500, y=360)
+    return {
+        "schema_version": SURFACE_SPEC_VERSION,
+        "params": {"FoliageRoughness": float(roughness),
+                   "FoliageSpecular": float(specular)},
+        "nodes": nodes, "connections": conns,
+        # RGB of the sampler drives colour; its ALPHA drives the cutout
+        "outputs": {"BaseColor": "ca", "Roughness": "rough", "Specular": "spec"},
+        "output_pins": {"BaseColor": "RGB", "OpacityMask": "A"},
+        "opacity_mask_from": "ca",
+        "material_properties": {
+            "blend_mode": "BLEND_MASKED",
+            "two_sided": True,
+            "opacity_mask_clip_value": FOLIAGE_MASTER_DEFAULTS["FoliageOpacityClip"],
+        },
+    }

@@ -17,6 +17,7 @@ MAT_DIR = "/Game/LD/Materials"
 SURFACE_MASTER = MAT_DIR + "/M_LD_Surface"
 
 _OUTPUT_PROPERTY = {
+    "OpacityMask": "MP_OPACITY_MASK",
     "BaseColor": "MP_BASE_COLOR",
     "Normal": "MP_NORMAL",
     "Roughness": "MP_ROUGHNESS",
@@ -69,6 +70,17 @@ def build_surface_material(graph: dict, *, master_path: str = SURFACE_MASTER,
         mat = at.create_asset(name, pkg, unreal.Material, unreal.MaterialFactoryNew())
 
     made, problems = {}, []
+    # Engine properties on the Material itself, not graph nodes. A leaf card
+    # needs BLEND_MASKED for its cutout to apply at all, and two-sided
+    # rendering or it disappears when seen from behind.
+    for key, value in sorted((graph.get("material_properties") or {}).items()):
+        v = value
+        if key == "blend_mode":
+            v = getattr(unreal.BlendMode, str(value))
+        try:
+            mat.set_editor_property(key, v)
+        except Exception as exc:                       # noqa: BLE001
+            problems.append("material property %s=%r rejected: %s" % (key, value, exc))
     for node in graph["nodes"]:
         obj = mel.create_material_expression(mat, _expression_class(node["class"]),
                                              int(node.get("x", 0)), int(node.get("y", 0)))
@@ -93,13 +105,18 @@ def build_surface_material(graph: dict, *, master_path: str = SURFACE_MASTER,
             problems.append("connect failed %s -> %s.%s"
                             % (c["from"], c["to"], c.get("to_input", "")))
 
+    outputs = dict(graph.get("outputs") or {})
+    if graph.get("opacity_mask_from"):
+        outputs["OpacityMask"] = graph["opacity_mask_from"]
     wired = {}
-    for prop_name, node_id in sorted((graph.get("outputs") or {}).items()):
+    for prop_name, node_id in sorted(outputs.items()):
         obj, enum_name = made.get(node_id), _OUTPUT_PROPERTY.get(prop_name)
         if obj is None or enum_name is None:
             problems.append("output %s -> %s could not be wired" % (prop_name, node_id))
             continue
-        ok = mel.connect_material_property(obj, "", getattr(unreal.MaterialProperty, enum_name))
+        pin = (graph.get("output_pins") or {}).get(prop_name, "")
+        ok = mel.connect_material_property(obj, pin,
+                                           getattr(unreal.MaterialProperty, enum_name))
         wired[prop_name] = bool(ok)
         if not ok:
             problems.append("connect_material_property failed for %s" % prop_name)
