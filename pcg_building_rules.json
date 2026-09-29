@@ -1,0 +1,435 @@
+{
+ "style_count": 27,
+ "styles": {
+  "CHA": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+   ],
+   "count": 21
+  },
+  "CHB": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "count": 7
+  },
+  "CHC": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "count": 16
+  },
+  "CHD": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "count": 9
+  },
+  "CHE": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "count": 10
+  },
+  "CHF": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "count": 6
+  },
+  "CHG": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "count": 7
+  },
+  "CHH": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "count": 10
+  },
+  "CHI": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "count": 10
+  },
+  "CHJ": {
+   "levels": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "count": 4
+  },
+  "NYAA": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "count": 6
+  },
+  "NYAB": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "count": 7
+  },
+  "NYAC": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "count": 7
+  },
+  "NYAD": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "count": 6
+  },
+  "NYAE": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "count": 7
+  },
+  "NYAF": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "count": 8
+  },
+  "NYG": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    17
+   ],
+   "count": 16
+  },
+  "NYGA": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    17
+   ],
+   "count": 16
+  },
+  "NYH": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    8,
+    9,
+    10,
+    11,
+    12
+   ],
+   "count": 11
+  },
+  "QBA": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "count": 9
+  },
+  "QBAA": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "count": 9
+  },
+  "SFA": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "count": 10
+  },
+  "SFB": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "count": 6
+  },
+  "SFC": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "count": 5
+  },
+  "SFD": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "count": 5
+  },
+  "SFE": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "count": 6
+  },
+  "SFJ": {
+   "levels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "count": 6
+  }
+ },
+ "non_rule_assets": [
+  "/CitySamplePCG/PCG/DataAssets/Buildings/Bldg_SGD_level",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/SGD_CHA_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/SGD_CHB_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/SGD_CHC_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHD/SGD_CHD_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHE/SGD_CHE_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHF/SGD_CHF_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHG/SGD_CHG_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHH/SGD_CHH_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHI/SGD_CHI_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHJ/SGD_CHJ_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYAA/SGD_NYAA_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYAB/SGD_NYAB_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYAC/SGD_NYAC_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYAD/SGD_NYAD_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYAE/SGD_NYAE_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYAF_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYG/SGD_NYG_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYGA/SGD_NYGA_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/NYH/SGD_NYH_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/PCGD_ComplexBuildingShapes",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/PCG_Bldg_SGD_test",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/QBA/SGD_QBA_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/QBAA/SGD_QBAA_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/SFA/SGD_SFA_A"
+ ],
+ "total": 270,
+ "rule_example": "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L00",
+ "rule_class": "BP_ShapeGrammarRule_C",
+ "rule_props": [
+  "acquire_editor_element_handle",
+  "call_method",
+  "cast",
+  "get_class",
+  "get_default_object",
+  "get_editor_property",
+  "get_fname",
+  "get_full_name",
+  "get_name",
+  "get_outer",
+  "get_outermost",
+  "get_package",
+  "get_path_name",
+  "get_typed_outer",
+  "get_world",
+  "is_editor_property_overridden",
+  "is_package_external",
+  "modify",
+  "rename",
+  "reset_editor_property",
+  "set_editor_properties",
+  "set_editor_property",
+  "static_class"
+ ]
+}

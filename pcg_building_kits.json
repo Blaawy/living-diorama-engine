@@ -1,0 +1,475 @@
+{
+ "total_meshes": 130,
+ "kit_count": 52,
+ "kits": {
+  "CHB_L3_A": {
+   "family": "CH",
+   "sub": "",
+   "meshes": 2,
+   "kinds": {
+    "Wall": 2
+   }
+  },
+  "CHB_L6_B": {
+   "family": "CH",
+   "sub": "",
+   "meshes": 1,
+   "kinds": {
+    "CornerEx": 1
+   }
+  },
+  "CHH_L7_A": {
+   "family": "CH",
+   "sub": "",
+   "meshes": 1,
+   "kinds": {
+    "CornerIn": 1
+   }
+  },
+  "NY_L0_A": {
+   "family": "NY",
+   "sub": "A",
+   "meshes": 6,
+   "kinds": {
+    "CornerEx": 2,
+    "CornerIn": 2,
+    "Foundation": 2
+   }
+  },
+  "NY_L1_A": {
+   "family": "NY",
+   "sub": "A",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L2_A": {
+   "family": "NY",
+   "sub": "A",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L5_A": {
+   "family": "NY",
+   "sub": "A",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L1_B": {
+   "family": "NY",
+   "sub": "B",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L2_B": {
+   "family": "NY",
+   "sub": "B",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L3_B": {
+   "family": "NY",
+   "sub": "B",
+   "meshes": 2,
+   "kinds": {
+    "Wall": 2
+   }
+  },
+  "NY_L4_B": {
+   "family": "NY",
+   "sub": "B",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L5_B": {
+   "family": "NY",
+   "sub": "B",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L1_C": {
+   "family": "NY",
+   "sub": "C",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L2_C": {
+   "family": "NY",
+   "sub": "C",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L3_C": {
+   "family": "NY",
+   "sub": "C",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L4_C": {
+   "family": "NY",
+   "sub": "C",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L5_C": {
+   "family": "NY",
+   "sub": "C",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L6_C": {
+   "family": "NY",
+   "sub": "C",
+   "meshes": 2,
+   "kinds": {
+    "Wall": 2
+   }
+  },
+  "NY_L1_D": {
+   "family": "NY",
+   "sub": "D",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L2_D": {
+   "family": "NY",
+   "sub": "D",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L3_D": {
+   "family": "NY",
+   "sub": "D",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L4_D": {
+   "family": "NY",
+   "sub": "D",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L5_D": {
+   "family": "NY",
+   "sub": "D",
+   "meshes": 2,
+   "kinds": {
+    "Wall": 2
+   }
+  },
+  "NY_L1_E": {
+   "family": "NY",
+   "sub": "E",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L2_E": {
+   "family": "NY",
+   "sub": "E",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L3_E": {
+   "family": "NY",
+   "sub": "E",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L4_E": {
+   "family": "NY",
+   "sub": "E",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L5_E": {
+   "family": "NY",
+   "sub": "E",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L6_E": {
+   "family": "NY",
+   "sub": "E",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L1_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L2_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L3_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L4_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L5_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L6_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NY_L7_F": {
+   "family": "NY",
+   "sub": "F",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L17_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 2,
+   "kinds": {
+    "Wall": 2
+   }
+  },
+  "NYG_L1_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L2_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L3_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L4_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L5_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L6_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYG_L7_A": {
+   "family": "NY",
+   "sub": "G",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYH_L1_A": {
+   "family": "NY",
+   "sub": "H",
+   "meshes": 3,
+   "kinds": {
+    "Wall": 3
+   }
+  },
+  "NYH_L2_A": {
+   "family": "NY",
+   "sub": "H",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYH_L3_A": {
+   "family": "NY",
+   "sub": "H",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "NYH_L8_A": {
+   "family": "NY",
+   "sub": "H",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "SFD_L1_A": {
+   "family": "SF",
+   "sub": "D",
+   "meshes": 39,
+   "kinds": {
+    "other": 16,
+    "CornerEx": 6,
+    "CornerIn": 2,
+    "Wall": 15
+   }
+  },
+  "SFD_L2_A": {
+   "family": "SF",
+   "sub": "D",
+   "meshes": 19,
+   "kinds": {
+    "other": 4,
+    "CornerEx": 4,
+    "CornerIn": 3,
+    "Wall": 8
+   }
+  },
+  "SFD_L3_A": {
+   "family": "SF",
+   "sub": "D",
+   "meshes": 1,
+   "kinds": {
+    "Wall": 1
+   }
+  },
+  "SFD_L4_A": {
+   "family": "SF",
+   "sub": "D",
+   "meshes": 11,
+   "kinds": {
+    "other": 4,
+    "CornerEx": 3,
+    "CornerIn": 1,
+    "Wall": 3
+   }
+  }
+ },
+ "building_data_assets": [
+  "/CitySamplePCG/Levels/PCG/PCG_3_3_1_Buildings",
+  "/CitySamplePCG/PCG/AssignBuildingShape",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/Bldg_SGD_level",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L00",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L01",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L02",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L03",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L04",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L05",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L06",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L07",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L08",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L09",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L10",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L11",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L12",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L13",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L14",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L15",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L16",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L17",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L18",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L19",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/RULE_CHA_L20",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHA/SGD_CHA_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L00",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L01",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L02",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L03",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L04",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L05",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/RULE_CHB_L06",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHB/SGD_CHB_A",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L00",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L01",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L02",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L03",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L04",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L05",
+  "/CitySamplePCG/PCG/DataAssets/Buildings/CHC/RULE_CHC_L06"
+ ]
+}
