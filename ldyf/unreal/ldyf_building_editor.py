@@ -101,6 +101,18 @@ def build_block_mesh(block_id: str, buildings: list, *,
             order.append(key)
         return groups[key]
 
+    # Geometry arrives in WORLD coordinates. Built that way the mesh's pivot is
+    # the world origin while its triangles sit hundreds of metres away, giving a
+    # bounding sphere that spans the whole city -- and the blocks rendered
+    # completely unlit, roofs included, under any sun. Recentre the geometry on
+    # its own centroid and return that offset so the caller can place the actor
+    # there; the mesh then sits on its own pivot like every other asset here.
+    all_v = [v for b in buildings for v in b["geometry"]["vertices"]]
+    if all_v:
+        ox = sum(v[0] for v in all_v) / len(all_v)
+        oy = sum(v[1] for v in all_v) / len(all_v)
+    else:
+        ox = oy = 0.0
     tris = 0
     problems: list = []
     for b in buildings:
@@ -119,11 +131,19 @@ def build_block_mesh(block_id: str, buildings: list, *,
         vids = []
         for v in verts:
             vid = smd.create_vertex()
-            smd.set_vertex_position(vid, unreal.Vector(float(v[0]), float(v[1]), float(v[2])))
+            smd.set_vertex_position(
+                vid, unreal.Vector(float(v[0]) - ox, float(v[1]) - oy, float(v[2])))
             vids.append(vid)
         for tri, slot in zip(doc["triangles"], slots):
             ins = []
-            for vi in tri:
+            # Unreal is LEFT-handed. building_geometry winds its triangles so
+            # the right-handed cross product points outward, which is the
+            # opposite of what Unreal derives from the same winding: the
+            # buildings rendered as black interiors with their street-facing
+            # walls culled away, and a corner read as concave. Reversing the
+            # winding here keeps the geometry module in its own convention and
+            # fixes the handedness at the one place that touches the engine.
+            for vi in (tri[0], tri[2], tri[1]):
                 inst = smd.create_vertex_instance(vids[int(vi)])
                 if int(vi) < len(uvs):
                     uv = uvs[int(vi)]
@@ -150,7 +170,7 @@ def build_block_mesh(block_id: str, buildings: list, *,
     return {"asset": path, "block": block_id, "buildings": len(buildings),
             "triangles": tris, "built": sm.get_num_triangles(0),
             "sections": sm.get_num_sections(0), "slot_groups": len(order),
-            "problems": problems}
+            "origin": [round(ox, 3), round(oy, 3)], "problems": problems}
 
 
 def build_buildings(blocks: dict, *, roof_path: str, ground_path: str,
@@ -168,7 +188,8 @@ def build_buildings(blocks: dict, *, roof_path: str, ground_path: str,
                                 family_paths=family_paths)
         out["problems"] += ["%s: %s" % (block_id, p) for p in info.pop("problems")]
         sm = eal.load_asset(info["asset"])
-        actor = EAS.spawn_actor_from_object(sm, unreal.Vector(0, 0, z_cm),
+        ox, oy = info["origin"]
+        actor = EAS.spawn_actor_from_object(sm, unreal.Vector(ox, oy, z_cm),
                                             unreal.Rotator(0, 0, 0))
         actor.set_actor_label("%s_%s" % (PREFIX, block_id))
         actor.set_editor_property("tags", ["ld_building", "block:%s" % block_id])
