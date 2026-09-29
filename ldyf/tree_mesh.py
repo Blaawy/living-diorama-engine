@@ -1,4 +1,4 @@
-"""``tree_mesh_v1`` â€” street-tree geometry we generate ourselves, end to end.
+"""``tree_mesh_v1`` - street-tree geometry we generate ourselves, end to end.
 
 Why this file exists (context recorded in ``ldyf.dressing_assets``): every
 imported tree in this project renders bare. The City Sample prop kits are
@@ -25,6 +25,8 @@ A document returned by :func:`tree_mesh` is::
       "triangles": [[i, j, k], ...],
       "normals": [[x, y, z], ...],         # one per vertex
       "uvs": [[u, v], ...],                # one per vertex, 0..1 per leaf card
+      "up_bias": [0.0, ...],               # one scalar per vertex; 0 on bark,
+                                           # leaf cards 0..1 (see leaf_cards)
       "material_slot_per_triangle": [0|1, ...],
       "counts": {...},
       "bounds": {...},
@@ -50,8 +52,10 @@ Conventions
 * Leaf cards carry a *masked* material slot: the quad itself is a flat sheet
   of two triangles; whether it looks like a leaf is the material's job. The
   material must be two-sided, exactly like the purpose-authored one mentioned
-  above, because the cards' stored normal is the outward radial direction, not
-  the card-plane normal (see :func:`leaf_cards`).
+  above, because the cards' stored normal is the outward crown normal, not
+  the card-plane normal (see :func:`leaf_cards`). Each leaf card additionally
+  emits an ``up_bias`` scalar (0..1) per vertex so a material driver can let
+  sky-facing cards catch more light; the value is data only.
 
 Triangle budget (240 trees will be instanced; one mesh per variant)
 -------------------------------------------------------------------
@@ -63,16 +67,22 @@ segments, branches 8 sides and 2 segments, B branches and C cards:
     branch_tris   =  8 * (2*2 + 2) = 48     per branch
     card_tris     = 2 * C
 
-    maple     B = 6, C = 60  ->  80 + 6*48 + 120 = 488 triangles
-    columnar  B = 4, C = 48  ->  80 + 4*48 +  96 = 368 triangles
-    sapling   B = 3, C = 26  ->  80 + 3*48 +  52 = 276 triangles
+    maple     B = 6, C = 130  ->  80 + 6*48 + 260 = 628 triangles
+    columnar  B = 4, C = 110  ->  80 + 4*48 + 220 = 492 triangles
+    sapling   B = 3, C = 62   ->  80 + 3*48 + 124 = 348 triangles
+
+The canopy polish (ellipsoidal crown, shell-biased placement with ragged
+radial jitter, per-card size, and the emitted ``up_bias``) costs no triangles:
+it redistributes the same per-variant card budget inside :func:`leaf_cards`,
+so these totals are unchanged from the spherical-crown version and the budget
+test re-derives them from the construction parameters rather than trusting the
+stored constant.
 
 Every triangle owns 3 vertices, so the vertex counts are exactly three times
 the triangle counts. 240 instanced maples at the worst case are
-240 * 488 ~= 117k triangles, comfortably inside an ISM budget for street
+240 * 628 ~= 151k triangles, comfortably inside an ISM budget for street
 furniture seen from 5-50 m. Each variant's constant is stated next to the
-geometry parameters in :data:`TREE_VARIANTS`, and the budget test re-derives
-it from the construction parameters rather than trusting the constant.
+geometry parameters in :data:`TREE_VARIANTS`.
 """
 
 from __future__ import annotations
@@ -89,7 +99,7 @@ SCHEMA_VERSION = "tree_mesh_v1"
 # --------------------------------------------------------------------------
 
 def _hex(seed: Any, label: str) -> str:
-    """sha256 hex digest of ``seed|label`` â€” the only source of variation."""
+    """sha256 hex digest of ``seed|label`` - the only source of variation."""
     return hashlib.sha256(f"{seed}|{label}".encode("utf-8")).hexdigest()
 
 
@@ -297,83 +307,135 @@ def branch_geometry(*, origin_z_cm: float, length_cm: float,
     return geo
 
 
+# leaf-card cluster controls, shared by every variant (see leaf_cards)
+_CARD_RADIAL_MIN = 0.70        # centres sit in the outer shell band [0.70, 1]
+_CARD_SCALE_BAND = (0.6, 1.0)  # per-card size factor; the nominal card is max
+
+
 def leaf_cards(*, crown_centre_z_cm: float, crown_radius_cm: float,
                card_count: int, card_w_cm: float, card_h_cm: float,
-               seed: Any) -> dict:
-    """``card_count`` leaf quads (two triangles each) on a spherical crown.
+               seed: Any,
+               crown_radius_v_cm: float | None = None) -> dict:
+    """``card_count`` leaf quads (two triangles each) on an ellipsoidal crown.
 
-    Card i's position is a digest-derived point of the crown sphere (radial
-    factor in [0.35, 1] so cards favour the canopy shell). The card's *stored
-    normal* is the outward radial direction, NOT the card-plane normal, so the
-    crown lights as a volume. The card plane is the tangent plane of the crown
-    at that point, randomised by a digest-derived roll about the radial axis
-    and a pitch jitter of at most +-22 degrees, so no two cards need be
-    coplanar â€” the crown cannot read as a single flat billboard. UVs span the
-    full 0..1 range on every card.
+    ``crown_radius_cm`` is the crown's horizontal semi-axis and
+    ``crown_radius_v_cm`` its vertical semi-axis; a vertical radius of ``None``
+    (the default) means a spherical crown, the shape older callers and tests
+    expect. A card picks a uniform unit direction ``d`` on the sphere and maps
+    it onto the ellipsoid shell ``e = (rx*d_x, rx*d_y, rz*d_z)``, so the broad
+    variant is wider than tall and the columnar taller than wide.
+
+    Card centres are biased to the outer shell: the radial factor in
+    ``[_CARD_RADIAL_MIN, 1.0]`` of ``e`` is a digest-derived jitter inside the
+    band, so the canopy is densest near its outside and the outline is ragged
+    rather than a clean ball. Every card is additionally scaled by a
+    digest-derived factor in ``_CARD_SCALE_BAND``, so one crown carries small
+    and large lobes instead of one repeated stamp.
+
+    The card's *stored normal* is the unit outward normal of the ellipsoid at
+    ``e`` (proportional to ``(d_x/rx, d_y/rx, d_z/rz)``), NOT the card-plane
+    normal, so the crown lights as a volume; the dot product of the normal
+    with ``e`` is positive for every card, i.e. normals always point away from
+    the crown centre. The card plane is the tangent plane of the ellipsoid at
+    that point, randomised by a digest-derived roll about the normal and a
+    pitch jitter of at most +-22 degrees, so cards splay outward and no two
+    need be coplanar - the crown cannot read as one flat billboard.
+
+    A per-card ``up_bias`` scalar in [0, 1] is emitted once per vertex (six
+    rows per card) as ``(n_z + 1) / 2`` of the stored normal: 0 for a card
+    facing straight down, 0.5 for a vertical side card, 1 for a card on the
+    crown top. The value is data for an editor driver to feed the leaf
+    material (sky-facing cards catch more light); lighting is not solved here.
+    UVs span the full 0..1 range on every card.
     """
     if crown_radius_cm <= 0.0 or card_w_cm <= 0.0 or card_h_cm <= 0.0:
         raise ValueError(
             "leaf_cards: crown radius and card sizes must be positive "
             f"(got {crown_radius_cm}, {card_w_cm}, {card_h_cm})")
+    if crown_radius_v_cm is not None and float(crown_radius_v_cm) <= 0.0:
+        raise ValueError(
+            "leaf_cards: vertical crown radius must be positive "
+            f"(got {crown_radius_v_cm})")
+    if crown_radius_v_cm is not None \
+            and not math.isfinite(float(crown_radius_v_cm)):
+        raise ValueError(
+            "leaf_cards: crown_radius_v_cm must be finite "
+            f"(got {crown_radius_v_cm})")
     if card_count < 1:
         raise ValueError(
             f"leaf_cards: card_count must be >= 1 (got {card_count})")
     if not math.isfinite(float(crown_centre_z_cm)):
         raise ValueError("leaf_cards: crown_centre_z_cm must be finite")
     centre_z = float(crown_centre_z_cm)
-    radius = float(crown_radius_cm)
+    rx = float(crown_radius_cm)
+    rz = rx if crown_radius_v_cm is None else float(crown_radius_v_cm)
     w2 = float(card_w_cm) / 2.0
     h2 = float(card_h_cm) / 2.0
     geo = _new_geo()
+    geo["up_bias"] = []
     for i in range(int(card_count)):
         lab = f"leaf|{i}"
-        # uniform direction on the sphere (z-up)
+        # uniform direction on the sphere (z-up); maps onto the ellipsoid shell
         az_c = 2.0 * math.pi * _u01(seed, lab + "|az_c")
         cosz = 2.0 * _u01(seed, lab + "|cosz") - 1.0
         hxy = math.sqrt(max(0.0, 1.0 - cosz * cosz))
         d = _norm(math.cos(az_c) * hxy, math.sin(az_c) * hxy, cosz)
-        radial = radius * (0.35 + 0.65 * _u01(seed, lab + "|radial"))
-        centre = (0.0, 0.0, centre_z)
-        px = centre[0] + d[0] * radial
-        py = centre[1] + d[1] * radial
-        pz = centre[2] + d[2] * radial
-        # tangent frame around the outward direction d
-        if abs(d[2]) <= 0.95:
+        # outer-shell radial factor: deterministic jitter inside the band
+        radial = (_CARD_RADIAL_MIN
+                  + (1.0 - _CARD_RADIAL_MIN) * _u01(seed, lab + "|radial"))
+        ex = rx * d[0]
+        ey = rx * d[1]
+        ez = rz * d[2]
+        px = ex * radial
+        py = ey * radial
+        pz = centre_z + ez * radial
+        # outward lighting normal: unit gradient of the ellipsoid at e
+        g = _norm(d[0] / rx, d[1] / rx, d[2] / rz)
+        # tangent frame around the outward normal g
+        if abs(g[2]) <= 0.95:
             ref = (0.0, 0.0, 1.0)
         else:
             ref = (1.0, 0.0, 0.0)
-        t1_0 = _norm(*_cross(d[0], d[1], d[2], ref[0], ref[1], ref[2]))
-        t2_0 = _cross(d[0], d[1], d[2], t1_0[0], t1_0[1], t1_0[2])
+        t1_0 = _norm(*_cross(g[0], g[1], g[2], ref[0], ref[1], ref[2]))
+        t2_0 = _cross(g[0], g[1], g[2], t1_0[0], t1_0[1], t1_0[2])
         roll = 2.0 * math.pi * _u01(seed, lab + "|roll")
         pitch = (_u01(seed, lab + "|pitch") - 0.5) * math.radians(44.0)
+        scale = (_CARD_SCALE_BAND[0]
+                 + (_CARD_SCALE_BAND[1] - _CARD_SCALE_BAND[0])
+                 * _u01(seed, lab + "|scale"))
+        w2s = w2 * scale
+        h2s = h2 * scale
         cr, sr = math.cos(roll), math.sin(roll)
         cp, sp = math.cos(pitch), math.sin(pitch)
-        # rotate t1 about d by `roll` ...
+        # rotate t1 about g by `roll` ...
         t1 = (t1_0[0] * cr + t2_0[0] * sr,
               t1_0[1] * cr + t2_0[1] * sr,
               t1_0[2] * cr + t2_0[2] * sr)
-        # ... then tip the plane up to +-22 deg toward/away from d, i.e. a
-        # rotation of t2 about t1 (t2_0 x t1 == d keeps the frame consistent).
-        t2 = (t2_0[0] * cp + d[0] * sp,
-              t2_0[1] * cp + d[1] * sp,
-              t2_0[2] * cp + d[2] * sp)
-        c00 = (px + t1[0] * w2 + t2[0] * h2,
-               py + t1[1] * w2 + t2[1] * h2,
-               pz + t1[2] * w2 + t2[2] * h2)
-        c10 = (px - t1[0] * w2 + t2[0] * h2,
-               py - t1[1] * w2 + t2[1] * h2,
-               pz - t1[2] * w2 + t2[2] * h2)
-        c11 = (px - t1[0] * w2 - t2[0] * h2,
-               py - t1[1] * w2 - t2[1] * h2,
-               pz - t1[2] * w2 - t2[2] * h2)
-        c01 = (px + t1[0] * w2 - t2[0] * h2,
-               py + t1[1] * w2 - t2[1] * h2,
-               pz + t1[2] * w2 - t2[2] * h2)
-        # both triangles share the c00-c11 diagonal; normals = outward dir.
-        _tri(geo, (c00, c10, c11), (d, d, d),
+        # ... then tip the plane up to +-22 deg toward/away from g, i.e. a
+        # rotation of t2 about t1 (t2_0 x t1 == g keeps the frame consistent).
+        t2 = (t2_0[0] * cp + g[0] * sp,
+              t2_0[1] * cp + g[1] * sp,
+              t2_0[2] * cp + g[2] * sp)
+        c00 = (px + t1[0] * w2s + t2[0] * h2s,
+               py + t1[1] * w2s + t2[1] * h2s,
+               pz + t1[2] * w2s + t2[2] * h2s)
+        c10 = (px - t1[0] * w2s + t2[0] * h2s,
+               py - t1[1] * w2s + t2[1] * h2s,
+               pz - t1[2] * w2s + t2[2] * h2s)
+        c11 = (px - t1[0] * w2s - t2[0] * h2s,
+               py - t1[1] * w2s - t2[1] * h2s,
+               pz - t1[2] * w2s - t2[2] * h2s)
+        c01 = (px + t1[0] * w2s - t2[0] * h2s,
+               py + t1[1] * w2s - t2[1] * h2s,
+               pz + t1[2] * w2s - t2[2] * h2s)
+        # both triangles share the c00-c11 diagonal; normals = outward normal.
+        _tri(geo, (c00, c10, c11), (g, g, g),
              ((0.0, 1.0), (1.0, 1.0), (1.0, 0.0)))
-        _tri(geo, (c00, c11, c01), (d, d, d),
+        _tri(geo, (c00, c11, c01), (g, g, g),
              ((0.0, 1.0), (1.0, 0.0), (0.0, 0.0)))
+        # per-card sky-facing scalar, one copy per corner row (6 rows/card)
+        up_bias = _f3((g[2] + 1.0) / 2.0)
+        geo["up_bias"].extend([up_bias] * 6)
     return geo
 
 
@@ -409,35 +471,41 @@ def _budget(branch_count: int, card_count: int) -> int:
 TREE_VARIANTS: dict[str, dict] = {
     "maple": {
         "description": "broad street maple",
-        # bare bole 3.0 m; leafy head centred 4.8 m up with 2.6 m radius ->
-        # nominal crown top ~7.4 m, ~5.2 m wide at full scale (cards may
-        # poke ~0.4 m past the ball; the real bounds are in the document).
+        # bare bole 3.0 m; leafy head centred 4.8 m up with 2.6 m horizontal
+        # and 2.0 m vertical radii -> nominal crown top ~6.8 m, ~5.2 m wide at
+        # full scale (cards may poke a little past the ellipsoid; the real
+        # bounds are in the document).
         "trunk_height_cm": 300.0,
         "trunk_base_radius_cm": 20.0,
         "trunk_top_radius_cm": 12.0,
         "lean_deg": 2.5,
         "branch_count": 6,
         "crown_radius_cm": 260.0,
+        "crown_radius_v_cm": 200.0,
         "crown_centre_z_cm": 480.0,
         "card_count": 130,
         "card_w_cm": 78.0,
         "card_h_cm": 58.0,
-        "nominal_height_cm": 740.0,
+        "nominal_height_cm": 680.0,
         "budget_triangles": _budget(6, 130),
     },
     "columnar": {
         "description": "narrow columnar (poplar-like)",
+        # high bare bole (5.2 m); the head at 6.2 m is 1.5 m wide and 1.8 m
+        # tall, so the column reads tall and thin even though the crown centre
+        # is a fixed constant.
         "trunk_height_cm": 520.0,
         "trunk_base_radius_cm": 16.0,
         "trunk_top_radius_cm": 9.0,
         "lean_deg": 1.5,
         "branch_count": 4,
         "crown_radius_cm": 150.0,
+        "crown_radius_v_cm": 180.0,
         "crown_centre_z_cm": 620.0,
         "card_count": 110,
         "card_w_cm": 58.0,
         "card_h_cm": 96.0,
-        "nominal_height_cm": 770.0,
+        "nominal_height_cm": 800.0,
         "budget_triangles": _budget(4, 110),
     },
     "sapling": {
@@ -448,11 +516,12 @@ TREE_VARIANTS: dict[str, dict] = {
         "lean_deg": 2.0,
         "branch_count": 3,
         "crown_radius_cm": 130.0,
+        "crown_radius_v_cm": 120.0,
         "crown_centre_z_cm": 270.0,
         "card_count": 62,
         "card_w_cm": 54.0,
         "card_h_cm": 44.0,
-        "nominal_height_cm": 400.0,
+        "nominal_height_cm": 390.0,
         "budget_triangles": _budget(3, 62),
     },
 }
@@ -512,7 +581,9 @@ def tree_mesh(variant: str, *, seed: Any) -> dict:
 
     ``material_slot_per_triangle``: 0 for every trunk/branch triangle (bark),
     1 for every leaf triangle. Leaves are emitted after bark, two triangles
-    per card in card order.
+    per card in card order. ``up_bias`` parallels the vertices: 0.0 on every
+    bark row and the per-card sky-facing scalar on leaf rows, so an editor
+    driver can read one scalar per vertex straight off the document.
     """
     if variant not in TREE_VARIANTS:
         raise ValueError(
@@ -529,6 +600,7 @@ def tree_mesh(variant: str, *, seed: Any) -> dict:
     branches = _branches(p, seed0)
     leaves = leaf_cards(crown_centre_z_cm=float(p["crown_centre_z_cm"]),
                         crown_radius_cm=float(p["crown_radius_cm"]),
+                        crown_radius_v_cm=float(p["crown_radius_v_cm"]),
                         card_count=int(p["card_count"]),
                         card_w_cm=float(p["card_w_cm"]),
                         card_h_cm=float(p["card_h_cm"]),
@@ -543,6 +615,10 @@ def tree_mesh(variant: str, *, seed: Any) -> dict:
     leaf_tris = len(leaves["triangles"])
     slot_per_tri = ([0] * (trunk_tris + branch_tris)
                     + [1] * leaf_tris)
+    # one scalar per vertex: neutral 0 on bark rows, the card's own bias on
+    # leaf rows (leaves own the rows after the bark run, 3 rows per triangle)
+    up_bias = ([0.0] * (3 * (trunk_tris + branch_tris))
+               + leaves["up_bias"])
 
     verts = merged["vertices"]
     tris = merged["triangles"]
@@ -576,6 +652,7 @@ def tree_mesh(variant: str, *, seed: Any) -> dict:
         "triangles": tris,
         "normals": merged["normals"],
         "uvs": merged["uvs"],
+        "up_bias": up_bias,
         "material_slot_per_triangle": slot_per_tri,
         "counts": counts,
         "bounds": bounds,
@@ -602,7 +679,8 @@ def validate_mesh(doc: dict) -> list[str]:
     """Return a list of problems; empty means valid.
 
     Checks: schema presence; triangle indices in range; normals/uvs length ==
-    vertices; material_slot_per_triangle length == triangles; no degenerate
+    vertices; ``up_bias`` (when present) length == vertices and every value in
+    [0, 1]; material_slot_per_triangle length == triangles; no degenerate
     (zero-area) triangle; every consecutive pair of material-slot-1 triangles
     (two triangles per leaf card, emitted adjacently by :func:`tree_mesh`)
     shares exactly two vertices; no NaN/inf coordinate anywhere.
@@ -617,6 +695,7 @@ def validate_mesh(doc: dict) -> list[str]:
     norms = doc.get("normals")
     uvs = doc.get("uvs")
     slots = doc.get("material_slot_per_triangle")
+    up_bias = doc.get("up_bias")
     if not isinstance(verts, list) or not isinstance(tris, list):
         return problems + ["vertices/triangles must be lists"]
     if not isinstance(norms, list):
@@ -628,12 +707,18 @@ def validate_mesh(doc: dict) -> list[str]:
     if not isinstance(slots, list):
         problems.append("material_slot_per_triangle missing")
         slots = []
+    if up_bias is not None and not isinstance(up_bias, list):
+        problems.append("up_bias must be a list")
+        up_bias = []
     if len(norms) != len(verts):
         problems.append(
             f"normals length {len(norms)} != vertices length {len(verts)}")
     if len(uvs) != len(verts):
         problems.append(
             f"uvs length {len(uvs)} != vertices length {len(verts)}")
+    if isinstance(up_bias, list) and len(up_bias) != len(verts):
+        problems.append(
+            f"up_bias length {len(up_bias)} != vertices length {len(verts)}")
     if len(slots) != len(tris):
         problems.append(
             "material_slot_per_triangle length "
@@ -676,6 +761,15 @@ def validate_mesh(doc: dict) -> list[str]:
     for k, u in enumerate(uvs[:nv]):
         if len(u) < 2 or not _finite(u[:2]):
             problems.append(f"uv {k} not finite")
+    if isinstance(up_bias, list) and len(up_bias) == len(verts):
+        for k, b in enumerate(up_bias):
+            try:
+                fb = float(b)
+            except (TypeError, ValueError):
+                problems.append(f"up_bias {k} is not a number")
+                continue
+            if not math.isfinite(fb) or not 0.0 <= fb <= 1.0:
+                problems.append(f"up_bias {k} not in [0, 1]")
 
     # leaf-card pairing: consecutive slot-1 triangles, two per card.
     if slots and len(slots) == len(tris):
