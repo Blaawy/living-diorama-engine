@@ -24,6 +24,30 @@ import unreal  # type: ignore[import-not-found]
 PPV_LABEL = "LD_Exposure"
 
 
+# Read-back comparison tolerance for numeric properties. Unreal round-trips
+# most editor floats through 32-bit storage, so an exact comparison would flag
+# honest values; 1e-4 relative (with the same absolute floor) is far tighter
+# than a value the engine would "roughly" take and far looser than float32
+# noise at these magnitudes.
+VALUE_TOLERANCE = 1e-4
+
+
+def _same_value(requested, returned, *, tol: float = VALUE_TOLERANCE) -> bool:
+    """Did the engine actually take the value we asked for?
+
+    Numbers compare within ``tol`` (relative, with ``tol`` as an absolute
+    floor). Booleans and enums -- neither reliably a number nor a string across
+    Unreal builds -- compare by their string form, case-folded and stripped,
+    which is also what makes ``AEM_Manual`` and ``AEM_MANUAL`` equal.
+    """
+    if isinstance(requested, bool) or isinstance(returned, bool):
+        return str(bool(requested)) == str(bool(returned))
+    if isinstance(requested, (int, float)) and isinstance(returned, (int, float)):
+        want = float(requested)
+        return abs(want - float(returned)) <= tol * max(1.0, abs(want))
+    return str(requested).strip().lower() == str(returned).strip().lower()
+
+
 def _enum(enum_cls, name):
     """Resolve an enum member tolerantly of case.
 
@@ -53,6 +77,13 @@ def _set_and_verify(obj, key, value, problems, *, label):
     except Exception as exc:                                   # noqa: BLE001
         problems.append("%s.%s unreadable after write: %s" % (label, key, exc))
         return None
+    # Reading a value back and returning it without COMPARING it catches
+    # nothing: an engine silently ignoring the write is exactly the case this
+    # read-back exists to report. An adversarial review found this gap.
+    if not _same_value(value, got):
+        problems.append(
+            "%s.%s did not take the requested value: requested %r, engine "
+            "returned %r" % (label, key, value, got))
     return got
 
 

@@ -10,6 +10,8 @@ apart and agreeing on a lie.
 
 from __future__ import annotations
 
+from ldyf.tree_mesh import TREE_VARIANT_ORDER
+
 DRESSING_ASSETS_VERSION = "dressing_assets_v1"
 
 MARK_PREFIX = "LD_Mark"
@@ -59,16 +61,37 @@ SIGNAL_MESH = {
 # backlit leaf card renders as a black silhouette, which is indistinguishable
 # from "the leaves did not render" and is what the first test frame showed.
 #
-# Order is load-bearing: dressing.tree_slots emits variant 0/1/2 and the
-# spawner indexes this list by that variant. tree_mesh.TREE_VARIANT_ORDER
-# states which shape each index should name, and this list MUST follow it --
-# not sorted(TREE_VARIANTS), which puts the narrow columnar where the broad
-# street maple belongs.
-TREE_MESHES = [
-    "/Game/LD/Meshes/SM_LD_Tree_Maple",       # variant 0
-    "/Game/LD/Meshes/SM_LD_Tree_Columnar",    # variant 1
-    "/Game/LD/Meshes/SM_LD_Tree_Sapling",     # variant 2
-]
+# Order is load-bearing: dressing.tree_slots rolls a variant in {0, 1, 2}
+# (``dressing.py``: ``_digest_int(rid + "|tree", 3)``) and the spawner indexes
+# this list by that variant, so this list MUST follow
+# ``tree_mesh.TREE_VARIANT_ORDER`` -- not ``sorted(TREE_VARIANTS)``, which puts
+# the narrow columnar where the broad street maple belongs.
+#
+# That agreement used to be a convention kept in step by a human. It broke once:
+# the two lists drifted, every tree in the city silently wore the wrong shape,
+# and every test still passed. It is mechanical now -- TREE_MESHES is DERIVED
+# from TREE_VARIANT_ORDER by the rule below, the same rule tools_build_trees.py
+# uses to name the meshes it builds (``"SM_LD_Tree_%s" % name.capitalize()``,
+# recorded per index in its manifest), so the two cannot disagree.
+# ``ldyf/tests/test_tree_variant_order.py`` fails if this derivation is ever
+# replaced by a hand-kept copy, or if the order changes in one place only.
+TREE_MESH_ROOT = "/Game/LD/Meshes"
+
+
+def mesh_path_for_variant(variant: str) -> str:
+    """Asset path rule: variant ``"maple"`` -> ``/Game/LD/Meshes/SM_LD_Tree_Maple``.
+
+    The asset name comes from the variant name by ``str.capitalize()``, which is
+    exactly how ``tools_build_trees.py`` names the mesh it builds for each entry
+    of ``TREE_VARIANT_ORDER``, so the derived path is the path that was authored.
+    """
+    name = str(variant)
+    if not name.strip():
+        raise ValueError("tree variant name must not be empty")
+    return "%s/SM_LD_Tree_%s" % (TREE_MESH_ROOT, name.capitalize())
+
+
+TREE_MESHES = [mesh_path_for_variant(v) for v in TREE_VARIANT_ORDER]
 SHRUB_MESHES = [
     "/CitySamplePCG/Megaplants/Tree_Common_Hazel/Tree_Common_Hazel_01/SM_Common_Hazel_01_B",
 ]

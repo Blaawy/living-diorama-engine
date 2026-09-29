@@ -134,10 +134,18 @@ def build_block_mesh(block_id: str, buildings: list, *,
             tris += 1
 
     sm.build_from_static_mesh_descriptions([smd], False)
+    # set, do not append: add_material() APPENDS, so rebuilding an existing
+    # block asset would leave it with two of every slot and one more set on
+    # each subsequent run. The tree driver hit exactly this.
+    slots = []
     for slot, family in order:
         fam_path = family_paths.get(family) or next(iter(family_paths.values()))
-        sm.add_material(_material_for_slot(slot, fam_path, roof_path,
-                                           ground_path, parapet_path))
+        entry = unreal.StaticMaterial()
+        entry.set_editor_property("material_interface",
+                                  _material_for_slot(slot, fam_path, roof_path,
+                                                     ground_path, parapet_path))
+        slots.append(entry)
+    sm.set_editor_property("static_materials", slots)
     eal.save_loaded_asset(sm, False)
     return {"asset": path, "block": block_id, "buildings": len(buildings),
             "triangles": tris, "built": sm.get_num_triangles(0),

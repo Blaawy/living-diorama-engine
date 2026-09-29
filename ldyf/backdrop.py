@@ -14,8 +14,16 @@ lattice.  In a wide aerial shot the plane visibly runs out.  This module builds
   world centre, from an inner radius that fully contains the world bbox out to
   ``outer_radius_cm``.  No four-side "frame" here: because the quads tile every
   one of the ``segments`` angular steps of a full turn there is no diagonal
-  corner gap.  Adjacent quads share their radial edges exactly.
+  corner gap.  Adjacent quads share their radial edges exactly.  A negative
+  ``inner_margin_cm`` is refused: it would pull the inner radius inside the
+  world.
 * ``point_in_ring`` -- inside-any-quad test used to probe the ring in tests.
+* ``ring_covers_rectangle`` -- mechanical statement of the requirement that the
+  ring never starts inside the city: its inner radius must be at least the world
+  rectangle's half-diagonal, so the inner circle contains the whole rectangle.
+  (A circle touches a rectangle only at its corners, so a non-square footprint
+  always leaves four circular-segment notches between the rectangle's sides and
+  the ring; the ground plane owns that band -- see the function's note.)
 * ``backdrop_massing`` -- low-detail silhouette towers on concentric rings
   beyond the world that break the horizon.  Heights live in per-ring height
   bands that step down with distance, so a farther ring is lower on average.
@@ -23,10 +31,13 @@ lattice.  In a wide aerial shot the plane visibly runs out.  This module builds
   grid): they clump into ``cluster_centres`` focal arcs with empty bands
   between them, widths span a wide range, yaw is decoupled from the block's
   bearing, and a deterministic fraction carries a ``step_*`` top box that a
-  driver emits as a second instance.
+  driver emits as a second instance.  A negative ``inner_margin_cm`` (which
+  would pull the rings inside the city) is refused here too.
 * ``atmosphere`` -- fog presets; ``view_distance_cm`` is derived from
   ``half_diagonal_cm`` (arithmetic in the docstring).
 * ``build_backdrop`` -- assembles all of the above into one schema dict.
+* ``validate_backdrop`` -- structural check of an assembled schema dict; reports
+  a skirt ring whose inner boundary does not reach the world rectangle.
 
 Determinism laws (mirroring ``ldyf.roads`` / ``ldyf.city_layout``): pure
 stdlib, no ``import unreal``, never the ``random`` module.  Every float goes
@@ -139,6 +150,48 @@ def world_bounds(road_spec: dict) -> dict:
 # --- 2. ground skirt -------------------------------------------------------
 
 
+# Every float here is rounded to 3 decimals by ``_f3``, so a radius recovered
+# from emitted quad corners (as ``validate_backdrop`` does) can land a fraction
+# of a millimetre below the radius the quads were built from.  That rounding
+# slop must not read as a defect; 0.005 cm = 0.05 mm.
+_RING_COVER_TOL_CM = 0.005
+
+
+def ring_covers_rectangle(bounds: dict, inner_radius_cm: float) -> bool:
+    """Does a ring with this inner radius reach every part of the world rect?
+
+    The world's footprint is the axis-aligned rectangle ``[min_x, max_x] x
+    [min_y, max_y]`` centred on ``bounds["centre_*"]``.  A ring whose inner
+    boundary is a circle of ``inner_radius_cm`` around that centre contains the
+    whole rectangle exactly when the radius is at least the rectangle's
+    half-diagonal -- the circumcircle radius,
+    ``hypot(max_x - min_x, max_y - min_y) / 2``.  Below it the world's four
+    corners stand outside the circle: the ring starts *inside* the city, corners
+    of the ground are left to no geometry at all, and ``backdrop_massing``
+    (which measures its clearance from those same corners) can land on top of
+    the city.
+
+    Documented note -- what this check is, and what it is not.  The inner radius
+    must be at least the half-diagonal for the ring to meet a rectangular ground
+    everywhere.  A circle around a rectangle touches it only at the four
+    corners, so for any footprint that is not square there are four
+    circular-segment notches between the rectangle's sides and the ring that
+    neither the ground plane nor the skirt covers; enlarging the radius does not
+    fill them, it moves them outward.  The ground plane owns that band -- all
+    the skirt can be asked for is that it never starts inside the world and
+    never cuts a corner off it.  This function is the mechanical form of that
+    requirement, and ``validate_backdrop`` reports a ring that fails it.
+
+    ``_RING_COVER_TOL_CM`` absorbs the module's 3-decimal rounding, because a
+    radius recovered from emitted quads is compared against the bbox rather than
+    against the unrounded number the quads were built from.
+    """
+    half_diagonal = math.hypot(
+        float(bounds["max_x"]) - float(bounds["min_x"]),
+        float(bounds["max_y"]) - float(bounds["min_y"])) / 2.0
+    return float(inner_radius_cm) + _RING_COVER_TOL_CM >= half_diagonal
+
+
 def skirt_ring(bounds: dict, *, inner_margin_cm: float,
                outer_radius_cm: float, segments: int) -> list[dict]:
     """Annulus of ``segments`` ground quads continuing the ground outward.
@@ -164,12 +217,26 @@ def skirt_ring(bounds: dict, *, inner_margin_cm: float,
     direction between the two radii is therefore covered: there is no seam and
     in particular no diagonal corner gap.
 
-    Raises ``ValueError`` for a non-positive ``segments``, a non-positive
-    ``outer_radius_cm``, an ``outer_radius_cm`` smaller than the world's own
-    ``half_diagonal_cm``, or an outer radius that does not even clear the ring's
-    own inner radius (a degenerate annulus).
+    ``inner_margin_cm`` must not be negative.  A negative margin subtracts from
+    the circumcircle radius, i.e. it pulls the ring's inner boundary *inside* the
+    world bbox (and, at ``-half_diagonal_cm``, onto the world centre), so the
+    ring starts inside the city, the ground's corners are covered by nothing,
+    and ``backdrop_massing`` -- which measures its own clearance from the bbox
+    corners -- can be told to put distant massing inside the city.
+
+    Raises ``ValueError`` for a negative ``inner_margin_cm``, a non-positive
+    ``segments``, a non-positive ``outer_radius_cm``, an ``outer_radius_cm``
+    smaller than the world's own ``half_diagonal_cm``, or an outer radius that
+    does not even clear the ring's own inner radius (a degenerate annulus).
     """
     seg = _positive_int("segments", segments)
+    margin = float(inner_margin_cm)
+    if margin < 0.0:
+        raise ValueError(
+            f"inner_margin_cm must not be negative, got {margin}: a negative "
+            f"margin pulls the ring's inner radius inside the world bbox, so "
+            f"the ring starts inside the city and backdrop massing can land "
+            f"inside it (see ring_covers_rectangle)")
     outer_radius_cm = float(outer_radius_cm)
     if outer_radius_cm <= 0.0:
         raise ValueError(f"outer_radius_cm must be positive, got {outer_radius_cm}")
@@ -178,7 +245,7 @@ def skirt_ring(bounds: dict, *, inner_margin_cm: float,
         raise ValueError(
             f"outer_radius_cm ({outer_radius_cm}) is smaller than the world's "
             f"half_diagonal_cm ({half})")
-    inner_radius = _f3(half + float(inner_margin_cm))
+    inner_radius = _f3(half + margin)
     outer_radius = _f3(outer_radius_cm)
     if outer_radius <= inner_radius:
         raise ValueError(
@@ -257,7 +324,10 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
     expanded by ``inner_margin_cm``: ``hypot((max_x-min_x)/2 + m,
     (max_y-min_y)/2 + m)``.  Every point of the expanded box is within that
     corner distance of the centre, so every building centre (on any ring, any
-    angle) is strictly outside ``bounds`` expanded by ``inner_margin_cm``.
+    angle) is strictly outside ``bounds`` expanded by ``inner_margin_cm``.  This
+    argument only clears the box when ``m >= 0``: a negative margin shrinks the
+    expansion below the world itself and lets the rings land inside the city, so
+    it is refused (``skirt_ring`` refuses the same value for the same reason).
 
     Heights step down with distance *by construction* (unchanged): the height
     range ``[min_h_cm, max_h_cm]`` is partitioned into ``rings`` equal bands
@@ -306,12 +376,12 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
     "ring", "step_w_cm", "step_d_cm", "step_h_cm"}`` and the list is emitted
     in ascending id order.
 
-    Raises ``ValueError`` for a non-positive ``rings`` or ``per_ring``, a
-    non-positive ``ring_gap_cm``, ``max_h_cm < min_h_cm``,
-    ``cluster_centres`` outside ``[1, per_ring]``, ``cluster_fill`` outside
-    ``(0, 1)``, width/depth fractions that are non-positive or have
-    ``min > max``, ``step_fraction`` outside ``[0, 1]``, or a non-positive
-    ``step_scale``.
+    Raises ``ValueError`` for a negative ``inner_margin_cm``, a non-positive
+    ``rings`` or ``per_ring``, a non-positive ``ring_gap_cm``,
+    ``max_h_cm < min_h_cm``, ``cluster_centres`` outside ``[1, per_ring]``,
+    ``cluster_fill`` outside ``(0, 1)``, width/depth fractions that are
+    non-positive or have ``min > max``, ``step_fraction`` outside ``[0, 1]``,
+    or a non-positive ``step_scale``.
     """
     rings_n = _positive_int("rings", rings)
     per_ring_n = _positive_int("per_ring", per_ring)
@@ -351,6 +421,11 @@ def backdrop_massing(bounds: dict, *, rings: int, per_ring: int,
         raise ValueError(f"step_scale must be positive, got {step_scale}")
 
     m = float(inner_margin_cm)
+    if m < 0.0:
+        raise ValueError(
+            f"inner_margin_cm must not be negative, got {m}: a negative margin "
+            f"shrinks the clearance below the world bbox, so the massing rings "
+            f"land inside the city (see ring_covers_rectangle)")
     half_w = (float(bounds["max_x"]) - float(bounds["min_x"])) / 2.0 + m
     half_h = (float(bounds["max_y"]) - float(bounds["min_y"])) / 2.0 + m
     clear = math.hypot(half_w, half_h)
@@ -468,8 +543,13 @@ def build_backdrop(road_spec: dict, **kw: Any) -> dict:
       (outermost ring ``<= ~2.5*half_diagonal_cm``, inside the default skirt);
     * ``seed=0``.
 
+    ``inner_margin_cm`` reaches both builders and must not be negative (both
+    refuse it with ``ValueError``); the default ``0`` puts the ring's inner
+    boundary exactly on the world's circumcircle.
+
     Deterministic: ``json.dumps(result, sort_keys=True)`` is byte-identical
-    across runs of the same road spec.
+    across runs of the same road spec.  The result can be checked with
+    ``validate_backdrop``.
     """
     bounds = world_bounds(road_spec)
     half = bounds["half_diagonal_cm"]
@@ -509,3 +589,49 @@ def build_backdrop(road_spec: dict, **kw: Any) -> dict:
             "massing": massing,
             "atmosphere": atmos,
             "counts": counts}
+
+
+# --- 6. validation ---------------------------------------------------------
+
+
+def validate_backdrop(backdrop: dict) -> list[str]:
+    """Structural check of an assembled ``backdrop_spec_v1`` -> problem list.
+
+    An empty list means nothing is structurally wrong.  The property checked
+    here is the one no builder can check on the caller's behalf: the skirt's
+    inner boundary must reach the world rectangle, i.e. the ring must not start
+    inside the city (``ring_covers_rectangle``).  ``skirt_ring`` refuses a
+    negative margin, but a document can still carry a ring that misses the
+    world -- hand-edited, or assembled by an older or third-party builder -- and
+    a ring that starts inside the city silently lets distant massing stand on
+    top of it.
+
+    The inner radius is recovered from the document itself, as the smallest
+    distance from the world centre to any emitted skirt corner, so the check
+    does not depend on trusting a stored scalar.
+
+    A document with no ``bounds`` or no ``skirt`` has no ring to check and
+    yields no problems; those shapes are the builders' ``ValueError`` paths
+    (``world_bounds`` returns a degenerate bbox, and both builders reject it),
+    not defects this function can diagnose.
+    """
+    problems: list[str] = []
+    bounds = backdrop.get("bounds")
+    skirt = backdrop.get("skirt") or []
+    if not bounds or not skirt:
+        return problems
+    cx, cy = float(bounds["centre_x"]), float(bounds["centre_y"])
+    inner_radius = min(
+        math.hypot(float(c[0]) - cx, float(c[1]) - cy)
+        for q in skirt for c in q["corners"])
+    if not ring_covers_rectangle(bounds, inner_radius):
+        half_diagonal = math.hypot(
+            float(bounds["max_x"]) - float(bounds["min_x"]),
+            float(bounds["max_y"]) - float(bounds["min_y"])) / 2.0
+        problems.append(
+            "skirt inner radius %r does not reach the world rectangle's "
+            "half_diagonal_cm (%r): the ring starts inside the city, so its "
+            "corners are covered by neither the ground nor the ring and "
+            "backdrop massing can land inside it (see ring_covers_rectangle)"
+            % (inner_radius, _f3(half_diagonal)))
+    return problems

@@ -190,6 +190,21 @@ def stage() -> None:
     for tool in ("import_city_sample_subset.py", "update_pcg_ground.py", "probe_vehicle_mesh.py", "inspect_city_sample_fast.py"):
         if (YF / "CACHE" / tool).exists():
             shutil.copy2(YF / "CACHE" / tool, art / tool)
+    # The building-kit tests resolve their ground-truth probe as
+    # ``Path(__file__).resolve().parents[2] / "asset_probe_v3.json"``
+    # (ldyf/tests/test_building_kits.py:35-36).  In this staged tree the test
+    # lives at artifacts/ldyf/tests/, so parents[2] is the artifacts root and
+    # the probe has to land beside pytest.ini -- not at the repo root, which is
+    # a different place from the archive reviewer's point of view.
+    #
+    # It used to be staged nowhere at all, so a fresh extraction of the MASTER
+    # failed several building-kit tests with FileNotFoundError while the gate
+    # plan promised the full suite green from that extraction.
+    #
+    # Copied unconditionally rather than behind an exists() guard: if the source
+    # probe is missing, the build must fail loudly here instead of shipping an
+    # archive whose tests cannot open their own ground truth.
+    shutil.copy2(WS / "asset_probe_v3.json", art / "asset_probe_v3.json")
 
 
 def write_sha_manifest() -> None:

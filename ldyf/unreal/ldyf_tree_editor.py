@@ -139,6 +139,22 @@ def ensure_tree_materials(*, leaf_tint=(0.46, 0.60, 0.22),
             "bark_instance": BARK_INSTANCE, "problems": problems}
 
 
+
+def _set_materials(sm, materials) -> None:
+    """Replace a StaticMesh's material slots outright.
+
+    ``StaticMesh.add_material`` APPENDS. Rebuilding an asset that already had
+    slots therefore left it with bark, leaf, bark, leaf -- and grew by one pair
+    on every subsequent run. Assigning ``static_materials`` replaces the list,
+    so a rebuild is idempotent.
+    """
+    slots = []
+    for m in materials:
+        slot = unreal.StaticMaterial()
+        slot.set_editor_property("material_interface", m)
+        slots.append(slot)
+    sm.set_editor_property("static_materials", slots)
+
 def build_tree_mesh(doc: dict, *, asset_name: str) -> dict:
     """Build one ``tree_mesh_v1`` document into ``/Game/LD/Meshes/<asset_name>``."""
     eal = unreal.EditorAssetLibrary
@@ -185,8 +201,9 @@ def build_tree_mesh(doc: dict, *, asset_name: str) -> dict:
         made += 1
 
     sm.build_from_static_mesh_descriptions([smd], False)
-    sm.add_material(eal.load_asset(BARK_INSTANCE))
-    sm.add_material(eal.load_asset(LEAF_INSTANCE))
+    # set, do not append: add_material() APPENDS, so rebuilding an existing
+    # asset left it with bark, leaf, bark, leaf and one more pair every run.
+    _set_materials(sm, [eal.load_asset(BARK_INSTANCE), eal.load_asset(LEAF_INSTANCE)])
     eal.save_loaded_asset(sm, False)
     return {"asset": path, "vertices": len(verts), "triangles_requested": len(tris),
             "triangles_made": made, "triangles_built": sm.get_num_triangles(0),
