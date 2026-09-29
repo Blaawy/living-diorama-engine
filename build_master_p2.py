@@ -135,7 +135,19 @@ def stage() -> None:
             ("yf_p2g_w2", "foliage_fix", "unattended_fix_foliage_plan.md"),
             ("yf_p2g_w2", "roadcheck2", "unattended_roadcheck_REIMPL_REVERTED.md"),
             ("yf_p2g_w2", "horizon", "unattended_build_horizon_REMOVED.md"),
-            ("yf_p2h_w3", "horizon_fix", "unattended_fix_horizon.md")):
+            ("yf_p2h_w3", "horizon_fix", "unattended_fix_horizon.md"),
+            # final integration pass
+            ("p2f_atk", "attack", "p2f_technical_attacker.md"),
+            ("p2f_w1", "buildgeom", "p2f_buildgeom.md"),
+            ("p2f_w1", "slinputs", "p2f_slinputs.md"),
+            ("p2f_w1", "asphalt", "p2f_asphalt.md"),
+            ("p2f_w1", "backdropvar", "p2f_backdropvar.md"),
+            ("p2f_w1", "shotplan", "p2f_shotplan.md"),
+            ("p2f_w1", "perf", "p2f_perf.md"),
+            ("p2f_w1", "treepolish", "p2f_treepolish.md"),
+            ("p2g_w1", "bldgint", "p2g_bldgint.md"),
+            ("p2g_w1", "slint", "p2g_slint.md"),
+            ("p2g_w1", "atkfix", "p2g_atkfix.md")):
         src = RUNS / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
