@@ -147,7 +147,10 @@ def stage() -> None:
             ("p2f_w1", "treepolish", "p2f_treepolish.md"),
             ("p2g_w1", "bldgint", "p2g_bldgint.md"),
             ("p2g_w1", "slint", "p2g_slint.md"),
-            ("p2g_w1", "atkfix", "p2g_atkfix.md")):
+            ("p2g_w1", "atkfix", "p2g_atkfix.md"),
+            # City Sample PCG building architecture
+            ("p2h_w1", "stylemap", "p2h_stylemap.md"),
+            ("p2h_w1", "pcgspec", "p2h_pcgspec.md")):
         src = RUNS / run / task / "report.md"
         if src.exists():
             shutil.copy2(src, rt / name)
