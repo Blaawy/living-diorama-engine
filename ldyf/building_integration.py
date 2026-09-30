@@ -1,4 +1,15 @@
-"""``building_integration_v1`` -- the join that puts real buildings in the world.
+"""EXPERIMENTAL / NON-PRODUCTION -- do not use for the shipping world.
+
+The Director has rejected custom triangle-by-triangle building production as
+the production architecture: Epic's City Sample PCG building system owns
+building geometry, facades, windows, ground floors and roofs. This module is
+kept as research evidence. It validates clean and its massing renders exactly
+as designed, but every building it produced rendered completely UNLIT in the
+level and the cause was never found (report section 2.20).
+
+Keep for evidence and tests. Do not deploy.
+
+``building_integration_v1`` -- the join that puts real buildings in the world.
 
 Three modules already exist and are tested, and until this module nothing joined
 them:

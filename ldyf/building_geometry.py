@@ -1,4 +1,15 @@
-"""``building_geometry_v1`` â€” turn ``building_kits_v1`` descriptions into mesh.
+"""EXPERIMENTAL / NON-PRODUCTION -- do not use for the shipping world.
+
+The Director has rejected custom triangle-by-triangle building production as
+the production architecture: Epic's City Sample PCG building system owns
+building geometry, facades, windows, ground floors and roofs. This module is
+kept as research evidence. It validates clean and its massing renders exactly
+as designed, but every building it produced rendered completely UNLIT in the
+level and the cause was never found (report section 2.20).
+
+Keep for evidence and tests. Do not deploy.
+
+``building_geometry_v1`` â€” turn ``building_kits_v1`` descriptions into mesh.
 
 Why this file exists (same argument as ``ldyf.tree_mesh``): ``ldyf.building_kits``
 describes six facade families, height bands, setbacks, entrances and a civic

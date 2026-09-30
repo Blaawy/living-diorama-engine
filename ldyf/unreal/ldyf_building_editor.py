@@ -1,4 +1,15 @@
-"""Replace the PCG-extruded blockout masses with real authored building geometry.
+"""EXPERIMENTAL / NON-PRODUCTION -- do not use for the shipping world.
+
+The Director has rejected custom triangle-by-triangle building production as
+the production architecture: Epic's City Sample PCG building system owns
+building geometry, facades, windows, ground floors and roofs. This module is
+kept as research evidence. It validates clean and its massing renders exactly
+as designed, but every building it produced rendered completely UNLIT in the
+level and the cause was never found (report section 2.20).
+
+Keep for evidence and tests. Do not deploy.
+
+Replace the PCG-extruded blockout masses with real authored building geometry.
 
 Until now a building was a closed spline tagged for PCG, which extruded it into
 a single box wearing one facade material. `ldyf/building_kits.py` has described
