@@ -162,6 +162,91 @@ STYLE_MIN_HEIGHT_CM: dict[str, float | None] = {
 #: :func:`set_style_minimums` as soon as a measured table exists.
 DEFAULT_MIN_HEIGHT_CM = 2000.0
 
+#: Recommended height band per family, in cm: ``(minimum, maximum)``.
+#: The minimum is MEASURED (see :data:`STYLE_MIN_HEIGHT_CM`); the maximum is a
+#: judgement about where the family stops reading well, chosen per role band.
+#:
+#: Why this exists: our layout asks for 1600-2400 cm buildings, but every
+#: grammar needs at least 2500 cm to emit any geometry at all, so clamping alone
+#: flattens the whole city to one uniform height. :func:`apply_height_bands`
+#: spreads the requests back out inside these bands, which keeps the relative
+#: design intent (a slot asked to be taller stays taller) while every height
+#: stays viable.
+HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
+    "SFD": (2500.0, 3400.0),     # low-rise, fine grain
+    "NYAC": (2500.0, 5200.0),    # mid-rise
+    "NYAD": (2500.0, 5200.0),
+    "NYAE": (2500.0, 5200.0),
+    "NYAF": (2500.0, 5200.0),
+    "NYH": (4000.0, 7000.0),     # upper-mid
+    "NYGA": (6000.0, 10000.0),   # tall
+    "NYG": (6000.0, 14000.0),    # landmark only
+}
+
+
+def apply_height_bands(doc: dict) -> dict:
+    """Spread clamped heights back out inside each family's recommended band.
+
+    Clamping alone makes every building the same height whenever the whole
+    layout requests less than the grammars' minimum, which is exactly our case
+    (requests 1600-2400 cm against a 2500 cm floor). This remaps each order's
+    REQUESTED height, not its clamped one, onto its family's
+    :data:`HEIGHT_BAND_CM`, so ordering is preserved: the tallest request in the
+    document lands at the top of its family's band and the shortest at the
+    bottom.
+
+    The normalisation is taken across the ORDINARY orders only. The landmark is
+    excluded deliberately: its request is far taller than any ordinary slot
+    (5600 against 1600-2400 here), so including it compresses every ordinary
+    building into the bottom of its band -- measured, the ordinary spread
+    collapsed from 2500-5200 to 2500-3040. The landmark instead takes the top of
+    its own band, which is what makes it read as the civic landmark.
+
+    The normalisation spans families rather than being per-family, so a family
+    used only for low slots keeps low buildings. A document whose ordinary
+    requests are all equal maps them to their band minimum, the conservative
+    choice.
+
+    Returns a NEW document; the input is not mutated. ``height_cm`` is replaced,
+    ``requested_height_cm`` is left untouched, and ``band_remap`` records every
+    change so a reviewer can see what moved.
+    """
+    orders = doc.get("orders") or []
+    if not orders:
+        raise ValueError("document has no orders")
+    ordinary = [o for o in orders if o.get("role") != "landmark"]
+    reqs = [float(o["requested_height_cm"]) for o in (ordinary or orders)]
+    lo, hi = min(reqs), max(reqs)
+    span = hi - lo
+    out = dict(doc)
+    new_orders = []
+    remap = []
+    for o in orders:
+        fam = _require_palette_family(o["family"])
+        band_lo, band_hi = HEIGHT_BAND_CM[fam]
+        req = float(o["requested_height_cm"])
+        if o.get("role") == "landmark":
+            t = 1.0          # the landmark takes the top of its own band
+        elif span <= 0.0:
+            t = 0.0
+        else:
+            t = min(1.0, max(0.0, (req - lo) / span))
+        height = _f3(band_lo + t * (band_hi - band_lo))
+        # never below the measured minimum, whatever the band says
+        height = max(height, minimum_for(fam))
+        row = dict(o)
+        row["height_cm"] = height
+        new_orders.append(row)
+        if height != float(o["height_cm"]):
+            remap.append({"id": o["id"], "family": fam,
+                          "requested_cm": req,
+                          "was_cm": float(o["height_cm"]),
+                          "height_cm": height})
+    out["orders"] = new_orders
+    out["band_remap"] = remap
+    return out
+
+
 #: Footprint depth used for a slot that carries no positive ``depth_cm``
 #: (``city_layout.building_slots`` always emits one); 1200 cm is the depth the
 #: existing building tests use.

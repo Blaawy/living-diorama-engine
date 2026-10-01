@@ -18,6 +18,8 @@ import pytest
 
 from ldyf.city_layout import blocks, building_slots
 from ldyf.sgd_buildings import (
+    HEIGHT_BAND_CM,
+    apply_height_bands,
     DEFAULT_MIN_HEIGHT_CM,
     FOUNDATION_ONLY_INSTANCES,
     ROLE_BAND_FAMILIES,
@@ -608,3 +610,56 @@ def test_a_slot_with_no_usable_footprint_is_a_value_error():
     layout["building_slots"]["slots"][0]["width_cm"] = 0.0
     with pytest.raises(ValueError):
         sgd_orders(layout, seed=SEED)
+
+
+# ------------------------------------------------------- recommended bands --
+
+
+def test_height_bands_cover_the_palette_and_start_at_the_measured_minimum():
+    assert set(HEIGHT_BAND_CM) == set(SGD_PALETTE)
+    for family, (lo, hi) in HEIGHT_BAND_CM.items():
+        assert lo == STYLE_MIN_HEIGHT_CM[family]  # band floor IS the measurement
+        assert hi > lo
+
+
+def test_apply_height_bands_spreads_requests_and_keeps_ordering():
+    doc = make_doc()
+    before = copy.deepcopy(doc)
+    banded = apply_height_bands(doc)
+    assert doc == before, "apply_height_bands must not mutate its input"
+    assert banded is not doc
+    for order in banded["orders"]:
+        lo, hi = HEIGHT_BAND_CM[order["family"]]
+        assert lo <= order["height_cm"] <= hi
+        assert order["height_cm"] >= STYLE_MIN_HEIGHT_CM[order["family"]]
+    # within one family, a taller request is never a shorter building
+    by_family = {}
+    for order in banded["orders"]:
+        by_family.setdefault(order["family"], []).append(order)
+    for family, group in by_family.items():
+        group.sort(key=lambda o: o["requested_height_cm"])
+        heights = [o["height_cm"] for o in group]
+        assert heights == sorted(heights), family
+
+
+def test_apply_height_bands_puts_the_landmark_at_the_top_of_its_band():
+    banded = apply_height_bands(make_doc())
+    landmark = [o for o in banded["orders"] if o["role"] == "landmark"][0]
+    assert landmark["height_cm"] == HEIGHT_BAND_CM[landmark["family"]][1]
+    # and the landmark is taller than every ordinary building
+    others = [o["height_cm"] for o in banded["orders"]
+              if o["role"] != "landmark"]
+    assert all(landmark["height_cm"] > h for h in others)
+
+
+def test_apply_height_bands_excludes_the_landmark_from_normalisation():
+    # the landmark's request dwarfs the ordinary ones; if it were included in the
+    # range, every ordinary building would collapse to the bottom of its band
+    banded = apply_height_bands(make_doc())
+    ordinary = [o for o in banded["orders"] if o["role"] != "landmark"]
+    assert len({o["height_cm"] for o in ordinary}) > 1
+
+
+def test_apply_height_bands_refuses_an_empty_document():
+    with pytest.raises(ValueError):
+        apply_height_bands({"orders": []})
