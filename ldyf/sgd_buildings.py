@@ -202,7 +202,18 @@ HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
 #: too, and if the landmark shared that band an ordinary NYAF at the top of the
 #: range would tie with it and the landmark would stop being the tallest mass.
 #: The floor sits above every ordinary band top so the hierarchy cannot invert.
-LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 14000.0)
+#:
+#: The CEILING is 9000, not the 14000 originally asked for, and that is an
+#: asset limit rather than a preference. Facade density tracks how many wall
+#: VARIANTS each level has in this project's mesh subset: NYA carries 6 variants
+#: at L3 (240 placements on the landmark) but only 1 at L7 (20 placements), so
+#: above roughly 9000 cm the upper courses thin out into widely spaced piers and
+#: a 14000 cm tower renders as shafts rather than a building -- measured, not
+#: guessed. Lifting this needs a targeted mesh import: 526 missing
+#: SM_BLDG_NYA_* files, 771 MB before dependency closure, which is far past a
+#: "smallest targeted top-up" and is a Director decision, not an engineering
+#: one. Evidence: EVIDENCE/PHASE_02/shaft_probe.json.
+LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 
 
 def apply_height_bands(doc: dict) -> dict:
