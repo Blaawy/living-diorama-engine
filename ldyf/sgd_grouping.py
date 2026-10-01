@@ -168,6 +168,9 @@ SHRINK_STEP_CM = 50.0
 _CAP_MARGIN_CM = 1.0
 _SHRINK_GUARD = 400
 
+#: Geometry tolerance in centimetres (0.1 mm).  This matches _f3 rounding.
+GEOM_EPS_CM = 0.01
+
 #: Sides in the order the corner alternation walks them.
 SIDE_ORDER: tuple[str, ...] = ("south", "east", "north", "west")
 
@@ -427,12 +430,18 @@ def _along_min(side: str, bounds: tuple[float, float, float, float]) -> float:
     return x_min if side in HORIZONTAL_SIDES else y_min
 
 
+def _along_max(side: str, bounds: tuple[float, float, float, float]) -> float:
+    x_min, x_max, y_min, y_max = bounds
+    return x_max if side in HORIZONTAL_SIDES else y_max
+
+
 def _corner_coords(corner: str,
                    bounds: tuple[float, float, float, float]) -> tuple[float, float]:
-    """``(x, y)`` of a corner, from the frontage lines of its two sides."""
+    """``(x, y)`` of a canonical SE/NE/NW/SW corner."""
+    key = _corner_key(corner)
     x_min, x_max, y_min, y_max = bounds
-    cx = x_max if "east" in corner else x_min
-    cy = y_min if "south" in corner else y_max
+    cx = x_max if "E" in key else x_min
+    cy = y_min if "S" in key else y_max
     return cx, cy
 
 
@@ -687,35 +696,22 @@ def _group_sort_key(group: Mapping[str, Any]) -> tuple:
 
 
 def group_slots(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> list[dict]:
-    """Group one block's slots into rectangular masses.
+    """Group one block into deterministic, contiguous rectangular masses.
 
-    Returns one dict per group::
-
-        {"group_id", "block_id", "side_yaw", "slot_ids", "center", "width_cm",
-         "depth_cm", "yaw_deg", "role", "trimmed"}
-
-    ``group_id`` is ``"<block_id>:<side>:<index>"`` with ``<index>`` the run's
-    position along the frontage, so it is stable across runs and across layout
-    edits that do not reorder a side.  ``role`` is ``"landmark"`` for the one
-    group that carries the landmark and ``"ordinary"`` otherwise.  ``trimmed``
-    records a corner-driven reduction of the group's width, or of the *owner's*
-    depth when the inset would otherwise leave this group unbuildable, as
-    ``{"corner", "side", "reason", ...}``; it is ``None`` when nothing was
-    reduced.
-
-    Every slot of the block appears in exactly one group's ``slot_ids``, whether
-    or not the group's rectangle still covers it.
-
-    ``ValueError`` for a block with no slots (which is also how an unknown
-    ``block_id`` shows up), a non-positive ``seed``, and any zero or negative
-    dimension on a slot or on an emitted group.
+    The original frontage slots are provenance/design intent.  Each seven-slot
+    side becomes two contiguous 3/4-slot groups.  If a group contains the
+    project-selected landmark slot it becomes the landmark mass; no head/tail
+    slots are merged across it.  Corner ownership is geometric: an owner reaches
+    the corner, while the perpendicular non-owner is inset by the maximum depth
+    on the owner side plus this block's deterministic clearance.
     """
     seed = _require_seed(seed)
     block_id = str(block_id)
     record = _block_record(layout, block_id)
     block_slots = [s for s in _slots_of(layout) if _slot_block(s) == block_id]
     if not block_slots:
-        raise ValueError("block %r has no slots" % (block_id,))
+        raise ValueError("block %r has no slots" % block_id)
+
     bounds = _block_bounds(record or {}, block_slots, block_id)
     clearance = _clearance_cm(block_id, seed)
     landmark_id = _landmark_slot_id(layout, block_id, seed)
@@ -723,140 +719,124 @@ def group_slots(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> list[
     by_side: dict[str, list[dict]] = {}
     for slot in block_slots:
         side = _side_of(slot)
-        _slot_width_cm(slot)                 # dimension guards, before geometry
+        _slot_width_cm(slot)
         _slot_depth_cm(slot)
         by_side.setdefault(side, []).append(slot)
-
     per_side: dict[str, list[dict]] = {}
     for side in SIDE_ORDER:
-        items = by_side.get(side)
-        if not items:
+        ordered = sorted(by_side.get(side, []),
+                         key=lambda s: (_along(s, side), _slot_id(s)))
+        if not ordered:
             continue
-        ordered = sorted(items, key=lambda s: (_along(s, side), _slot_id(s)))
+        sizes = _chunk_sizes(len(ordered), key="%s:%s" % (block_id, side), seed=seed)
+        runs = _slices(ordered, sizes)
         chunks = []
-        for index, run in enumerate(_side_runs(side, ordered, block_id=block_id,
-                                               seed=seed, landmark_id=landmark_id)):
+        for index, run in enumerate(runs):
             chunk = _chunk(block_id, side, index, run, seed)
             chunk["role"] = ("landmark" if landmark_id is not None
                              and landmark_id in chunk["slot_ids"] else "ordinary")
             chunks.append(chunk)
-        # two groups of one side: split their shared boundary, half a gap each
-        for first, second in zip(chunks, chunks[1:]):
-            boundary = (first["hi"] + second["lo"]) / 2.0
-            first["hi"] = _f3(boundary - clearance / 2.0)
-            second["lo"] = _f3(boundary + clearance / 2.0)
         per_side[side] = chunks
 
-    # -- corner ownership: the owner runs out, the non-owner is inset ---------
-    for corner in CORNER_ORDER:
-        owner = _side_of_yaw(corner_owner(block_id, corner, seed=seed))
-        first, second = CORNER_SIDES[corner]
-        non_owner = second if first == owner else first
-        owner_chunk = _corner_chunk(per_side.get(owner, []), corner, owner, bounds)
-        chunk = _corner_chunk(per_side.get(non_owner, []), corner, non_owner, bounds)
-        if chunk is None:
-            continue
-        owner_depth = float(owner_chunk["depth"]) if owner_chunk is not None else 0.0
-        # Depth FIRST: never inset a neighbour into an unbuildable footprint.
-        available = (chunk["hi"] - chunk["lo"]) - MIN_GROUP_DIMENSION_CM
-        if owner_chunk is not None and owner_depth + clearance > available:
-            wanted = max(MIN_GROUP_DIMENSION_CM,
-                         available - clearance - _CAP_MARGIN_CM)
-            if wanted < owner_depth:
-                was_depth = owner_chunk["depth"]
-                owner_chunk["depth"] = _f3(wanted)
-                owner_chunk["trimmed"] = {
-                    "corner": corner, "side": owner,
-                    "reason": "owner depth reduced so the non-owner keeps a "
-                              "buildable width",
-                    "was_depth_cm": _f3(was_depth),
-                    "depth_cm": owner_chunk["depth"]}
-                owner_depth = float(owner_chunk["depth"])
-        if owner_chunk is not None:
-            corner_coord = _f3(_corner_along(corner, owner, bounds))
-            if _corner_at_low(corner, owner, bounds):
-                owner_chunk["lo"] = corner_coord
-            else:
-                owner_chunk["hi"] = corner_coord
-        inset = owner_depth + clearance
-        corner_coord = _corner_along(corner, non_owner, bounds)
-        was_width = _f3(chunk["hi"] - chunk["lo"])
-        if _corner_at_low(corner, non_owner, bounds):
-            chunk["lo"] = max(chunk["lo"], _f3(corner_coord + inset))
-        else:
-            chunk["hi"] = min(chunk["hi"], _f3(corner_coord - inset))
-        if chunk["hi"] - chunk["lo"] < MIN_GROUP_DIMENSION_CM - 1e-6:
-            # Last resort: the depth cap above could not buy a buildable width
-            # (a sliver of a side).  Keep the legal edge and take the minimum
-            # width from the block interior, which can at worst share a party
-            # wall -- touching is not an overlap.
-            if _corner_at_low(corner, non_owner, bounds):
-                chunk["hi"] = _f3(chunk["lo"] + MIN_GROUP_DIMENSION_CM)
-            else:
-                chunk["lo"] = _f3(chunk["hi"] - MIN_GROUP_DIMENSION_CM)
-        width = _f3(chunk["hi"] - chunk["lo"])
-        if width != was_width:
-            chunk["trimmed"] = {
-                "corner": corner, "side": non_owner,
-                "reason": "non-owner inset of owner depth + clearance",
-                "inset_cm": _f3(inset), "was_width_cm": was_width,
-                "width_cm": width}
+    end_corners = {
+        "south": ("SW", "SE"),
+        "east": ("SE", "NE"),
+        "north": ("NW", "NE"),
+        "west": ("SW", "NW"),
+    }
 
-    # -- collisions: shrink the depth FIRST, the width second -----------------
-    ordered_chunks = [c for side in SIDE_ORDER for c in per_side.get(side, [])]
-    for chunk in ordered_chunks:
-        if not chunk["hi"] - chunk["lo"] > 0.0 or not chunk["depth"] > 0.0:
-            raise ValueError("group %r has a non-positive dimension"
-                             % (chunk["group_id"],))
-    rects = [_rect_of(c, bounds) for c in ordered_chunks]
-    for _ in range(_SHRINK_GUARD):
-        overlapped = False
-        for i in range(len(ordered_chunks)):
-            for j in range(i + 1, len(ordered_chunks)):
-                if not _sgd.rects_overlap(rects[i], rects[j]):
-                    continue
-                a, b = ordered_chunks[i], ordered_chunks[j]
-                deeper = (a["depth"], a["hi"] - a["lo"]) >= (b["depth"], b["hi"] - b["lo"])
-                target = i if deeper else j
-                chunk = ordered_chunks[target]
-                width = chunk["hi"] - chunk["lo"]
-                if chunk["depth"] - SHRINK_STEP_CM >= MIN_GROUP_DIMENSION_CM:
-                    chunk["depth"] = _f3(chunk["depth"] - SHRINK_STEP_CM)
-                elif width - SHRINK_STEP_CM >= MIN_GROUP_DIMENSION_CM:
-                    mid = (chunk["lo"] + chunk["hi"]) / 2.0
-                    half = (width - SHRINK_STEP_CM) / 2.0
-                    chunk["lo"], chunk["hi"] = _f3(mid - half), _f3(mid + half)
-                else:
-                    break
-                rects[target] = _rect_of(chunk, bounds)
-                overlapped = True
-        if not overlapped:
-            break
+    def owner_side(corner: str) -> str:
+        return _side_of_yaw(corner_owner(block_id, corner, seed=seed))
+
+    def owner_max_depth(corner: str) -> float:
+        chunks = per_side.get(owner_side(corner), [])
+        return max((float(c["depth"]) for c in chunks), default=0.0)
+    for side in SIDE_ORDER:
+        chunks = per_side.get(side, [])
+        if not chunks:
+            continue
+        low_corner, high_corner = end_corners[side]
+        legal_lo = _along_min(side, bounds)
+        legal_hi = _along_max(side, bounds)
+        low_inset = high_inset = 0.0
+
+        if owner_side(low_corner) != side:
+            low_inset = owner_max_depth(low_corner) + clearance
+            legal_lo += low_inset
+        if owner_side(high_corner) != side:
+            high_inset = owner_max_depth(high_corner) + clearance
+            legal_hi -= high_inset
+
+        gaps = clearance * max(0, len(chunks) - 1)
+        usable = legal_hi - legal_lo - gaps
+        weights = [len(c["slot_ids"]) for c in chunks]
+        total_weight = float(sum(weights))
+        widths = [usable * weight / total_weight for weight in weights]
+        if usable <= 0.0 or any(width < MIN_GROUP_DIMENSION_CM
+                                for width in widths):
+            raise ValueError(
+                "block %s side %s cannot fit %d valid groups in %.3f cm"
+                % (block_id, side, len(chunks), usable))
+
+        cursor = legal_lo
+        for index, (chunk, width) in enumerate(zip(chunks, widths)):
+            chunk["lo"] = _f3(cursor)
+            chunk["hi"] = _f3(legal_hi if index == len(chunks) - 1
+                               else cursor + width)
+            cursor = float(chunk["hi"]) + clearance
+            notes = []
+            if index == 0 and low_inset:
+                notes.append({"corner": low_corner, "inset_cm": _f3(low_inset)})
+            if index == len(chunks) - 1 and high_inset:
+                notes.append({"corner": high_corner, "inset_cm": _f3(high_inset)})
+            chunk["trimmed"] = (
+                {"reason": "rectangular non-owner corner inset", "insets": notes}
+                if notes else None)
 
     groups = []
-    for chunk in ordered_chunks:
-        width = _f3(chunk["hi"] - chunk["lo"])
-        depth = _f3(chunk["depth"])
-        if not width > 0.0 or not depth > 0.0:
-            raise ValueError("group %r has a non-positive dimension"
-                             % (chunk["group_id"],))
-        side = chunk["side"]
-        groups.append({
-            "group_id": chunk["group_id"],
-            "block_id": chunk["block_id"],
-            "side_yaw": _f3(SIDE_YAW[side]),
-            "slot_ids": list(chunk["slot_ids"]),
-            "center": _center_of(side, (chunk["lo"] + chunk["hi"]) / 2.0,
-                                 depth, bounds),
-            "width_cm": width,
-            "depth_cm": depth,
-            "yaw_deg": _f3(SIDE_YAW[side]),
-            "role": chunk["role"],
-            "trimmed": chunk["trimmed"],
-        })
+    for side in SIDE_ORDER:
+        for chunk in per_side.get(side, []):
+            width = _f3(float(chunk["hi"]) - float(chunk["lo"]))
+            depth = _f3(chunk["depth"])
+            if width < MIN_GROUP_DIMENSION_CM:
+                raise ValueError("group %r is a sliver (%.3f cm)"
+                                 % (chunk["group_id"], width))
+            if not DEPTH_BAND_CM[0] <= depth <= DEPTH_BAND_CM[1]:
+                raise ValueError("group %r depth %.3f left production band"
+                                 % (chunk["group_id"], depth))
+            center = _center_of(
+                side, (float(chunk["lo"]) + float(chunk["hi"])) / 2.0,
+                depth, bounds)
+            groups.append({
+                "group_id": chunk["group_id"],
+                "block_id": block_id,
+                "side_yaw": _f3(SIDE_YAW[side]),
+                "slot_ids": list(chunk["slot_ids"]),
+                "center": center,
+                "width_cm": width,
+                "depth_cm": depth,
+                "yaw_deg": _f3(SIDE_YAW[side]),
+                "role": chunk["role"],
+                "trimmed": chunk["trimmed"],
+            })
+
+    # Fail closed: construction should make both conditions true by design.
+    for i in range(len(groups)):
+        for j in range(i + 1, len(groups)):
+            hit = rect_overlap_metrics(groups[i], groups[j])
+            if hit is not None:
+                raise ValueError(
+                    "grouping overlap %s/%s width=%s depth=%s area=%s"
+                    % (groups[i]["group_id"], groups[j]["group_id"],
+                       hit["width_cm"], hit["depth_cm"], hit["area_cm2"]))
+            gap = rect_separation_cm(groups[i], groups[j])
+            if gap < CLEARANCE_CM[0] - GEOM_EPS_CM:
+                raise ValueError(
+                    "grouping clearance %s/%s is %.3f cm"
+                    % (groups[i]["group_id"], groups[j]["group_id"], gap))
+
     groups.sort(key=_group_sort_key)
     return groups
-
 
 # ---------------------------------------------------------------------------
 # grouped orders
@@ -950,8 +930,10 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
     if landmark_group is not None:
         group_id = landmark_group["group_id"]
         family, _tier_name, _hint = _family_and_hint(group_id, seed, None, True)
+        production_target = float(_sgd.HEIGHT_BAND_CM[family][1])
         requested = _f3(max(LANDMARK_MARGIN_CM + ordinary_top,
-                            float(_sgd.LANDMARK_FLOOR_CM)))
+                            float(_sgd.LANDMARK_FLOOR_CM),
+                            production_target))
         clamp = _sgd.clamp_height(family, requested)
         if clamp["clamped"]:
             clamps.append({"id": group_id, "block_id": block_id, "family": family,
@@ -1030,6 +1012,38 @@ def group_corners(group: Mapping[str, Any]) -> list[tuple[float, float]] | None:
             return None
         out.append(pair)
     return out
+
+
+def _rect_bounds(rect: Mapping[str, Any]) -> tuple[float, float, float, float]:
+    """World-axis bounds of a cardinal grouped rectangle."""
+    corners = group_corners(rect)
+    if corners is None:
+        raise ValueError("rectangle has no comparable corners")
+    xs = [p[0] for p in corners]
+    ys = [p[1] for p in corners]
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def rect_overlap_metrics(a: Mapping[str, Any], b: Mapping[str, Any],
+                         eps: float = GEOM_EPS_CM) -> dict[str, float] | None:
+    """Positive-area overlap, or None for separated/touching cardinal boxes."""
+    ax0, ax1, ay0, ay1 = _rect_bounds(a)
+    bx0, bx1, by0, by1 = _rect_bounds(b)
+    ix = min(ax1, bx1) - max(ax0, bx0)
+    iy = min(ay1, by1) - max(ay0, by0)
+    if ix <= eps or iy <= eps:
+        return None
+    return {"width_cm": _f3(ix), "depth_cm": _f3(iy),
+            "area_cm2": _f3(ix * iy)}
+
+
+def rect_separation_cm(a: Mapping[str, Any], b: Mapping[str, Any]) -> float:
+    """Largest separating-axis gap; negative only when the boxes overlap."""
+    ax0, ax1, ay0, ay1 = _rect_bounds(a)
+    bx0, bx1, by0, by1 = _rect_bounds(b)
+    gap_x = max(ax0, bx0) - min(ax1, bx1)
+    gap_y = max(ay0, by0) - min(ay1, by1)
+    return _f3(max(gap_x, gap_y))
 
 
 def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
@@ -1165,15 +1179,19 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
             problems.append("landmark order %r family is %r, expected %s"
                             % (landmarks[0].get("id"), landmarks[0].get("family"),
                                _sgd.LANDMARK_FAMILY))
+        landmark_height = float(landmarks[0].get("height_cm") or 0.0)
+        target = float(_sgd.HEIGHT_BAND_CM[_sgd.LANDMARK_FAMILY][1])
+        if landmark_height < 0.90 * target - GEOM_EPS_CM:
+            problems.append("landmark %r height %s is below 90%% of target %s"
+                            % (landmarks[0].get("id"), landmark_height, target))
         ordinary = [o for o in orders if isinstance(o, Mapping)
                     and o.get("role") == "ordinary"]
         if ordinary:
             top = max(float(o.get("height_cm") or 0.0) for o in ordinary)
-            if float(landmarks[0].get("height_cm") or 0.0) <= top:
+            if landmark_height <= top:
                 problems.append("landmark %r is %s cm, not taller than the block's "
                                 "tallest ordinary %s cm"
-                                % (landmarks[0].get("id"),
-                                   landmarks[0].get("height_cm"), top))
+                                % (landmarks[0].get("id"), landmark_height, top))
 
     # -- every slot attributed to exactly one group ---------------------------
     block_slots = [s for s in _slots_of(layout) if _slot_block(s) == block_id]
@@ -1194,35 +1212,78 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
     for slot_id in sorted(known - set(seen)):
         problems.append("slot %r is attributed to no group" % (slot_id,))
 
-    # -- geometry: no overlap, everything inside the block region -------------
+    # -- geometry: authoritative overlap/clearance + order/group consistency --
     rects = [(o.get("id"), o) for o in orders if isinstance(o, Mapping)]
+    group_by_id = {g.get("group_id"): g for g in groups if isinstance(g, Mapping)}
+    for oid, order in rects:
+        group = group_by_id.get(oid)
+        if group is None:
+            problems.append("order %r has no matching group" % oid)
+            continue
+        centre_o, centre_g = _as_pair(order.get("center")), _as_pair(group.get("center"))
+        if centre_o is None or centre_g is None:
+            continue
+        mismatch = (
+            abs(centre_o[0] - centre_g[0]) > GEOM_EPS_CM
+            or abs(centre_o[1] - centre_g[1]) > GEOM_EPS_CM
+            or abs(float(order.get("width_cm") or 0.0)
+                   - float(group.get("width_cm") or 0.0)) > GEOM_EPS_CM
+            or abs(float(order.get("length_cm") or 0.0)
+                   - float(group.get("depth_cm") or 0.0)) > GEOM_EPS_CM
+            or abs(float(order.get("yaw_deg") or 0.0)
+                   - float(group.get("yaw_deg") or 0.0)) > GEOM_EPS_CM
+            or order.get("role") != group.get("role")
+        )
+        if mismatch:
+            problems.append("order %r geometry/role disagrees with its group" % oid)
+
     for i in range(len(rects)):
         for j in range(i + 1, len(rects)):
             try:
-                if _sgd.rects_overlap(rects[i][1], rects[j][1]):
-                    problems.append("orders %r and %r overlap"
-                                    % (rects[i][0], rects[j][0]))
+                hit = rect_overlap_metrics(rects[i][1], rects[j][1])
+                if hit is not None:
+                    problems.append(
+                        "orders %r and %r overlap width=%s depth=%s area=%s"
+                        % (rects[i][0], rects[j][0], hit["width_cm"],
+                           hit["depth_cm"], hit["area_cm2"]))
+                    continue
+                gap = rect_separation_cm(rects[i][1], rects[j][1])
+                if gap < CLEARANCE_CM[0] - GEOM_EPS_CM:
+                    problems.append("orders %r and %r clearance %.3f is below %s"
+                                    % (rects[i][0], rects[j][0], gap,
+                                       CLEARANCE_CM[0]))
             except (KeyError, TypeError, ValueError) as exc:
                 problems.append("orders %r and %r cannot be compared: %s"
                                 % (rects[i][0], rects[j][0], exc))
+
+    if len(block_slots) >= 24:
+        for oid, order in rects:
+            if float(order.get("width_cm") or 0.0) < 3000.0 - GEOM_EPS_CM:
+                problems.append("order %r frontage is below the 3000 cm production minimum"
+                                % oid)
+            if float(order.get("length_cm") or 0.0) < DEPTH_BAND_CM[0] - GEOM_EPS_CM:
+                problems.append("order %r depth is below the 3000 cm production minimum"
+                                % oid)
+
     if block_slots:
         bounds = _block_bounds(_block_record(layout, block_id) or {}, block_slots,
                                block_id)
         x_min, x_max, y_min, y_max = bounds
-        for group in groups:
-            if not isinstance(group, Mapping):
-                continue
-            corners = group_corners(group)
-            if corners is None:
-                problems.append("group %r has no comparable rectangle"
-                                % (group.get("group_id"),))
-                continue
-            for x, y in corners:
-                if not (x_min - 1e-6 <= x <= x_max + 1e-6
-                        and y_min - 1e-6 <= y <= y_max + 1e-6):
-                    problems.append("group %r corner [%s, %s] leaves the block "
-                                    "region" % (group.get("group_id"), x, y))
-                    break
+        for kind, rows in (("group", groups), ("order", orders)):
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    continue
+                corners = group_corners(row)
+                rid = row.get("group_id") if kind == "group" else row.get("id")
+                if corners is None:
+                    problems.append("%s %r has no comparable rectangle" % (kind, rid))
+                    continue
+                for x, y in corners:
+                    if not (x_min - GEOM_EPS_CM <= x <= x_max + GEOM_EPS_CM
+                            and y_min - GEOM_EPS_CM <= y <= y_max + GEOM_EPS_CM):
+                        problems.append("%s %r corner [%s, %s] leaves the block region"
+                                        % (kind, rid, x, y))
+                        break
 
     # -- families alternate along a side --------------------------------------
     order_by_id = {o.get("id"): o for o in orders if isinstance(o, Mapping)}

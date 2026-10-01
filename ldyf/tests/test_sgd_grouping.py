@@ -33,6 +33,7 @@ from ldyf.sgd_buildings import (
 from ldyf.sgd_grouping import (
     CLEARANCE_CM,
     DEPTH_BAND_CM,
+    GEOM_EPS_CM,
     GROUP_SIZE_CHOICES,
     LANDMARK_GROUP_SLOTS,
     MIN_GROUP_DIMENSION_CM,
@@ -42,6 +43,8 @@ from ldyf.sgd_grouping import (
     group_corners,
     group_slots,
     grouped_orders,
+    rect_overlap_metrics,
+    rect_separation_cm,
     validate_groups,
 )
 
@@ -61,7 +64,7 @@ CORNER_SIDES = {"SE": ("south", "east"), "NE": ("north", "east"),
                 "NW": ("north", "west"), "SW": ("south", "west")}
 SIDE_OF_YAW = {270.0: "south", 0.0: "east", 90.0: "north", 180.0: "west"}
 HORIZONTAL = ("south", "north")
-TOL = 1e-3
+TOL = GEOM_EPS_CM
 
 
 # ---------------------------------------------------------------- fixtures --
@@ -107,9 +110,10 @@ def along_span(group: dict) -> tuple:
 
 def corner_coord(layout: dict, block_id: str, corner: str, side: str) -> float:
     x_min, x_max, y_min, y_max = block_bounds(layout, block_id)
+    key = corner.upper()
     if side in HORIZONTAL:
-        return x_max if "east" in corner else x_min
-    return y_min if "south" in corner else y_max
+        return x_max if "E" in key else x_min
+    return y_min if "S" in key else y_max
 
 
 def corner_group(groups: list, layout: dict, block_id: str, corner: str,
@@ -210,13 +214,15 @@ def ring_layout(block_id: str = "ring", *, south_yaw: float = 270.0,
                                "kits": ["NYA"], "slots": slots}}
 
 
-def block_id_with_se_owner(yaw: float, *, seed: int = SEED) -> str:
-    """A block id for which ``corner_owner`` hands the SE corner to ``yaw``."""
+def block_id_with_corner_owner(corner: str, yaw: float,
+                               *, seed: int = SEED) -> str:
+    """A synthetic block id that hands ``corner`` to one of its adjacent sides."""
+    assert yaw in [SIDE_YAW[s] for s in CORNER_SIDES[corner]]
     for attempt in range(400):
-        block_id = "adv_%s_%d" % (int(yaw), attempt)
-        if corner_owner(block_id, "SE", seed=seed) == yaw:
+        block_id = "adv_%s_%s_%d" % (corner, int(yaw), attempt)
+        if corner_owner(block_id, corner, seed=seed) == yaw:
             return block_id
-    raise AssertionError("no block id found for owner yaw %s" % (yaw,))
+    raise AssertionError("no block id found for %s owner yaw %s" % (corner, yaw))
 
 
 def corner_pair(doc: dict, layout: dict, block_id: str, corner: str) -> tuple:
@@ -277,16 +283,15 @@ def test_seven_to_nine_buildings_per_block(block_id):
     doc = grouped_orders(LAYOUT, block_id, seed=SEED)
     count = len(doc["orders"])
     assert 7 <= count <= 9, "%s composed %d buildings" % (block_id, count)
-    # independent derivation: every side chunks as ceil(n/4) at most, and the
-    # landmark side gains exactly one extra group for the landmark's own mass.
+    # Independent derivation: every seven-slot side becomes exactly two
+    # contiguous 3/4-slot groups, including the landmark side.
     expected = sum(max(1, (len(items) + 3) // 4)
                    for items in side_slots(LAYOUT, block_id).values())
-    landmark = doc["landmark_id"] is not None
-    assert count == expected + (1 if landmark else 0)
+    assert count == expected == 8
     if block_id == LANDMARK_BLOCK:
-        assert landmark and count == 9
+        assert doc["landmark_id"] is not None
     else:
-        assert not landmark and count == 8
+        assert doc["landmark_id"] is None
 
 
 @pytest.mark.parametrize("block_id", BLOCK_IDS)
@@ -338,8 +343,9 @@ def test_unrelated_rectangles_keep_the_clearance(block_id):
     orders = doc["orders"]
     for i in range(len(orders)):
         for j in range(i + 1, len(orders)):
-            gap = separation(orders[i], orders[j])
-            assert gap >= CLEARANCE_CM[0] - 1e-6, \
+            assert rect_overlap_metrics(orders[i], orders[j]) is None
+            gap = rect_separation_cm(orders[i], orders[j])
+            assert gap >= CLEARANCE_CM[0] - TOL, \
                 "%s and %s are %s cm apart in %s" % (orders[i]["id"],
                                                      orders[j]["id"], gap, block_id)
 
@@ -382,7 +388,9 @@ def test_corner_ownership_never_intersects_at_a_corner(block_id):
         non_coord = corner_coord(LAYOUT, block_id, corner, non_owner)
         span = along_span(non_group)
         low_end = abs(span[0] - non_coord) < abs(span[1] - non_coord)
-        inset = owner_group["depth_cm"] + CLEARANCE_CM[0]
+        owner_depth = max(g["depth_cm"]
+                          for g in axis_groups(doc["groups"])[owner])
+        inset = owner_depth + CLEARANCE_CM[0]
         if low_end:
             assert span[0] >= non_coord + inset - TOL, \
                 "%s is not inset from %s" % (non_owner, corner)
@@ -394,48 +402,51 @@ def test_corner_ownership_never_intersects_at_a_corner(block_id):
             CLEARANCE_CM[0] - TOL
 
 
-@pytest.mark.parametrize("owner_yaw", [270.0, 0.0, 90.0, 180.0])
-def test_adversarial_ownership_orientation_at_all_four_corners(owner_yaw):
-    """Force each possible owner of the SE corner and check every corner."""
-    block_id = block_id_with_se_owner(owner_yaw)
+VALID_CORNER_OWNERS = [
+    (corner, SIDE_YAW[side])
+    for corner in CORNERS
+    for side in CORNER_SIDES[corner]
+]
+
+
+@pytest.mark.parametrize("corner,owner_yaw", VALID_CORNER_OWNERS)
+def test_adversarial_ownership_orientation_at_all_four_corners(corner, owner_yaw):
+    """Exercise both valid owner choices at every corner."""
+    block_id = block_id_with_corner_owner(corner, owner_yaw)
     layout = ring_layout(block_id)
-    assert corner_owner(block_id, "SE", seed=SEED) == owner_yaw
+    assert corner_owner(block_id, corner, seed=SEED) == owner_yaw
     doc = grouped_orders(layout, block_id, seed=SEED)
     assert validate_groups(doc, layout, block_id) == []
-    for corner in CORNERS:
-        owner_group, non_group, owner, non_owner = corner_pair(doc, layout,
-                                                               block_id, corner)
-        owner_coord = corner_coord(layout, block_id, corner, owner)
+    for check_corner in CORNERS:
+        owner_group, non_group, owner, non_owner = corner_pair(
+            doc, layout, block_id, check_corner)
+        owner_coord = corner_coord(layout, block_id, check_corner, owner)
         assert min(abs(edge - owner_coord)
                    for edge in along_span(owner_group)) < TOL
-        non_coord = corner_coord(layout, block_id, corner, non_owner)
+        non_coord = corner_coord(layout, block_id, check_corner, non_owner)
         span = along_span(non_group)
         low_end = abs(span[0] - non_coord) < abs(span[1] - non_coord)
-        inset = owner_group["depth_cm"] + CLEARANCE_CM[0]
+        owner_depth = max(g["depth_cm"]
+                          for g in axis_groups(doc["groups"])[owner])
+        inset = owner_depth + CLEARANCE_CM[0]
         if low_end:
             assert span[0] >= non_coord + inset - TOL
         else:
             assert span[1] <= non_coord - inset + TOL
-        assert not rects_overlap(rect_of(owner_group), rect_of(non_group))
-        assert separation(rect_of(owner_group), rect_of(non_group)) >= \
+        assert rect_overlap_metrics(rect_of(owner_group), rect_of(non_group)) is None
+        assert rect_separation_cm(rect_of(owner_group), rect_of(non_group)) >= \
             CLEARANCE_CM[0] - TOL
-    orders = doc["orders"]
-    for i in range(len(orders)):
-        for j in range(i + 1, len(orders)):
-            assert not rects_overlap(orders[i], orders[j])
 
 
-@pytest.mark.parametrize("owner_yaw", [270.0, 0.0, 90.0, 180.0])
-def test_ownership_is_an_alternation_covering_every_side_once(owner_yaw):
-    block_id = block_id_with_se_owner(owner_yaw)
-    owners = [corner_owner(block_id, corner, seed=SEED) for corner in CORNERS]
-    assert len(set(owners)) == 4, owners
-    for corner, owner in zip(CORNERS, owners):
-        assert owner in [SIDE_YAW[side] for side in CORNER_SIDES[corner]]
+def test_ownership_is_an_alternation_covering_every_side_once():
     for block in BLOCK_IDS:
-        assert len({corner_owner(block, corner, seed=SEED)
-                    for corner in CORNERS}) == 4
-    assert corner_owner(block_id, "SE", seed=SEED) == owner_yaw
+        owners = [corner_owner(block, corner, seed=SEED) for corner in CORNERS]
+        assert len(set(owners)) == 4, owners
+        for corner, owner in zip(CORNERS, owners):
+            assert owner in [SIDE_YAW[side] for side in CORNER_SIDES[corner]]
+    for corner, owner_yaw in VALID_CORNER_OWNERS:
+        block_id = block_id_with_corner_owner(corner, owner_yaw)
+        assert corner_owner(block_id, corner, seed=SEED) == owner_yaw
 
 
 def test_yaw_normalisation_treats_minus_90_as_270():
@@ -478,8 +489,6 @@ def test_group_sizes_prefer_three_and_four_slots(block_id):
     for group in doc["groups"]:
         assert 1 <= len(group["slot_ids"]) <= max(GROUP_SIZE_CHOICES)
     for side, groups in axis_groups(doc["groups"]).items():
-        if any(g["role"] == "landmark" for g in groups):
-            continue                    # the landmark's own run is 2 slots
         if len(side_slots(LAYOUT, block_id).get(side, [])) != 7:
             continue
         sizes = sorted(len(g["slot_ids"]) for g in groups)
@@ -490,6 +499,9 @@ def test_group_sizes_prefer_three_and_four_slots(block_id):
 
 
 def test_landmark_is_preserved_and_tallest_in_its_block():
+    from ldyf import building_kits
+    from ldyf.sgd_buildings import HEIGHT_BAND_CM
+
     doc = grouped_orders(LAYOUT, LANDMARK_BLOCK, seed=SEED)
     assert doc["landmark_id"] is not None
     landmarks = [o for o in doc["orders"] if o["role"] == "landmark"]
@@ -497,20 +509,37 @@ def test_landmark_is_preserved_and_tallest_in_its_block():
     landmark = landmarks[0]
     assert landmark["id"] == doc["landmark_id"]
     assert landmark["family"] == LANDMARK_FAMILY
+    assert landmark["height_cm"] == HEIGHT_BAND_CM[LANDMARK_FAMILY][1]
     assert doc["counts"]["landmark"] == 1
     ordinary = [o for o in doc["orders"] if o["role"] == "ordinary"]
     assert ordinary
     assert all(o["family"] != LANDMARK_FAMILY for o in ordinary)
     assert landmark["height_cm"] > max(o["height_cm"] for o in ordinary)
+
+    selected = building_kits._pick_landmark_slot(LAYOUT, SEED)
+    selected_id = str(selected["slot_id"])
     group = group_of_order(doc, landmark["id"])
     assert group["role"] == "landmark"
-    assert len(group["slot_ids"]) == LANDMARK_GROUP_SLOTS
-    # never absorbed: no other group covers it or shares its slots
+    assert len(group["slot_ids"]) in GROUP_SIZE_CHOICES
+    assert selected_id in group["slot_ids"]
+
+    side = side_of_slot(selected)
+    ordered = sorted(side_slots(LAYOUT, LANDMARK_BLOCK)[side],
+                     key=lambda s: (float(s["frontage_index"]), str(s["slot_id"])))
+    indices = [i for i, slot in enumerate(ordered)
+               if str(slot["slot_id"]) in set(group["slot_ids"])]
+    assert indices == list(range(min(indices), max(indices) + 1))
+
+    corners = group_corners(group)
+    xs, ys = [p[0] for p in corners], [p[1] for p in corners]
+    assert min(xs) - TOL <= float(selected["x"]) <= max(xs) + TOL
+    assert min(ys) - TOL <= float(selected["y"]) <= max(ys) + TOL
+
     for other in doc["groups"]:
         if other["group_id"] == group["group_id"]:
             continue
         assert set(other["slot_ids"]).isdisjoint(group["slot_ids"])
-        assert not rects_overlap(rect_of(other), rect_of(group))
+        assert rect_overlap_metrics(rect_of(other), rect_of(group)) is None
 
 
 def test_other_blocks_carry_no_landmark():
@@ -553,20 +582,11 @@ def test_adjacent_groups_on_a_side_never_share_a_family(block_id):
 def test_dimensions_respect_the_sgd_minimum(block_id):
     doc = grouped_orders(LAYOUT, block_id, seed=SEED)
     for order in doc["orders"]:
-        assert order["width_cm"] >= MIN_GROUP_DIMENSION_CM - 1e-6
-        assert order["length_cm"] >= MIN_GROUP_DIMENSION_CM - 1e-6
-        assert order["length_cm"] <= DEPTH_BAND_CM[1] + 1e-6
+        assert order["width_cm"] >= 3000.0 - TOL
+        assert DEPTH_BAND_CM[0] - TOL <= order["length_cm"] <= \
+            DEPTH_BAND_CM[1] + TOL
         assert order["height_cm"] >= minimum_for(order["family"])
-    in_band = [o for o in doc["orders"]
-               if DEPTH_BAND_CM[0] <= o["length_cm"] <= DEPTH_BAND_CM[1]]
-    # at most the two narrow corner runs of the landmark side can force a depth
-    # below the band, and such a depth is a corner-driven reduction that says so
-    assert len(in_band) >= len(doc["orders"]) - 2
-    for order in doc["orders"]:
-        if order["length_cm"] < DEPTH_BAND_CM[0] - 1e-6:
-            trimmed = group_of_order(doc, order["id"])["trimmed"]
-            assert trimmed is not None, order["id"]
-            assert "depth" in json.dumps(trimmed), order["id"]
+    assert validate_groups(doc, LAYOUT, block_id) == []
 
 
 def test_a_thin_side_still_yields_buildable_groups():
@@ -615,7 +635,10 @@ def test_validate_rejects_an_overlap():
     doc["orders"][1]["length_cm"] = doc["orders"][0]["length_cm"]
     doc["orders"][1]["yaw_deg"] = doc["orders"][0]["yaw_deg"]
     problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
-    assert any("overlap" in p for p in problems), problems
+    metric_hits = [p for p in problems if "overlap width=" in p]
+    assert metric_hits, problems
+    assert all("depth=" in p and "area=" in p for p in metric_hits)
+    assert any("geometry/role disagrees" in p for p in problems), problems
 
 
 def test_validate_rejects_a_rectangle_outside_the_block():
@@ -905,3 +928,39 @@ def test_a_block_without_a_block_record_groups_from_its_slots():
     assert validate_groups(doc, layout, "ringless") == []
     for order in doc["orders"]:
         assert order["length_cm"] >= MIN_GROUP_DIMENSION_CM
+
+
+@pytest.mark.parametrize("seed", [1, SEED, SEED + 1, SEED + 17, SEED + 101])
+def test_multi_seed_geometry_and_clearance_stays_green(seed):
+    for block_id in BLOCK_IDS:
+        doc = grouped_orders(LAYOUT, block_id, seed=seed)
+        assert 7 <= len(doc["orders"]) <= 9
+        assert validate_groups(doc, LAYOUT, block_id) == []
+        orders = doc["orders"]
+        for i in range(len(orders)):
+            for j in range(i + 1, len(orders)):
+                assert rect_overlap_metrics(orders[i], orders[j]) is None
+                assert rect_separation_cm(orders[i], orders[j]) >= \
+                    CLEARANCE_CM[0] - TOL
+
+
+@pytest.mark.parametrize("seed", [1, SEED, SEED + 1, SEED + 17, SEED + 101])
+def test_landmark_group_keeps_selected_slot_in_a_contiguous_run(seed):
+    from ldyf import building_kits
+
+    selected = building_kits._pick_landmark_slot(LAYOUT, seed)
+    block_id = str(selected["block_id"])
+    doc = grouped_orders(LAYOUT, block_id, seed=seed)
+    landmarks = [g for g in doc["groups"] if g["role"] == "landmark"]
+    assert len(landmarks) == 1
+    group = landmarks[0]
+    assert str(selected["slot_id"]) in group["slot_ids"]
+
+    side = side_of_slot(selected)
+    ordered = sorted(side_slots(LAYOUT, block_id)[side],
+                     key=lambda s: (float(s["frontage_index"]), str(s["slot_id"])))
+    wanted = set(group["slot_ids"])
+    indices = [i for i, slot in enumerate(ordered)
+               if str(slot["slot_id"]) in wanted]
+    assert indices == list(range(min(indices), max(indices) + 1))
+    assert len(indices) in GROUP_SIZE_CHOICES
