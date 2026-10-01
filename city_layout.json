@@ -1,0 +1,7637 @@
+{
+  "blocks": [
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 17960.0,
+        "x_min": 2040.0,
+        "y_max": -42040.0,
+        "y_min": -57960.0
+      },
+      "centre": {
+        "x": 10000.0,
+        "y": -50000.0
+      },
+      "id": "block_0_0",
+      "polygon": [
+        {
+          "x": 2040.0,
+          "y": -57960.0
+        },
+        {
+          "x": 17960.0,
+          "y": -57960.0
+        },
+        {
+          "x": 17960.0,
+          "y": -42040.0
+        },
+        {
+          "x": 2040.0,
+          "y": -42040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 17960.0,
+        "x_min": 2040.0,
+        "y_max": -22040.0,
+        "y_min": -37960.0
+      },
+      "centre": {
+        "x": 10000.0,
+        "y": -30000.0
+      },
+      "id": "block_0_1",
+      "polygon": [
+        {
+          "x": 2040.0,
+          "y": -37960.0
+        },
+        {
+          "x": 17960.0,
+          "y": -37960.0
+        },
+        {
+          "x": 17960.0,
+          "y": -22040.0
+        },
+        {
+          "x": 2040.0,
+          "y": -22040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 17960.0,
+        "x_min": 2040.0,
+        "y_max": -2040.0,
+        "y_min": -17960.0
+      },
+      "centre": {
+        "x": 10000.0,
+        "y": -10000.0
+      },
+      "id": "block_0_2",
+      "polygon": [
+        {
+          "x": 2040.0,
+          "y": -17960.0
+        },
+        {
+          "x": 17960.0,
+          "y": -17960.0
+        },
+        {
+          "x": 17960.0,
+          "y": -2040.0
+        },
+        {
+          "x": 2040.0,
+          "y": -2040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 37960.0,
+        "x_min": 22040.0,
+        "y_max": -42040.0,
+        "y_min": -57960.0
+      },
+      "centre": {
+        "x": 30000.0,
+        "y": -50000.0
+      },
+      "id": "block_1_0",
+      "polygon": [
+        {
+          "x": 22040.0,
+          "y": -57960.0
+        },
+        {
+          "x": 37960.0,
+          "y": -57960.0
+        },
+        {
+          "x": 37960.0,
+          "y": -42040.0
+        },
+        {
+          "x": 22040.0,
+          "y": -42040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 37960.0,
+        "x_min": 22040.0,
+        "y_max": -22040.0,
+        "y_min": -37960.0
+      },
+      "centre": {
+        "x": 30000.0,
+        "y": -30000.0
+      },
+      "id": "block_1_1",
+      "polygon": [
+        {
+          "x": 22040.0,
+          "y": -37960.0
+        },
+        {
+          "x": 37960.0,
+          "y": -37960.0
+        },
+        {
+          "x": 37960.0,
+          "y": -22040.0
+        },
+        {
+          "x": 22040.0,
+          "y": -22040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 37960.0,
+        "x_min": 22040.0,
+        "y_max": -2040.0,
+        "y_min": -17960.0
+      },
+      "centre": {
+        "x": 30000.0,
+        "y": -10000.0
+      },
+      "id": "block_1_2",
+      "polygon": [
+        {
+          "x": 22040.0,
+          "y": -17960.0
+        },
+        {
+          "x": 37960.0,
+          "y": -17960.0
+        },
+        {
+          "x": 37960.0,
+          "y": -2040.0
+        },
+        {
+          "x": 22040.0,
+          "y": -2040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 57960.0,
+        "x_min": 42040.0,
+        "y_max": -42040.0,
+        "y_min": -57960.0
+      },
+      "centre": {
+        "x": 50000.0,
+        "y": -50000.0
+      },
+      "id": "block_2_0",
+      "polygon": [
+        {
+          "x": 42040.0,
+          "y": -57960.0
+        },
+        {
+          "x": 57960.0,
+          "y": -57960.0
+        },
+        {
+          "x": 57960.0,
+          "y": -42040.0
+        },
+        {
+          "x": 42040.0,
+          "y": -42040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 57960.0,
+        "x_min": 42040.0,
+        "y_max": -22040.0,
+        "y_min": -37960.0
+      },
+      "centre": {
+        "x": 50000.0,
+        "y": -30000.0
+      },
+      "id": "block_2_1",
+      "polygon": [
+        {
+          "x": 42040.0,
+          "y": -37960.0
+        },
+        {
+          "x": 57960.0,
+          "y": -37960.0
+        },
+        {
+          "x": 57960.0,
+          "y": -22040.0
+        },
+        {
+          "x": 42040.0,
+          "y": -22040.0
+        }
+      ]
+    },
+    {
+      "area_cm2": 253446400.0,
+      "bbox": {
+        "x_max": 57960.0,
+        "x_min": 42040.0,
+        "y_max": -2040.0,
+        "y_min": -17960.0
+      },
+      "centre": {
+        "x": 50000.0,
+        "y": -10000.0
+      },
+      "id": "block_2_2",
+      "polygon": [
+        {
+          "x": 42040.0,
+          "y": -17960.0
+        },
+        {
+          "x": 57960.0,
+          "y": -17960.0
+        },
+        {
+          "x": 57960.0,
+          "y": -2040.0
+        },
+        {
+          "x": 42040.0,
+          "y": -2040.0
+        }
+      ]
+    }
+  ],
+  "building_slots": {
+    "counts": {
+      "blocks": 9,
+      "by_kit": {
+        "CHA": 116,
+        "NYA": 70,
+        "SFA": 66
+      },
+      "slots": 252
+    },
+    "kits": [
+      "CHA",
+      "NYA",
+      "SFA"
+    ],
+    "schema_version": "city_layout_v1",
+    "seed": 20260904,
+    "slots": [
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f0",
+        "width_cm": 2000.0,
+        "x": 3040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f1",
+        "width_cm": 2000.0,
+        "x": 5040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f2",
+        "width_cm": 2000.0,
+        "x": 7040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "NYA",
+        "slot_id": "block_0_0:f3",
+        "width_cm": 2000.0,
+        "x": 9040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f4",
+        "width_cm": 2000.0,
+        "x": 11040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f5",
+        "width_cm": 2000.0,
+        "x": 13040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f6",
+        "width_cm": 1920.0,
+        "x": 15040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "SFA",
+        "slot_id": "block_0_0:f7",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -56960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f8",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -54960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "SFA",
+        "slot_id": "block_0_0:f9",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -52960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f10",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -50960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f11",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -48960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f12",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -46960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f13",
+        "width_cm": 1920.0,
+        "x": 17960.0,
+        "y": -44960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f14",
+        "width_cm": 2000.0,
+        "x": 16960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f15",
+        "width_cm": 2000.0,
+        "x": 14960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f16",
+        "width_cm": 2000.0,
+        "x": 12960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f17",
+        "width_cm": 2000.0,
+        "x": 10960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "SFA",
+        "slot_id": "block_0_0:f18",
+        "width_cm": 2000.0,
+        "x": 8960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f19",
+        "width_cm": 2000.0,
+        "x": 6960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f20",
+        "width_cm": 1920.0,
+        "x": 4960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f21",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -43040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f22",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -45040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "SFA",
+        "slot_id": "block_0_0:f23",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -47040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f24",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -49040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f25",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "CHA",
+        "slot_id": "block_0_0:f26",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -53040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "NYA",
+        "slot_id": "block_0_0:f27",
+        "width_cm": 1920.0,
+        "x": 2040.0,
+        "y": -55040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f0",
+        "width_cm": 2000.0,
+        "x": 3040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f1",
+        "width_cm": 2000.0,
+        "x": 5040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f2",
+        "width_cm": 2000.0,
+        "x": 7040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f3",
+        "width_cm": 2000.0,
+        "x": 9040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f4",
+        "width_cm": 2000.0,
+        "x": 11040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "NYA",
+        "slot_id": "block_0_1:f5",
+        "width_cm": 2000.0,
+        "x": 13040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f6",
+        "width_cm": 1920.0,
+        "x": 15040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f7",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -36960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "NYA",
+        "slot_id": "block_0_1:f8",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -34960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f9",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -32960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f10",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -30960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "NYA",
+        "slot_id": "block_0_1:f11",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f12",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -26960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f13",
+        "width_cm": 1920.0,
+        "x": 17960.0,
+        "y": -24960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f14",
+        "width_cm": 2000.0,
+        "x": 16960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f15",
+        "width_cm": 2000.0,
+        "x": 14960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "NYA",
+        "slot_id": "block_0_1:f16",
+        "width_cm": 2000.0,
+        "x": 12960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_0_1:f17",
+        "width_cm": 2000.0,
+        "x": 10960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f18",
+        "width_cm": 2000.0,
+        "x": 8960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f19",
+        "width_cm": 2000.0,
+        "x": 6960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f20",
+        "width_cm": 1920.0,
+        "x": 4960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f21",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -23040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f22",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -25040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f23",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -27040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f24",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -29040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f25",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f26",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -33040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "SFA",
+        "slot_id": "block_0_1:f27",
+        "width_cm": 1920.0,
+        "x": 2040.0,
+        "y": -35040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f0",
+        "width_cm": 2000.0,
+        "x": 3040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f1",
+        "width_cm": 2000.0,
+        "x": 5040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f2",
+        "width_cm": 2000.0,
+        "x": 7040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "CHA",
+        "slot_id": "block_0_2:f3",
+        "width_cm": 2000.0,
+        "x": 9040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "CHA",
+        "slot_id": "block_0_2:f4",
+        "width_cm": 2000.0,
+        "x": 11040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f5",
+        "width_cm": 2000.0,
+        "x": 13040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f6",
+        "width_cm": 1920.0,
+        "x": 15040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f7",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -16960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f8",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -14960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "SFA",
+        "slot_id": "block_0_2:f9",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -12960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f10",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -10960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "CHA",
+        "slot_id": "block_0_2:f11",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f12",
+        "width_cm": 2000.0,
+        "x": 17960.0,
+        "y": -6960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f13",
+        "width_cm": 1920.0,
+        "x": 17960.0,
+        "y": -4960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f14",
+        "width_cm": 2000.0,
+        "x": 16960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f15",
+        "width_cm": 2000.0,
+        "x": 14960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f16",
+        "width_cm": 2000.0,
+        "x": 12960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_0_2:f17",
+        "width_cm": 2000.0,
+        "x": 10960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f18",
+        "width_cm": 2000.0,
+        "x": 8960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f19",
+        "width_cm": 2000.0,
+        "x": 6960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f20",
+        "width_cm": 1920.0,
+        "x": 4960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f21",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -3040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f22",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -5040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f23",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -7040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f24",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -9040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f25",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -11040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f26",
+        "width_cm": 2000.0,
+        "x": 2040.0,
+        "y": -13040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_0_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "NYA",
+        "slot_id": "block_0_2:f27",
+        "width_cm": 1920.0,
+        "x": 2040.0,
+        "y": -15040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f0",
+        "width_cm": 2000.0,
+        "x": 23040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f1",
+        "width_cm": 2000.0,
+        "x": 25040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "NYA",
+        "slot_id": "block_1_0:f2",
+        "width_cm": 2000.0,
+        "x": 27040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f3",
+        "width_cm": 2000.0,
+        "x": 29040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "NYA",
+        "slot_id": "block_1_0:f4",
+        "width_cm": 2000.0,
+        "x": 31040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f5",
+        "width_cm": 2000.0,
+        "x": 33040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f6",
+        "width_cm": 1920.0,
+        "x": 35040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f7",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -56960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "NYA",
+        "slot_id": "block_1_0:f8",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -54960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f9",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -52960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f10",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -50960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f11",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -48960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f12",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -46960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "CHA",
+        "slot_id": "block_1_0:f13",
+        "width_cm": 1920.0,
+        "x": 37960.0,
+        "y": -44960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f14",
+        "width_cm": 2000.0,
+        "x": 36960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "CHA",
+        "slot_id": "block_1_0:f15",
+        "width_cm": 2000.0,
+        "x": 34960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f16",
+        "width_cm": 2000.0,
+        "x": 32960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_1_0:f17",
+        "width_cm": 2000.0,
+        "x": 30960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "NYA",
+        "slot_id": "block_1_0:f18",
+        "width_cm": 2000.0,
+        "x": 28960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f19",
+        "width_cm": 2000.0,
+        "x": 26960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f20",
+        "width_cm": 1920.0,
+        "x": 24960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f21",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -43040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "NYA",
+        "slot_id": "block_1_0:f22",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -45040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f23",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -47040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f24",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -49040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f25",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f26",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -53040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "SFA",
+        "slot_id": "block_1_0:f27",
+        "width_cm": 1920.0,
+        "x": 22040.0,
+        "y": -55040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f0",
+        "width_cm": 2000.0,
+        "x": 23040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f1",
+        "width_cm": 2000.0,
+        "x": 25040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f2",
+        "width_cm": 2000.0,
+        "x": 27040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "SFA",
+        "slot_id": "block_1_1:f3",
+        "width_cm": 2000.0,
+        "x": 29040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f4",
+        "width_cm": 2000.0,
+        "x": 31040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "SFA",
+        "slot_id": "block_1_1:f5",
+        "width_cm": 2000.0,
+        "x": 33040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f6",
+        "width_cm": 1920.0,
+        "x": 35040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f7",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -36960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f8",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -34960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f9",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -32960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f10",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -30960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f11",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "SFA",
+        "slot_id": "block_1_1:f12",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -26960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f13",
+        "width_cm": 1920.0,
+        "x": 37960.0,
+        "y": -24960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f14",
+        "width_cm": 2000.0,
+        "x": 36960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f15",
+        "width_cm": 2000.0,
+        "x": 34960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "NYA",
+        "slot_id": "block_1_1:f16",
+        "width_cm": 2000.0,
+        "x": 32960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f17",
+        "width_cm": 2000.0,
+        "x": 30960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f18",
+        "width_cm": 2000.0,
+        "x": 28960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f19",
+        "width_cm": 2000.0,
+        "x": 26960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f20",
+        "width_cm": 1920.0,
+        "x": 24960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f21",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -23040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f22",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -25040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f23",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -27040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f24",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -29040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "CHA",
+        "slot_id": "block_1_1:f25",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "NYA",
+        "slot_id": "block_1_1:f26",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -33040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "SFA",
+        "slot_id": "block_1_1:f27",
+        "width_cm": 1920.0,
+        "x": 22040.0,
+        "y": -35040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f0",
+        "width_cm": 2000.0,
+        "x": 23040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f1",
+        "width_cm": 2000.0,
+        "x": 25040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "SFA",
+        "slot_id": "block_1_2:f2",
+        "width_cm": 2000.0,
+        "x": 27040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f3",
+        "width_cm": 2000.0,
+        "x": 29040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "SFA",
+        "slot_id": "block_1_2:f4",
+        "width_cm": 2000.0,
+        "x": 31040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f5",
+        "width_cm": 2000.0,
+        "x": 33040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f6",
+        "width_cm": 1920.0,
+        "x": 35040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f7",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -16960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f8",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -14960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f9",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -12960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f10",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -10960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f11",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f12",
+        "width_cm": 2000.0,
+        "x": 37960.0,
+        "y": -6960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f13",
+        "width_cm": 1920.0,
+        "x": 37960.0,
+        "y": -4960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "SFA",
+        "slot_id": "block_1_2:f14",
+        "width_cm": 2000.0,
+        "x": 36960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f15",
+        "width_cm": 2000.0,
+        "x": 34960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f16",
+        "width_cm": 2000.0,
+        "x": 32960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f17",
+        "width_cm": 2000.0,
+        "x": 30960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f18",
+        "width_cm": 2000.0,
+        "x": 28960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f19",
+        "width_cm": 2000.0,
+        "x": 26960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "NYA",
+        "slot_id": "block_1_2:f20",
+        "width_cm": 1920.0,
+        "x": 24960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "SFA",
+        "slot_id": "block_1_2:f21",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -3040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "NYA",
+        "slot_id": "block_1_2:f22",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -5040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f23",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -7040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f24",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -9040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f25",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -11040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f26",
+        "width_cm": 2000.0,
+        "x": 22040.0,
+        "y": -13040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_1_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "CHA",
+        "slot_id": "block_1_2:f27",
+        "width_cm": 1920.0,
+        "x": 22040.0,
+        "y": -15040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f0",
+        "width_cm": 2000.0,
+        "x": 43040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f1",
+        "width_cm": 2000.0,
+        "x": 45040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f2",
+        "width_cm": 2000.0,
+        "x": 47040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f3",
+        "width_cm": 2000.0,
+        "x": 49040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "CHA",
+        "slot_id": "block_2_0:f4",
+        "width_cm": 2000.0,
+        "x": 51040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "CHA",
+        "slot_id": "block_2_0:f5",
+        "width_cm": 2000.0,
+        "x": 53040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f6",
+        "width_cm": 1920.0,
+        "x": 55040.0,
+        "y": -57960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f7",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -56960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f8",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -54960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f9",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -52960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f10",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -50960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f11",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -48960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f12",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -46960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f13",
+        "width_cm": 1920.0,
+        "x": 57960.0,
+        "y": -44960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f14",
+        "width_cm": 2000.0,
+        "x": 56960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f15",
+        "width_cm": 2000.0,
+        "x": 54960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f16",
+        "width_cm": 2000.0,
+        "x": 52960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f17",
+        "width_cm": 2000.0,
+        "x": 50960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f18",
+        "width_cm": 2000.0,
+        "x": 48960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f19",
+        "width_cm": 2000.0,
+        "x": 46960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f20",
+        "width_cm": 1920.0,
+        "x": 44960.0,
+        "y": -42040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f21",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -43040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f22",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -45040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f23",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -47040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f24",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -49040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f25",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f26",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -53040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_0",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "NYA",
+        "slot_id": "block_2_0:f27",
+        "width_cm": 1920.0,
+        "x": 42040.0,
+        "y": -55040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f0",
+        "width_cm": 2000.0,
+        "x": 43040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f1",
+        "width_cm": 2000.0,
+        "x": 45040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f2",
+        "width_cm": 2000.0,
+        "x": 47040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "NYA",
+        "slot_id": "block_2_1:f3",
+        "width_cm": 2000.0,
+        "x": 49040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "SFA",
+        "slot_id": "block_2_1:f4",
+        "width_cm": 2000.0,
+        "x": 51040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f5",
+        "width_cm": 2000.0,
+        "x": 53040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f6",
+        "width_cm": 1920.0,
+        "x": 55040.0,
+        "y": -37960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f7",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -36960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f8",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -34960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "SFA",
+        "slot_id": "block_2_1:f9",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -32960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f10",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -30960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "SFA",
+        "slot_id": "block_2_1:f11",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f12",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -26960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "SFA",
+        "slot_id": "block_2_1:f13",
+        "width_cm": 1920.0,
+        "x": 57960.0,
+        "y": -24960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f14",
+        "width_cm": 2000.0,
+        "x": 56960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f15",
+        "width_cm": 2000.0,
+        "x": 54960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f16",
+        "width_cm": 2000.0,
+        "x": 52960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f17",
+        "width_cm": 2000.0,
+        "x": 50960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f18",
+        "width_cm": 2000.0,
+        "x": 48960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "NYA",
+        "slot_id": "block_2_1:f19",
+        "width_cm": 2000.0,
+        "x": 46960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "SFA",
+        "slot_id": "block_2_1:f20",
+        "width_cm": 1920.0,
+        "x": 44960.0,
+        "y": -22040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f21",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -23040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "SFA",
+        "slot_id": "block_2_1:f22",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -25040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f23",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -27040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f24",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -29040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f25",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f26",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -33040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_1",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "CHA",
+        "slot_id": "block_2_1:f27",
+        "width_cm": 1920.0,
+        "x": 42040.0,
+        "y": -35040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 0,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f0",
+        "width_cm": 2000.0,
+        "x": 43040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 1,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f1",
+        "width_cm": 2000.0,
+        "x": 45040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 2,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f2",
+        "width_cm": 2000.0,
+        "x": 47040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 3,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f3",
+        "width_cm": 2000.0,
+        "x": 49040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 4,
+        "kit": "SFA",
+        "slot_id": "block_2_2:f4",
+        "width_cm": 2000.0,
+        "x": 51040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 5,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f5",
+        "width_cm": 2000.0,
+        "x": 53040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 6,
+        "kit": "SFA",
+        "slot_id": "block_2_2:f6",
+        "width_cm": 1920.0,
+        "x": 55040.0,
+        "y": -17960.0,
+        "yaw": -90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 7,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f7",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -16960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 8,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f8",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -14960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 9,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f9",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -12960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 10,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f10",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -10960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 11,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f11",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 12,
+        "kit": "SFA",
+        "slot_id": "block_2_2:f12",
+        "width_cm": 2000.0,
+        "x": 57960.0,
+        "y": -6960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 13,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f13",
+        "width_cm": 1920.0,
+        "x": 57960.0,
+        "y": -4960.0,
+        "yaw": 0.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 14,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f14",
+        "width_cm": 2000.0,
+        "x": 56960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 15,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f15",
+        "width_cm": 2000.0,
+        "x": 54960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 16,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f16",
+        "width_cm": 2000.0,
+        "x": 52960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 17,
+        "kit": "NYA",
+        "slot_id": "block_2_2:f17",
+        "width_cm": 2000.0,
+        "x": 50960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 18,
+        "kit": "NYA",
+        "slot_id": "block_2_2:f18",
+        "width_cm": 2000.0,
+        "x": 48960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 19,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f19",
+        "width_cm": 2000.0,
+        "x": 46960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 20,
+        "kit": "SFA",
+        "slot_id": "block_2_2:f20",
+        "width_cm": 1920.0,
+        "x": 44960.0,
+        "y": -2040.0,
+        "yaw": 90.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 21,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f21",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -3040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 22,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f22",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -5040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 23,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f23",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -7040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 24,
+        "kit": "NYA",
+        "slot_id": "block_2_2:f24",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -9040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 25,
+        "kit": "NYA",
+        "slot_id": "block_2_2:f25",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -11040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 26,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f26",
+        "width_cm": 2000.0,
+        "x": 42040.0,
+        "y": -13040.0,
+        "yaw": 180.0
+      },
+      {
+        "block_id": "block_2_2",
+        "depth_cm": 1500.0,
+        "frontage_index": 27,
+        "kit": "CHA",
+        "slot_id": "block_2_2:f27",
+        "width_cm": 1920.0,
+        "x": 42040.0,
+        "y": -15040.0,
+        "yaw": 180.0
+      }
+    ]
+  },
+  "corridors": [
+    [
+      {
+        "x": -1200.0,
+        "y": 360.0
+      },
+      {
+        "x": -1200.0,
+        "y": -20160.0
+      },
+      {
+        "x": 2040.0,
+        "y": -20160.0
+      },
+      {
+        "x": 2040.0,
+        "y": 360.0
+      }
+    ],
+    [
+      {
+        "x": -360.0,
+        "y": -1200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -1200.0
+      },
+      {
+        "x": 20160.0,
+        "y": 2040.0
+      },
+      {
+        "x": -360.0,
+        "y": 2040.0
+      }
+    ],
+    [
+      {
+        "x": 1200.0,
+        "y": -20160.0
+      },
+      {
+        "x": 1200.0,
+        "y": 360.0
+      },
+      {
+        "x": -2040.0,
+        "y": 360.0
+      },
+      {
+        "x": -2040.0,
+        "y": -20160.0
+      }
+    ],
+    [
+      {
+        "x": -1200.0,
+        "y": -19840.0
+      },
+      {
+        "x": -1200.0,
+        "y": -40160.0
+      },
+      {
+        "x": 2040.0,
+        "y": -40160.0
+      },
+      {
+        "x": 2040.0,
+        "y": -19840.0
+      }
+    ],
+    [
+      {
+        "x": -160.0,
+        "y": -21200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -21200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -17960.0
+      },
+      {
+        "x": -160.0,
+        "y": -17960.0
+      }
+    ],
+    [
+      {
+        "x": 1200.0,
+        "y": -40160.0
+      },
+      {
+        "x": 1200.0,
+        "y": -19840.0
+      },
+      {
+        "x": -2040.0,
+        "y": -19840.0
+      },
+      {
+        "x": -2040.0,
+        "y": -40160.0
+      }
+    ],
+    [
+      {
+        "x": -1200.0,
+        "y": -39840.0
+      },
+      {
+        "x": -1200.0,
+        "y": -60360.0
+      },
+      {
+        "x": 2040.0,
+        "y": -60360.0
+      },
+      {
+        "x": 2040.0,
+        "y": -39840.0
+      }
+    ],
+    [
+      {
+        "x": -160.0,
+        "y": -41200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -41200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -37960.0
+      },
+      {
+        "x": -160.0,
+        "y": -37960.0
+      }
+    ],
+    [
+      {
+        "x": 1200.0,
+        "y": -60360.0
+      },
+      {
+        "x": 1200.0,
+        "y": -39840.0
+      },
+      {
+        "x": -2040.0,
+        "y": -39840.0
+      },
+      {
+        "x": -2040.0,
+        "y": -60360.0
+      }
+    ],
+    [
+      {
+        "x": -360.0,
+        "y": -61200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -61200.0
+      },
+      {
+        "x": 20160.0,
+        "y": -57960.0
+      },
+      {
+        "x": -360.0,
+        "y": -57960.0
+      }
+    ],
+    [
+      {
+        "x": 20160.0,
+        "y": 1200.0
+      },
+      {
+        "x": -360.0,
+        "y": 1200.0
+      },
+      {
+        "x": -360.0,
+        "y": -2040.0
+      },
+      {
+        "x": 20160.0,
+        "y": -2040.0
+      }
+    ],
+    [
+      {
+        "x": 18800.0,
+        "y": 160.0
+      },
+      {
+        "x": 18800.0,
+        "y": -20160.0
+      },
+      {
+        "x": 22040.0,
+        "y": -20160.0
+      },
+      {
+        "x": 22040.0,
+        "y": 160.0
+      }
+    ],
+    [
+      {
+        "x": 19840.0,
+        "y": -1200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -1200.0
+      },
+      {
+        "x": 40160.0,
+        "y": 2040.0
+      },
+      {
+        "x": 19840.0,
+        "y": 2040.0
+      }
+    ],
+    [
+      {
+        "x": 20160.0,
+        "y": -18800.0
+      },
+      {
+        "x": -160.0,
+        "y": -18800.0
+      },
+      {
+        "x": -160.0,
+        "y": -22040.0
+      },
+      {
+        "x": 20160.0,
+        "y": -22040.0
+      }
+    ],
+    [
+      {
+        "x": 21200.0,
+        "y": -20160.0
+      },
+      {
+        "x": 21200.0,
+        "y": 160.0
+      },
+      {
+        "x": 17960.0,
+        "y": 160.0
+      },
+      {
+        "x": 17960.0,
+        "y": -20160.0
+      }
+    ],
+    [
+      {
+        "x": 18800.0,
+        "y": -19840.0
+      },
+      {
+        "x": 18800.0,
+        "y": -40160.0
+      },
+      {
+        "x": 22040.0,
+        "y": -40160.0
+      },
+      {
+        "x": 22040.0,
+        "y": -19840.0
+      }
+    ],
+    [
+      {
+        "x": 19840.0,
+        "y": -21200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -21200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -17960.0
+      },
+      {
+        "x": 19840.0,
+        "y": -17960.0
+      }
+    ],
+    [
+      {
+        "x": 20160.0,
+        "y": -38800.0
+      },
+      {
+        "x": -160.0,
+        "y": -38800.0
+      },
+      {
+        "x": -160.0,
+        "y": -42040.0
+      },
+      {
+        "x": 20160.0,
+        "y": -42040.0
+      }
+    ],
+    [
+      {
+        "x": 21200.0,
+        "y": -40160.0
+      },
+      {
+        "x": 21200.0,
+        "y": -19840.0
+      },
+      {
+        "x": 17960.0,
+        "y": -19840.0
+      },
+      {
+        "x": 17960.0,
+        "y": -40160.0
+      }
+    ],
+    [
+      {
+        "x": 18800.0,
+        "y": -39840.0
+      },
+      {
+        "x": 18800.0,
+        "y": -60160.0
+      },
+      {
+        "x": 22040.0,
+        "y": -60160.0
+      },
+      {
+        "x": 22040.0,
+        "y": -39840.0
+      }
+    ],
+    [
+      {
+        "x": 19840.0,
+        "y": -41200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -41200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -37960.0
+      },
+      {
+        "x": 19840.0,
+        "y": -37960.0
+      }
+    ],
+    [
+      {
+        "x": 20160.0,
+        "y": -58800.0
+      },
+      {
+        "x": -360.0,
+        "y": -58800.0
+      },
+      {
+        "x": -360.0,
+        "y": -62040.0
+      },
+      {
+        "x": 20160.0,
+        "y": -62040.0
+      }
+    ],
+    [
+      {
+        "x": 21200.0,
+        "y": -60160.0
+      },
+      {
+        "x": 21200.0,
+        "y": -39840.0
+      },
+      {
+        "x": 17960.0,
+        "y": -39840.0
+      },
+      {
+        "x": 17960.0,
+        "y": -60160.0
+      }
+    ],
+    [
+      {
+        "x": 19840.0,
+        "y": -61200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -61200.0
+      },
+      {
+        "x": 40160.0,
+        "y": -57960.0
+      },
+      {
+        "x": 19840.0,
+        "y": -57960.0
+      }
+    ],
+    [
+      {
+        "x": 40160.0,
+        "y": 1200.0
+      },
+      {
+        "x": 19840.0,
+        "y": 1200.0
+      },
+      {
+        "x": 19840.0,
+        "y": -2040.0
+      },
+      {
+        "x": 40160.0,
+        "y": -2040.0
+      }
+    ],
+    [
+      {
+        "x": 38800.0,
+        "y": 160.0
+      },
+      {
+        "x": 38800.0,
+        "y": -20160.0
+      },
+      {
+        "x": 42040.0,
+        "y": -20160.0
+      },
+      {
+        "x": 42040.0,
+        "y": 160.0
+      }
+    ],
+    [
+      {
+        "x": 39840.0,
+        "y": -1200.0
+      },
+      {
+        "x": 60360.0,
+        "y": -1200.0
+      },
+      {
+        "x": 60360.0,
+        "y": 2040.0
+      },
+      {
+        "x": 39840.0,
+        "y": 2040.0
+      }
+    ],
+    [
+      {
+        "x": 40160.0,
+        "y": -18800.0
+      },
+      {
+        "x": 19840.0,
+        "y": -18800.0
+      },
+      {
+        "x": 19840.0,
+        "y": -22040.0
+      },
+      {
+        "x": 40160.0,
+        "y": -22040.0
+      }
+    ],
+    [
+      {
+        "x": 41200.0,
+        "y": -20160.0
+      },
+      {
+        "x": 41200.0,
+        "y": 160.0
+      },
+      {
+        "x": 37960.0,
+        "y": 160.0
+      },
+      {
+        "x": 37960.0,
+        "y": -20160.0
+      }
+    ],
+    [
+      {
+        "x": 38800.0,
+        "y": -19840.0
+      },
+      {
+        "x": 38800.0,
+        "y": -40160.0
+      },
+      {
+        "x": 42040.0,
+        "y": -40160.0
+      },
+      {
+        "x": 42040.0,
+        "y": -19840.0
+      }
+    ],
+    [
+      {
+        "x": 39840.0,
+        "y": -21200.0
+      },
+      {
+        "x": 60160.0,
+        "y": -21200.0
+      },
+      {
+        "x": 60160.0,
+        "y": -17960.0
+      },
+      {
+        "x": 39840.0,
+        "y": -17960.0
+      }
+    ],
+    [
+      {
+        "x": 40160.0,
+        "y": -38800.0
+      },
+      {
+        "x": 19840.0,
+        "y": -38800.0
+      },
+      {
+        "x": 19840.0,
+        "y": -42040.0
+      },
+      {
+        "x": 40160.0,
+        "y": -42040.0
+      }
+    ],
+    [
+      {
+        "x": 41200.0,
+        "y": -40160.0
+      },
+      {
+        "x": 41200.0,
+        "y": -19840.0
+      },
+      {
+        "x": 37960.0,
+        "y": -19840.0
+      },
+      {
+        "x": 37960.0,
+        "y": -40160.0
+      }
+    ],
+    [
+      {
+        "x": 38800.0,
+        "y": -39840.0
+      },
+      {
+        "x": 38800.0,
+        "y": -60160.0
+      },
+      {
+        "x": 42040.0,
+        "y": -60160.0
+      },
+      {
+        "x": 42040.0,
+        "y": -39840.0
+      }
+    ],
+    [
+      {
+        "x": 39840.0,
+        "y": -41200.0
+      },
+      {
+        "x": 60160.0,
+        "y": -41200.0
+      },
+      {
+        "x": 60160.0,
+        "y": -37960.0
+      },
+      {
+        "x": 39840.0,
+        "y": -37960.0
+      }
+    ],
+    [
+      {
+        "x": 40160.0,
+        "y": -58800.0
+      },
+      {
+        "x": 19840.0,
+        "y": -58800.0
+      },
+      {
+        "x": 19840.0,
+        "y": -62040.0
+      },
+      {
+        "x": 40160.0,
+        "y": -62040.0
+      }
+    ],
+    [
+      {
+        "x": 41200.0,
+        "y": -60160.0
+      },
+      {
+        "x": 41200.0,
+        "y": -39840.0
+      },
+      {
+        "x": 37960.0,
+        "y": -39840.0
+      },
+      {
+        "x": 37960.0,
+        "y": -60160.0
+      }
+    ],
+    [
+      {
+        "x": 39840.0,
+        "y": -61200.0
+      },
+      {
+        "x": 60360.0,
+        "y": -61200.0
+      },
+      {
+        "x": 60360.0,
+        "y": -57960.0
+      },
+      {
+        "x": 39840.0,
+        "y": -57960.0
+      }
+    ],
+    [
+      {
+        "x": 60360.0,
+        "y": 1200.0
+      },
+      {
+        "x": 39840.0,
+        "y": 1200.0
+      },
+      {
+        "x": 39840.0,
+        "y": -2040.0
+      },
+      {
+        "x": 60360.0,
+        "y": -2040.0
+      }
+    ],
+    [
+      {
+        "x": 58800.0,
+        "y": 360.0
+      },
+      {
+        "x": 58800.0,
+        "y": -20160.0
+      },
+      {
+        "x": 62040.0,
+        "y": -20160.0
+      },
+      {
+        "x": 62040.0,
+        "y": 360.0
+      }
+    ],
+    [
+      {
+        "x": 60160.0,
+        "y": -18800.0
+      },
+      {
+        "x": 39840.0,
+        "y": -18800.0
+      },
+      {
+        "x": 39840.0,
+        "y": -22040.0
+      },
+      {
+        "x": 60160.0,
+        "y": -22040.0
+      }
+    ],
+    [
+      {
+        "x": 61200.0,
+        "y": -20160.0
+      },
+      {
+        "x": 61200.0,
+        "y": 360.0
+      },
+      {
+        "x": 57960.0,
+        "y": 360.0
+      },
+      {
+        "x": 57960.0,
+        "y": -20160.0
+      }
+    ],
+    [
+      {
+        "x": 58800.0,
+        "y": -19840.0
+      },
+      {
+        "x": 58800.0,
+        "y": -40160.0
+      },
+      {
+        "x": 62040.0,
+        "y": -40160.0
+      },
+      {
+        "x": 62040.0,
+        "y": -19840.0
+      }
+    ],
+    [
+      {
+        "x": 60160.0,
+        "y": -38800.0
+      },
+      {
+        "x": 39840.0,
+        "y": -38800.0
+      },
+      {
+        "x": 39840.0,
+        "y": -42040.0
+      },
+      {
+        "x": 60160.0,
+        "y": -42040.0
+      }
+    ],
+    [
+      {
+        "x": 61200.0,
+        "y": -40160.0
+      },
+      {
+        "x": 61200.0,
+        "y": -19840.0
+      },
+      {
+        "x": 57960.0,
+        "y": -19840.0
+      },
+      {
+        "x": 57960.0,
+        "y": -40160.0
+      }
+    ],
+    [
+      {
+        "x": 58800.0,
+        "y": -39840.0
+      },
+      {
+        "x": 58800.0,
+        "y": -60360.0
+      },
+      {
+        "x": 62040.0,
+        "y": -60360.0
+      },
+      {
+        "x": 62040.0,
+        "y": -39840.0
+      }
+    ],
+    [
+      {
+        "x": 60360.0,
+        "y": -58800.0
+      },
+      {
+        "x": 39840.0,
+        "y": -58800.0
+      },
+      {
+        "x": 39840.0,
+        "y": -62040.0
+      },
+      {
+        "x": 60360.0,
+        "y": -62040.0
+      }
+    ],
+    [
+      {
+        "x": 61200.0,
+        "y": -60360.0
+      },
+      {
+        "x": 61200.0,
+        "y": -39840.0
+      },
+      {
+        "x": 57960.0,
+        "y": -39840.0
+      },
+      {
+        "x": 57960.0,
+        "y": -60360.0
+      }
+    ]
+  ],
+  "crossing_slots": {
+    "counts": {
+      "slots": 44
+    },
+    "schema_version": "city_layout_v1",
+    "slots": [
+      {
+        "edge_id": ":A0_c0",
+        "length_cm": 1280.0,
+        "x": 0.0,
+        "y": -640.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":A1_c0",
+        "length_cm": 1280.0,
+        "x": 0.0,
+        "y": -20840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":A1_c1",
+        "length_cm": 1280.0,
+        "x": 840.0,
+        "y": -20000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":A1_c2",
+        "length_cm": 1280.0,
+        "x": 0.0,
+        "y": -19160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":A2_c0",
+        "length_cm": 1280.0,
+        "x": 0.0,
+        "y": -40840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":A2_c1",
+        "length_cm": 1280.0,
+        "x": 840.0,
+        "y": -40000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":A2_c2",
+        "length_cm": 1280.0,
+        "x": 0.0,
+        "y": -39160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":A3_c0",
+        "length_cm": 1280.0,
+        "x": 640.0,
+        "y": -60000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":B0_c0",
+        "length_cm": 1280.0,
+        "x": 20000.0,
+        "y": -840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":B0_c1",
+        "length_cm": 1280.0,
+        "x": 20840.0,
+        "y": 0.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":B0_c2",
+        "length_cm": 1280.0,
+        "x": 19160.0,
+        "y": 0.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":B1_c0",
+        "length_cm": 1280.0,
+        "x": 20000.0,
+        "y": -20840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":B1_c1",
+        "length_cm": 1280.0,
+        "x": 20840.0,
+        "y": -20000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":B1_c2",
+        "length_cm": 1280.0,
+        "x": 20000.0,
+        "y": -19160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":B1_c3",
+        "length_cm": 1280.0,
+        "x": 19160.0,
+        "y": -20000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":B2_c0",
+        "length_cm": 1280.0,
+        "x": 20000.0,
+        "y": -40840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":B2_c1",
+        "length_cm": 1280.0,
+        "x": 20840.0,
+        "y": -40000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":B2_c2",
+        "length_cm": 1280.0,
+        "x": 20000.0,
+        "y": -39160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":B2_c3",
+        "length_cm": 1280.0,
+        "x": 19160.0,
+        "y": -40000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":B3_c0",
+        "length_cm": 1280.0,
+        "x": 20840.0,
+        "y": -60000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":B3_c1",
+        "length_cm": 1280.0,
+        "x": 20000.0,
+        "y": -59160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":B3_c2",
+        "length_cm": 1280.0,
+        "x": 19160.0,
+        "y": -60000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":C0_c0",
+        "length_cm": 1280.0,
+        "x": 40000.0,
+        "y": -840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":C0_c1",
+        "length_cm": 1280.0,
+        "x": 40840.0,
+        "y": 0.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":C0_c2",
+        "length_cm": 1280.0,
+        "x": 39160.0,
+        "y": 0.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":C1_c0",
+        "length_cm": 1280.0,
+        "x": 40000.0,
+        "y": -20840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":C1_c1",
+        "length_cm": 1280.0,
+        "x": 40840.0,
+        "y": -20000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":C1_c2",
+        "length_cm": 1280.0,
+        "x": 40000.0,
+        "y": -19160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":C1_c3",
+        "length_cm": 1280.0,
+        "x": 39160.0,
+        "y": -20000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":C2_c0",
+        "length_cm": 1280.0,
+        "x": 40000.0,
+        "y": -40840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":C2_c1",
+        "length_cm": 1280.0,
+        "x": 40840.0,
+        "y": -40000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":C2_c2",
+        "length_cm": 1280.0,
+        "x": 40000.0,
+        "y": -39160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":C2_c3",
+        "length_cm": 1280.0,
+        "x": 39160.0,
+        "y": -40000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":C3_c0",
+        "length_cm": 1280.0,
+        "x": 40840.0,
+        "y": -60000.0,
+        "yaw": -90.0
+      },
+      {
+        "edge_id": ":C3_c1",
+        "length_cm": 1280.0,
+        "x": 40000.0,
+        "y": -59160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":C3_c2",
+        "length_cm": 1280.0,
+        "x": 39160.0,
+        "y": -60000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":D0_c0",
+        "length_cm": 1280.0,
+        "x": 60000.0,
+        "y": -640.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":D1_c0",
+        "length_cm": 1280.0,
+        "x": 60000.0,
+        "y": -20840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":D1_c1",
+        "length_cm": 1280.0,
+        "x": 60000.0,
+        "y": -19160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":D1_c2",
+        "length_cm": 1280.0,
+        "x": 59160.0,
+        "y": -20000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":D2_c0",
+        "length_cm": 1280.0,
+        "x": 60000.0,
+        "y": -40840.0,
+        "yaw": 180.0
+      },
+      {
+        "edge_id": ":D2_c1",
+        "length_cm": 1280.0,
+        "x": 60000.0,
+        "y": -39160.0,
+        "yaw": 0.0
+      },
+      {
+        "edge_id": ":D2_c2",
+        "length_cm": 1280.0,
+        "x": 59160.0,
+        "y": -40000.0,
+        "yaw": 90.0
+      },
+      {
+        "edge_id": ":D3_c0",
+        "length_cm": 1280.0,
+        "x": 60000.0,
+        "y": -59360.0,
+        "yaw": 0.0
+      }
+    ]
+  },
+  "furniture_slots": {
+    "counts": {
+      "bin": 112,
+      "lamp": 112,
+      "sign": 112
+    },
+    "schema_version": "city_layout_v1",
+    "slots": [
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 990.0,
+        "y": -3340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 990.0,
+        "y": -5840.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 990.0,
+        "y": -8340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 990.0,
+        "y": -10840.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 990.0,
+        "y": -13340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 990.0,
+        "y": -15840.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "A0A1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 990.0,
+        "y": -18340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 3340.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 5840.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 8340.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 10840.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 13340.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 15840.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "A0B0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 18340.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": -990.0,
+        "y": -16460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": -990.0,
+        "y": -13960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": -990.0,
+        "y": -11460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": -990.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": -990.0,
+        "y": -6460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": -990.0,
+        "y": -3960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "A1A0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": -990.0,
+        "y": -1460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 990.0,
+        "y": -23540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 990.0,
+        "y": -26040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 990.0,
+        "y": -28540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 990.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 990.0,
+        "y": -33540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 990.0,
+        "y": -36040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "A1A2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 990.0,
+        "y": -38540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 3540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 6040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 8540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 11040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 13540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 16040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "A1B1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 18540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": -990.0,
+        "y": -36460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": -990.0,
+        "y": -33960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": -990.0,
+        "y": -31460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": -990.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": -990.0,
+        "y": -26460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": -990.0,
+        "y": -23960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "A2A1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": -990.0,
+        "y": -21460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 990.0,
+        "y": -43540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 990.0,
+        "y": -46040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 990.0,
+        "y": -48540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 990.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 990.0,
+        "y": -53540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 990.0,
+        "y": -56040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "A2A3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 990.0,
+        "y": -58540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 3540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 6040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 8540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 11040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 13540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 16040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "A2B2_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 18540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": -990.0,
+        "y": -56660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": -990.0,
+        "y": -54160.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": -990.0,
+        "y": -51660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": -990.0,
+        "y": -49160.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": -990.0,
+        "y": -46660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": -990.0,
+        "y": -44160.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "A3A2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": -990.0,
+        "y": -41660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 3340.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 5840.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 8340.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 10840.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 13340.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 15840.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "A3B3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 18340.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 16460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 13960.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 11460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 8960.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 6460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 3960.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "B0A0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 1460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 20990.0,
+        "y": -3540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 20990.0,
+        "y": -6040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 20990.0,
+        "y": -8540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 20990.0,
+        "y": -11040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 20990.0,
+        "y": -13540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 20990.0,
+        "y": -16040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "B0B1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 20990.0,
+        "y": -18540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 23540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 26040.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 28540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 31040.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 33540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 36040.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "B0C0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 38540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 16460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 13960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 11460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 8960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 6460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 3960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "B1A1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 1460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 19010.0,
+        "y": -16460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 19010.0,
+        "y": -13960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 19010.0,
+        "y": -11460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 19010.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -6460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -3960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "B1B0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 19010.0,
+        "y": -1460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 20990.0,
+        "y": -23540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 20990.0,
+        "y": -26040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 20990.0,
+        "y": -28540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 20990.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 20990.0,
+        "y": -33540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 20990.0,
+        "y": -36040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "B1B2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 20990.0,
+        "y": -38540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 23540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 26040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 28540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 31040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 33540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 36040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "B1C1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 38540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 16460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 13960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 11460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 8960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 6460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 3960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "B2A2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 1460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 19010.0,
+        "y": -36460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -33960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 19010.0,
+        "y": -31460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 19010.0,
+        "y": -26460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -23960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "B2B1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 19010.0,
+        "y": -21460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 20990.0,
+        "y": -43540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 20990.0,
+        "y": -46040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 20990.0,
+        "y": -48540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 20990.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 20990.0,
+        "y": -53540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 20990.0,
+        "y": -56040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "B2B3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 20990.0,
+        "y": -58540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 23540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 26040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 28540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 31040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 33540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 36040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "B2C2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 38540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 16460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 13960.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 11460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 8960.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 6460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 3960.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "B3A3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 1460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 19010.0,
+        "y": -56460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 19010.0,
+        "y": -53960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 19010.0,
+        "y": -51460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 19010.0,
+        "y": -48960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -46460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 19010.0,
+        "y": -43960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "B3B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 19010.0,
+        "y": -41460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 23540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 26040.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 28540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 31040.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 33540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 36040.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "B3C3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 38540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 36460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 33960.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 31460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 28960.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 26460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 23960.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "C0B0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 21460.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 40990.0,
+        "y": -3540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 40990.0,
+        "y": -6040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 40990.0,
+        "y": -8540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 40990.0,
+        "y": -11040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 40990.0,
+        "y": -13540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 40990.0,
+        "y": -16040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "C0C1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 40990.0,
+        "y": -18540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 43540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 46040.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 48540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 51040.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 53540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 56040.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "C0D0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 58540.0,
+        "y": 990.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 36460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 33960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 31460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 28960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 26460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 23960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "C1B1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 21460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 39010.0,
+        "y": -16460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 39010.0,
+        "y": -13960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 39010.0,
+        "y": -11460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 39010.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 39010.0,
+        "y": -6460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 39010.0,
+        "y": -3960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "C1C0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 39010.0,
+        "y": -1460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 40990.0,
+        "y": -23540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 40990.0,
+        "y": -26040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 40990.0,
+        "y": -28540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 40990.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 40990.0,
+        "y": -33540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 40990.0,
+        "y": -36040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "C1C2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 40990.0,
+        "y": -38540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 43540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 46040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 48540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 51040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 53540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 56040.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "C1D1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 58540.0,
+        "y": -19010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 36460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 33960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 31460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 28960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 26460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 23960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "C2B2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 21460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 39010.0,
+        "y": -36460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 39010.0,
+        "y": -33960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 39010.0,
+        "y": -31460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 39010.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 39010.0,
+        "y": -26460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 39010.0,
+        "y": -23960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "C2C1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 39010.0,
+        "y": -21460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 40990.0,
+        "y": -43540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 40990.0,
+        "y": -46040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 40990.0,
+        "y": -48540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 40990.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 40990.0,
+        "y": -53540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 40990.0,
+        "y": -56040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "C2C3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 40990.0,
+        "y": -58540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 43540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 46040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 48540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 51040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 53540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 56040.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "C2D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 58540.0,
+        "y": -39010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 36460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 33960.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 31460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 28960.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 26460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 23960.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "C3B3_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 21460.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 39010.0,
+        "y": -56460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 39010.0,
+        "y": -53960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 39010.0,
+        "y": -51460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 39010.0,
+        "y": -48960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 39010.0,
+        "y": -46460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 39010.0,
+        "y": -43960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "C3C2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 39010.0,
+        "y": -41460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 43540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 46040.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 48540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 51040.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 53540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 56040.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "C3D3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 58540.0,
+        "y": -59010.0,
+        "yaw": -90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 56660.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 54160.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 51660.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 49160.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 46660.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 44160.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "D0C0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 41660.0,
+        "y": -990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 60990.0,
+        "y": -3340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 60990.0,
+        "y": -5840.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 60990.0,
+        "y": -8340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 60990.0,
+        "y": -10840.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 60990.0,
+        "y": -13340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 60990.0,
+        "y": -15840.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "D0D1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 60990.0,
+        "y": -18340.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 56460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 53960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 51460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 48960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 46460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 43960.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "D1C1_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 41460.0,
+        "y": -20990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 59010.0,
+        "y": -16460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 59010.0,
+        "y": -13960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 59010.0,
+        "y": -11460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 59010.0,
+        "y": -8960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 59010.0,
+        "y": -6460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 59010.0,
+        "y": -3960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "D1D0_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 59010.0,
+        "y": -1460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 60990.0,
+        "y": -23540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 60990.0,
+        "y": -26040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 60990.0,
+        "y": -28540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 60990.0,
+        "y": -31040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 60990.0,
+        "y": -33540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 60990.0,
+        "y": -36040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "D1D2_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 60990.0,
+        "y": -38540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 56460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 53960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 51460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 48960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 46460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 43960.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "D2C2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 41460.0,
+        "y": -40990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 59010.0,
+        "y": -36460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 59010.0,
+        "y": -33960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 59010.0,
+        "y": -31460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 59010.0,
+        "y": -28960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 59010.0,
+        "y": -26460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 59010.0,
+        "y": -23960.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "D2D1_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 59010.0,
+        "y": -21460.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "lamp",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 60990.0,
+        "y": -43540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "sign",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 60990.0,
+        "y": -46040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "bin",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 60990.0,
+        "y": -48540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "lamp",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 60990.0,
+        "y": -51040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "sign",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 4,
+        "x": 60990.0,
+        "y": -53540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "bin",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 60990.0,
+        "y": -56040.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "lamp",
+        "lane_id": "D2D3_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 60990.0,
+        "y": -58540.0,
+        "yaw": 180.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "sign",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 56660.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "bin",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 54160.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "lamp",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 6,
+        "x": 51660.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "sign",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 49160.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "bin",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 46660.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "lamp",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 0,
+        "x": 44160.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "sign",
+        "lane_id": "D3C3_0",
+        "offset_cm": 250.0,
+        "variant": 7,
+        "x": 41660.0,
+        "y": -60990.0,
+        "yaw": 90.0
+      },
+      {
+        "distance_cm": 2500.0,
+        "kind": "bin",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 5,
+        "x": 59010.0,
+        "y": -56660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 5000.0,
+        "kind": "lamp",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 59010.0,
+        "y": -54160.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 7500.0,
+        "kind": "sign",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 3,
+        "x": 59010.0,
+        "y": -51660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 10000.0,
+        "kind": "bin",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 59010.0,
+        "y": -49160.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 12500.0,
+        "kind": "lamp",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 59010.0,
+        "y": -46660.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 15000.0,
+        "kind": "sign",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 2,
+        "x": 59010.0,
+        "y": -44160.0,
+        "yaw": 0.0
+      },
+      {
+        "distance_cm": 17500.0,
+        "kind": "bin",
+        "lane_id": "D3D2_0",
+        "offset_cm": 250.0,
+        "variant": 1,
+        "x": 59010.0,
+        "y": -41660.0,
+        "yaw": 0.0
+      }
+    ]
+  },
+  "schema_version": "city_layout_v1"
+}
