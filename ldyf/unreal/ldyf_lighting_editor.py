@@ -176,6 +176,20 @@ def apply_lighting(spec: dict) -> dict:
     else:
         sk = spec["sky"]
         comp = skyl.light_component
+        # A STATIONARY SkyLight bakes its DIFFUSE ambient into lightmaps. No
+        # lighting build exists in this project, so every STATIC object -- the
+        # instanced street trees among them -- received no indirect light at all
+        # and fell back to black wherever the sun did not reach. A tree in
+        # building shadow rendered as a black silhouette of leaf cards while a
+        # single sunlit leaf on the same tree came out green, which is what
+        # proved the material innocent: it is MSM_TWO_SIDED_FOLIAGE with a
+        # non-zero LeafSubsurface and both textures bound. MOVABLE gives fully
+        # dynamic diffuse ambient with no bake, and the silhouette disappears.
+        try:
+            skyl.root_component.set_editor_property(
+                "mobility", unreal.ComponentMobility.MOVABLE)
+        except Exception as exc:                                   # noqa: BLE001
+            problems.append("sky mobility not set MOVABLE: %s" % exc)
         _set_and_verify(comp, "intensity", float(sk["intensity"]), problems, label="sky")
         # real-time capture re-renders the sky every frame; for a deterministic
         # render the fill must be captured once and then held.
@@ -192,7 +206,9 @@ def apply_lighting(spec: dict) -> dict:
             recaptured = True
         except Exception as exc:                               # noqa: BLE001
             problems.append("sky.recapture_sky failed: %s" % exc)
-        result["sky"] = {"intensity": comp.get_editor_property("intensity"),
+        result["sky"] = {"mobility": str(
+                             skyl.root_component.get_editor_property("mobility")),
+                         "intensity": comp.get_editor_property("intensity"),
                          "real_time_capture": comp.get_editor_property("real_time_capture"),
                          "recaptured": recaptured}
 
