@@ -216,7 +216,7 @@ HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
 LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 
 
-def apply_height_bands(doc: dict) -> dict:
+def apply_height_bands(doc: dict, *, never_lower: bool = False) -> dict:
     """Spread clamped heights back out inside each family's recommended band.
 
     Clamping alone makes every building the same height whenever the whole
@@ -269,6 +269,14 @@ def apply_height_bands(doc: dict) -> dict:
         height = _f3(band_lo + t * (band_hi - band_lo))
         # never below the measured minimum, whatever the band says
         height = max(height, minimum_for(fam))
+        # Grouped documents already carry a height TIER per group (2500 / 2800 /
+        # 6500), and banding would pull the 6500 tier down to its family's 5200
+        # ceiling -- below its own request, which validate_groups rejects on
+        # eight of the nine real blocks. With never_lower the band can only
+        # LIFT a building, so the tiers survive and the flat ones still spread.
+        # The landmark is exempt: its band ceiling is an asset limit.
+        if never_lower and o.get("role") != "landmark":
+            height = max(height, float(o["height_cm"]))
         row = dict(o)
         row["height_cm"] = height
         new_orders.append(row)

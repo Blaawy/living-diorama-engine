@@ -679,3 +679,19 @@ def test_apply_height_bands_excludes_the_landmark_from_normalisation():
 def test_apply_height_bands_refuses_an_empty_document():
     with pytest.raises(ValueError):
         apply_height_bands({"orders": []})
+
+
+def test_apply_height_bands_never_lower_only_lifts_ordinary_orders():
+    doc = make_doc()
+    for order in doc["orders"]:
+        if order["role"] != "landmark":
+            order["height_cm"] = 6500.0   # a tier above the family band top
+            break
+    banded = apply_height_bands(doc, never_lower=True)
+    for before, after in zip(doc["orders"], banded["orders"]):
+        if before["role"] != "landmark":
+            assert after["height_cm"] >= before["height_cm"]
+    # without the flag the same order is pulled back inside its band
+    plain = apply_height_bands(doc)
+    assert any(a["height_cm"] < b["height_cm"]
+               for a, b in zip(plain["orders"], doc["orders"]))
