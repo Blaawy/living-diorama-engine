@@ -215,13 +215,13 @@ def test_palette_is_the_documented_five_families():
     # The Chicago families were dropped after measurement: each returns the
     # 32-instance foundation ring at every height tested, i.e. no usable walls
     # in this project's mesh subset. SFD carries the "visually distinct" role.
-    assert set(SGD_PALETTE) == {"SFD", "NYAE", "NYAF", "NYGA", "NYG"}
+    assert set(SGD_PALETTE) == {"SFD", "NYAE", "NYAF", "NYAE", "NYAF"}
     assert set(STYLE_MIN_HEIGHT_CM) == set(SGD_PALETTE)
     assert STYLE_MIN_HEIGHT_CM["NYAF"] == 2500.0
     # every minimum is measured now, so none may be left unknown
     assert all(v is not None for v in STYLE_MIN_HEIGHT_CM.values())
     assert [f for f, e in SGD_PALETTE.items() if e.get("landmark_only")] == \
-        ["NYG"]
+        ["NYAF"]
     for family, entry in SGD_PALETTE.items():
         assert entry["instances"] > FOUNDATION_ONLY_INSTANCES
         path = sgd_asset_path(family)
@@ -237,24 +237,24 @@ def test_every_palette_family_is_reachable_and_none_other_is():
         for i in range(64):
             family = family_for("slot:%d" % i, height, SEED)
             assert family in SGD_PALETTE
-            assert family != "NYG"  # landmark only, never on a plain slot
+            assert family != "NYAF"  # landmark only, never on a plain slot
             seen.add(family)
-    assert seen == set(SGD_PALETTE) - {"NYG"}
-    assert family_for("slot:0", 9000.0, SEED, landmark=True) == "NYG"
+    assert seen == set(SGD_PALETTE) - {"NYAF"}
+    assert family_for("slot:0", 9000.0, SEED, landmark=True) == "NYAF"
     assert family_for("slot:0", 9000.0, SEED, landmark=True) == \
         family_for("slot:1", 1500.0, SEED, landmark=True)
 
 
 def test_role_bands_cover_the_palette_and_never_nyg():
     covered = {f for fams in ROLE_BAND_FAMILIES.values() for f in fams}
-    assert covered == set(SGD_PALETTE) - {"NYG"}
+    assert covered == set(SGD_PALETTE) - {"NYAF"}
     assert role_band_for(1500.0) == "low-rise"
     assert role_band_for(2300.0) == "mid-rise"
     assert role_band_for(5000.0) == "upper-mid"
     assert role_band_for(9000.0) == "tall"
     # a low slot gets SFD, a tall slot gets a tall family
     assert family_for("slot:0", 1600.0, SEED) == "SFD"
-    assert family_for("slot:0", 9000.0, SEED) == "NYGA"
+    assert family_for("slot:0", 9000.0, SEED) == "NYAE"
 
 
 def test_no_order_carries_a_family_outside_the_palette():
@@ -276,12 +276,12 @@ def test_exactly_one_landmark_and_only_it_uses_nyg():
     assert doc["landmark_id"] == landmarks[0]["id"]
     assert doc["counts"]["landmark"] == 1
     assert doc["counts"]["ordinary"] == len(doc["orders"]) - 1
-    assert landmarks[0]["family"] == "NYG"
+    assert landmarks[0]["family"] == "NYAF"
     assert landmarks[0]["sgd_asset"] == \
-        "/CitySamplePCG/PCG/DataAssets/Buildings/NYG/SGD_NYG_A.SGD_NYG_A"
+        "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYG_A.SGD_NYG_A"
     for order in doc["orders"]:
         if order["role"] != "landmark":
-            assert order["family"] != "NYG"
+            assert order["family"] != "NYAF"
     # the landmark is the slot pcg_buildings picks, and it is stable
     assert sgd_orders(layout, seed=SEED)["landmark_id"] == doc["landmark_id"]
 
@@ -290,11 +290,11 @@ def test_landmark_requested_height_is_lifted_to_the_existing_floor():
     doc = make_doc(band_layout(1600.0, n=4))
     landmark = [o for o in doc["orders"] if o["role"] == "landmark"][0]
     assert landmark["requested_height_cm"] == LANDMARK_FLOOR
-    # LANDMARK_FLOOR is 5600 but NYG's MEASURED minimum is 6000, so the
-    # landmark is clamped up. Below 6000 NYG emits no geometry at all, so this
+    # LANDMARK_FLOOR is 5600 but NYAF's MEASURED minimum is 6000, so the
+    # landmark is clamped up. Below 6000 NYAF emits no geometry at all, so this
     # clamp is load-bearing, not cosmetic.
-    assert STYLE_MIN_HEIGHT_CM["NYG"] > LANDMARK_FLOOR
-    assert landmark["height_cm"] == STYLE_MIN_HEIGHT_CM["NYG"]
+    assert STYLE_MIN_HEIGHT_CM["NYAF"] > LANDMARK_FLOOR
+    assert landmark["height_cm"] == STYLE_MIN_HEIGHT_CM["NYAF"]
     assert any(c["id"] == landmark["id"] for c in doc["clamps"])
 
 
@@ -327,11 +327,11 @@ def test_requested_height_below_minimum_never_survives_into_an_order():
     doc = make_doc(band_layout(1600.0, n=5))
     minima = doc["style_minimum_cm"]
     # every order clamps in this band, the landmark included: its 5600 floor is
-    # below NYG's measured 6000 minimum
+    # below NYAF's measured 6000 minimum
     assert len(doc["clamps"]) == len(doc["orders"])
     for order in doc["orders"]:
         assert order["height_cm"] >= minima[order["family"]]
-        if order["family"] == "NYG":
+        if order["family"] == "NYAF":
             continue
         assert order["requested_height_cm"] == 1600.0  # the pinned band
         assert order["height_cm"] == minima[order["family"]]
@@ -446,8 +446,8 @@ def test_adjacent_slots_in_a_block_do_not_repeat_a_family():
     families = [by_id[s["slot_id"]]["family"] for s in layout_slots(layout)]
     for first, second in zip(families, families[1:]):
         assert first != second, families
-    assert set(families) <= set(ROLE_BAND_FAMILIES["mid-rise"]) | {"NYG"}
-    assert families[0] == "NYG"          # the landmark is the first slot
+    assert set(families) <= set(ROLE_BAND_FAMILIES["mid-rise"]) | {"NYAF"}
+    assert families[0] == "NYAF"          # the landmark is the first slot
     assert len(set(families[1:])) > 1    # the band really is being rotated
 
 
@@ -490,8 +490,8 @@ def test_validate_catches_each_failure_it_claims():
 
     def nyg_on_an_ordinary_order(d):
         order = next(o for o in d["orders"] if o["role"] == "ordinary")
-        order["family"] = "NYG"
-        order["sgd_asset"] = sgd_asset_path("NYG")
+        order["family"] = "NYAF"
+        order["sgd_asset"] = sgd_asset_path("NYAF")
     problems = problems_of(nyg_on_an_ordinary_order)
     assert any("landmark-only" in p for p in problems), problems
 
@@ -528,7 +528,7 @@ def test_validate_catches_each_failure_it_claims():
 
     def asset_names_another_family(d):
         order = d["orders"][0]
-        other = "NYAE" if order["family"] != "NYAE" else "NYGA"
+        other = "NYAE" if order["family"] != "NYAE" else "NYAE"
         order["sgd_asset"] = sgd_asset_path(other)
     problems = problems_of(asset_names_another_family)
     assert any("not the documented path for family" in p

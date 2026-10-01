@@ -120,12 +120,22 @@ FOUNDATION_ONLY_INSTANCES = 72
 SGD_PALETTE: dict[str, dict[str, Any]] = {
     "SFD": {"role_band": "low-rise, fine grain", "instances": 1032},
     "NYAE": {"role_band": "mid-rise", "instances": 352},
-    "NYAF": {"role_band": "mid-rise", "instances": 352},
-    "NYGA": {"role_band": "tall", "instances": 200},
-    "NYG": {"role_band": "landmark only", "instances": 974,
-            "landmark_only": True},
+    "NYAF": {"role_band": "mid-rise and landmark", "instances": 352,
+             "landmark_only": False},
 }
 
+#: NYG and NYGA were removed after Block V2's VISUAL gate, which every machine
+#: check passed blind. NYG built 4,406 modules at height ratio 0.98 and still
+#: rendered as four thin vertical SHAFTS rather than a tower -- identically at
+#: 14000, 11000, 9000, 7000 and 5000 cm, so it is neither a height nor an aspect
+#: problem: the family simply produces slender shaft forms with this mesh
+#: subset. An in-situ A/B settled it -- swapping ONLY the landmark family to
+#: NYAF, at the same 14000 cm, removed the shafts and produced a solid
+#: 13,839.5 cm mass (ratio 0.988, 914 modules). NYGA is dropped as never
+#: visually verified: no slot ever requested its band, so it would have shipped
+#: untested, and that is exactly how NYG got through.
+#: Evidence: EVIDENCE/PHASE_02/look_blockv2_nyaf14/, landmark_aspect.json.
+#:
 #: Families removed after the one-block machine check, which compared the
 #: height actually achieved against the height requested and counted the modules
 #: placed (EVIDENCE/PHASE_02/pcg_one_block.json):
@@ -144,10 +154,10 @@ SGD_PALETTE: dict[str, dict[str, Any]] = {
 #:
 #: The palette as a sorted literal, so the import-time check is order-free.
 _PALETTE_FAMILIES: tuple[str, ...] = (
-    "NYAE", "NYAF", "NYG", "NYGA", "SFD")
+    "NYAE", "NYAF", "SFD")
 
 #: The only family an ordinary order may not wear.
-LANDMARK_FAMILY = "NYG"
+LANDMARK_FAMILY = "NYAF"
 
 #: Minimum viable height per family, in cm -- **all measured**, not inferred.
 #: A grammar given too little height produces ZERO geometry, so a request below
@@ -160,8 +170,6 @@ STYLE_MIN_HEIGHT_CM: dict[str, float | None] = {
     "SFD": 2500.0,    # [214] levels 0, 01-04
     "NYAE": 2500.0,   # [152] levels 0, 2-6
     "NYAF": 2500.0,   # [172] levels 0, 2-7
-    "NYGA": 6000.0,   # [192] levels 0, 01-07, 017 -- nothing at 2500 or 4000
-    "NYG": 6000.0,    # [838] levels 0, 01-07, 017 -- landmark only
 }
 
 #: Height used for a family whose real minimum is unmeasured.  Chosen by hand,
@@ -185,9 +193,7 @@ DEFAULT_MIN_HEIGHT_CM = 2000.0
 HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
     "SFD": (2500.0, 3400.0),     # low-rise, fine grain
     "NYAE": (2500.0, 5200.0),
-    "NYAF": (2500.0, 5200.0),
-    "NYGA": (6000.0, 10000.0),   # tall
-    "NYG": (6000.0, 14000.0),    # landmark only
+    "NYAF": (2500.0, 14000.0),   # also the landmark band
 }
 
 
@@ -267,8 +273,6 @@ FAMILY_OVERHANG_CM: dict[str, float] = {
     "SFD": 95.0,
     "NYAE": 42.0,
     "NYAF": 45.0,
-    "NYGA": 13.0,
-    "NYG": 12.0,
 }
 
 
@@ -309,8 +313,8 @@ LANDMARK_FLOOR_CM = 5600.0
 ROLE_BAND_FAMILIES: dict[str, tuple[str, ...]] = {
     "low-rise": ("SFD",),
     "mid-rise": ("NYAE", "NYAF"),
-    "upper-mid": ("NYGA",),
-    "tall": ("NYGA",),
+    "upper-mid": ("NYAF",),
+    "tall": ("NYAF",),
 }
 
 #: Upper bound of each band in cm of *requested* height; a request exactly at a
@@ -402,16 +406,24 @@ def _check_palette() -> None:
         raise AssertionError(
             "STYLE_MIN_HEIGHT_CM covers %s, expected every palette family %s"
             % (sorted(STYLE_MIN_HEIGHT_CM), sorted(SGD_PALETTE)))
+    # The landmark no longer has an EXCLUSIVE family, and that is deliberate.
+    # NYG was landmark-only and rendered as thin shafts at every height; the
+    # only families verified on screen are the ordinary ones, so the landmark
+    # now shares NYAF and is distinguished by HEIGHT rather than by family.
+    # What must still hold: the landmark family is in the palette, and any
+    # family that DOES claim landmark_only is the landmark family.
+    _require_palette_family(LANDMARK_FAMILY)
     landmark_only = sorted(f for f, e in SGD_PALETTE.items()
                            if e.get("landmark_only"))
-    if landmark_only != [LANDMARK_FAMILY]:
+    if landmark_only not in ([], [LANDMARK_FAMILY]):
         raise AssertionError(
-            "expected %r to be the only landmark-only family, got %s"
+            "only %r may be marked landmark_only, got %s"
             % (LANDMARK_FAMILY, landmark_only))
     banded = [fam for fams in ROLE_BAND_FAMILIES.values() for fam in fams]
     for fam in banded:
         _require_palette_family(fam)
-    if set(banded) != set(SGD_PALETTE) - {LANDMARK_FAMILY}:
+    # the landmark family may also serve a role band now that it is shared
+    if set(banded) - set(SGD_PALETTE) or set(SGD_PALETTE) - set(banded) - {LANDMARK_FAMILY}:
         raise AssertionError(
             "every non-landmark palette family must be reachable from a role "
             "band; bands cover %s, palette minus %r is %s"

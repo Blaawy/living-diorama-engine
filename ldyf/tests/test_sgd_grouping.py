@@ -749,7 +749,7 @@ def test_validate_rejects_a_second_or_damaged_landmark():
     landmark["family"] = "NYAE"
     landmark["sgd_asset"] = sgd_asset_path("NYAE")
     problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
-    assert any("expected NYG" in p for p in problems), problems
+    assert any("expected NYAF" in p for p in problems), problems
 
     doc = broken()
     doc["landmark_id"] = "nope"

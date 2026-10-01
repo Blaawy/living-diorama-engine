@@ -1129,7 +1129,16 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
             problems.append("order %r family %r is outside SGD_PALETTE"
                             % (oid, family))
         else:
-            if family == _sgd.LANDMARK_FAMILY and order.get("role") != "landmark":
+            # The landmark family is only EXCLUSIVE when the palette says so.
+            # NYG was landmark-only and rendered as thin shafts at every height,
+            # so the landmark now shares NYAF with ordinary mid-rise buildings
+            # and is distinguished by HEIGHT instead. Enforcing exclusivity here
+            # would reject every ordinary NYAF.
+            _exclusive = bool(
+                _sgd.SGD_PALETTE.get(_sgd.LANDMARK_FAMILY, {}).get(
+                    "landmark_only"))
+            if (_exclusive and family == _sgd.LANDMARK_FAMILY
+                    and order.get("role") != "landmark"):
                 problems.append("order %r wears the landmark-only family %s as %r"
                                 % (oid, _sgd.LANDMARK_FAMILY, order.get("role")))
             if order.get("sgd_asset") != _sgd.sgd_asset_path(family):
