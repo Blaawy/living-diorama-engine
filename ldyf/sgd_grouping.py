@@ -905,15 +905,38 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
     landmark_group: dict | None = None
     ordinary_top = 0.0
 
+    # Which group, if any, is immediately BEFORE the landmark on its own side?
+    # The landmark is pinned to LANDMARK_FAMILY, and that family is no longer
+    # exclusive, so a neighbour chosen before it with avoid=None can land on the
+    # same family. Looking only backwards is not enough: the landmark is second
+    # on its side, so the group ahead of it is decided first. This makes the
+    # constraint symmetric.
+    _before_landmark: set[str] = set()
+    for _i, _g in enumerate(groups):
+        if _g["role"] != "landmark":
+            continue
+        for _prev in reversed(groups[:_i]):
+            if float(_prev["side_yaw"]) == float(_g["side_yaw"]):
+                _before_landmark.add(str(_prev["group_id"]))
+                break
+
     for group in groups:
         group_id = group["group_id"]
         is_landmark = group["role"] == "landmark"
         side_yaw = float(group["side_yaw"])
+        _avoid = previous.get(side_yaw)
+        if group_id in _before_landmark:
+            _avoid = _sgd.LANDMARK_FAMILY
         family, _tier_name, hint = _family_and_hint(group_id, seed,
-                                                    previous.get(side_yaw),
+                                                    _avoid,
                                                     is_landmark)
-        if not is_landmark:
-            previous[side_yaw] = family
+        # The landmark counts as a neighbour on its side. It is PINNED to
+        # LANDMARK_FAMILY, and since that family is no longer exclusive (NYG
+        # rendered as shafts, so NYAF now serves both roles) the ordinary group
+        # beside it would otherwise be chosen with avoid=None and could land on
+        # NYAF too -- which is exactly what made block_1_1's east:0 and east:1
+        # share a family. Recording it closes that hole.
+        previous[side_yaw] = family
         wanted = [hint] + [requests[sid] for sid in group["slot_ids"]
                            if sid in requests]
         requested = _f3(max(wanted))

@@ -509,11 +509,14 @@ def test_landmark_is_preserved_and_tallest_in_its_block():
     landmark = landmarks[0]
     assert landmark["id"] == doc["landmark_id"]
     assert landmark["family"] == LANDMARK_FAMILY
-    assert landmark["height_cm"] == HEIGHT_BAND_CM[LANDMARK_FAMILY][1]
+    # grouped_orders does not apply height bands -- that is apply_height_bands'
+    # job -- so the landmark here carries the LANDMARK_FLOOR. What must hold at
+    # this stage is the hierarchy, not a specific band value.
+    assert landmark["height_cm"] == max(o["height_cm"] for o in doc["orders"])
     assert doc["counts"]["landmark"] == 1
     ordinary = [o for o in doc["orders"] if o["role"] == "ordinary"]
     assert ordinary
-    assert all(o["family"] != LANDMARK_FAMILY for o in ordinary)
+    # the landmark family is shared now; the hierarchy is the invariant
     assert landmark["height_cm"] > max(o["height_cm"] for o in ordinary)
 
     selected = building_kits._pick_landmark_slot(LAYOUT, SEED)
@@ -690,8 +693,13 @@ def test_validate_rejects_bad_families_heights_and_yaws():
     ordinary = next(o for o in doc["orders"] if o["role"] == "ordinary")
     ordinary["family"] = LANDMARK_FAMILY
     ordinary["sgd_asset"] = sgd_asset_path(LANDMARK_FAMILY)
-    assert any("landmark-only" in p for p in
-               validate_groups(doc, LAYOUT, LANDMARK_BLOCK))
+    # gated on the palette flag; enable it so the branch keeps its coverage
+    SGD_PALETTE[LANDMARK_FAMILY]["landmark_only"] = True
+    try:
+        assert any("landmark-only" in p for p in
+                   validate_groups(doc, LAYOUT, LANDMARK_BLOCK))
+    finally:
+        SGD_PALETTE[LANDMARK_FAMILY]["landmark_only"] = False
 
     doc = broken()
     doc["orders"][0]["sgd_asset"] = "not/a/path"

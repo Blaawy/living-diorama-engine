@@ -193,8 +193,16 @@ DEFAULT_MIN_HEIGHT_CM = 2000.0
 HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
     "SFD": (2500.0, 3400.0),     # low-rise, fine grain
     "NYAE": (2500.0, 5200.0),
-    "NYAF": (2500.0, 14000.0),   # also the landmark band
+    "NYAF": (2500.0, 5200.0),
 }
+
+
+#: The landmark's own band. It is SEPARATE from HEIGHT_BAND_CM because the
+#: landmark family is no longer exclusive: NYAF serves ordinary mid-rise slots
+#: too, and if the landmark shared that band an ordinary NYAF at the top of the
+#: range would tie with it and the landmark would stop being the tallest mass.
+#: The floor sits above every ordinary band top so the hierarchy cannot invert.
+LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 14000.0)
 
 
 def apply_height_bands(doc: dict) -> dict:
@@ -236,7 +244,10 @@ def apply_height_bands(doc: dict) -> dict:
     remap = []
     for o in orders:
         fam = _require_palette_family(o["family"])
-        band_lo, band_hi = HEIGHT_BAND_CM[fam]
+        if o.get("role") == "landmark":
+            band_lo, band_hi = LANDMARK_HEIGHT_BAND_CM
+        else:
+            band_lo, band_hi = HEIGHT_BAND_CM[fam]
         req = float(o["requested_height_cm"])
         if o.get("role") == "landmark":
             t = 1.0          # the landmark takes the top of its own band
@@ -871,7 +882,10 @@ def validate_orders(doc: dict) -> list:
                             % (oid, family, len(SGD_PALETTE),
                                sorted(SGD_PALETTE)))
         else:
-            if family == LANDMARK_FAMILY and role != "landmark":
+            # exclusivity only applies when the palette actually marks the
+            # landmark family landmark_only; NYAF now serves both roles
+            if (SGD_PALETTE.get(LANDMARK_FAMILY, {}).get("landmark_only")
+                    and family == LANDMARK_FAMILY and role != "landmark"):
                 problems.append("order %s: %s is landmark-only but the role is "
                                 "%r" % (oid, LANDMARK_FAMILY, role))
             expected_asset = sgd_asset_path(family)

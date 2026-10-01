@@ -19,6 +19,8 @@ import pytest
 from ldyf.city_layout import blocks, building_slots
 from ldyf.sgd_buildings import (
     HEIGHT_BAND_CM,
+    LANDMARK_FAMILY,
+    LANDMARK_HEIGHT_BAND_CM,
     apply_height_bands,
     DEFAULT_MIN_HEIGHT_CM,
     FOUNDATION_ONLY_INSTANCES,
@@ -211,17 +213,18 @@ def test_counts_and_clamps_agree_with_the_orders():
 # ------------------------------------------------------------------ palette --
 
 
-def test_palette_is_the_documented_five_families():
+def test_palette_is_the_documented_three_families():
     # The Chicago families were dropped after measurement: each returns the
     # 32-instance foundation ring at every height tested, i.e. no usable walls
     # in this project's mesh subset. SFD carries the "visually distinct" role.
-    assert set(SGD_PALETTE) == {"SFD", "NYAE", "NYAF", "NYAE", "NYAF"}
+    assert set(SGD_PALETTE) == {"SFD", "NYAE", "NYAF"}
     assert set(STYLE_MIN_HEIGHT_CM) == set(SGD_PALETTE)
     assert STYLE_MIN_HEIGHT_CM["NYAF"] == 2500.0
     # every minimum is measured now, so none may be left unknown
     assert all(v is not None for v in STYLE_MIN_HEIGHT_CM.values())
-    assert [f for f, e in SGD_PALETTE.items() if e.get("landmark_only")] == \
-        ["NYAF"]
+    # nothing is landmark-only now: NYG was, and it rendered as shafts,
+    # so the landmark shares NYAF and is marked out by height instead
+    assert [f for f, e in SGD_PALETTE.items() if e.get("landmark_only")] == []
     for family, entry in SGD_PALETTE.items():
         assert entry["instances"] > FOUNDATION_ONLY_INSTANCES
         path = sgd_asset_path(family)
@@ -237,24 +240,23 @@ def test_every_palette_family_is_reachable_and_none_other_is():
         for i in range(64):
             family = family_for("slot:%d" % i, height, SEED)
             assert family in SGD_PALETTE
-            assert family != "NYAF"  # landmark only, never on a plain slot
             seen.add(family)
-    assert seen == set(SGD_PALETTE) - {"NYAF"}
+    assert seen == set(SGD_PALETTE)
     assert family_for("slot:0", 9000.0, SEED, landmark=True) == "NYAF"
     assert family_for("slot:0", 9000.0, SEED, landmark=True) == \
         family_for("slot:1", 1500.0, SEED, landmark=True)
 
 
-def test_role_bands_cover_the_palette_and_never_nyg():
+def test_role_bands_cover_the_palette():
     covered = {f for fams in ROLE_BAND_FAMILIES.values() for f in fams}
-    assert covered == set(SGD_PALETTE) - {"NYAF"}
+    assert covered == set(SGD_PALETTE)
     assert role_band_for(1500.0) == "low-rise"
     assert role_band_for(2300.0) == "mid-rise"
     assert role_band_for(5000.0) == "upper-mid"
     assert role_band_for(9000.0) == "tall"
     # a low slot gets SFD, a tall slot gets a tall family
     assert family_for("slot:0", 1600.0, SEED) == "SFD"
-    assert family_for("slot:0", 9000.0, SEED) == "NYAE"
+    assert family_for("slot:0", 9000.0, SEED) == "NYAF"
 
 
 def test_no_order_carries_a_family_outside_the_palette():
@@ -268,7 +270,7 @@ def test_no_order_carries_a_family_outside_the_palette():
 # ----------------------------------------------------------------- landmark --
 
 
-def test_exactly_one_landmark_and_only_it_uses_nyg():
+def test_exactly_one_landmark_and_it_is_the_tallest():
     layout = make_layout()
     doc = make_doc(layout)
     landmarks = [o for o in doc["orders"] if o["role"] == "landmark"]
@@ -278,10 +280,13 @@ def test_exactly_one_landmark_and_only_it_uses_nyg():
     assert doc["counts"]["ordinary"] == len(doc["orders"]) - 1
     assert landmarks[0]["family"] == "NYAF"
     assert landmarks[0]["sgd_asset"] == \
-        "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYG_A.SGD_NYG_A"
+        "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYAF_A.SGD_NYAF_A"
+    # an ordinary order MAY wear NYAF now -- the landmark shares the family and
+    # is distinguished by height, so only the height hierarchy is asserted
+    _lm = next(o for o in doc["orders"] if o["role"] == "landmark")
     for order in doc["orders"]:
         if order["role"] != "landmark":
-            assert order["family"] != "NYAF"
+            assert order["height_cm"] < _lm["height_cm"]
     # the landmark is the slot pcg_buildings picks, and it is stable
     assert sgd_orders(layout, seed=SEED)["landmark_id"] == doc["landmark_id"]
 
@@ -293,9 +298,12 @@ def test_landmark_requested_height_is_lifted_to_the_existing_floor():
     # LANDMARK_FLOOR is 5600 but NYAF's MEASURED minimum is 6000, so the
     # landmark is clamped up. Below 6000 NYAF emits no geometry at all, so this
     # clamp is load-bearing, not cosmetic.
-    assert STYLE_MIN_HEIGHT_CM["NYAF"] > LANDMARK_FLOOR
-    assert landmark["height_cm"] == STYLE_MIN_HEIGHT_CM["NYAF"]
-    assert any(c["id"] == landmark["id"] for c in doc["clamps"])
+    # NYAF's measured minimum (2500) is BELOW the 5600 landmark floor, so the
+    # landmark is no longer clamped upward -- it simply keeps its floor. With
+    # NYG this was the other way round and the clamp was load-bearing.
+    assert STYLE_MIN_HEIGHT_CM["NYAF"] < LANDMARK_FLOOR
+    assert landmark["height_cm"] == LANDMARK_FLOOR
+    assert not any(c["id"] == landmark["id"] for c in doc["clamps"])
 
 
 # -------------------------------------------------------------------- clamp --
@@ -328,7 +336,9 @@ def test_requested_height_below_minimum_never_survives_into_an_order():
     minima = doc["style_minimum_cm"]
     # every order clamps in this band, the landmark included: its 5600 floor is
     # below NYAF's measured 6000 minimum
-    assert len(doc["clamps"]) == len(doc["orders"])
+    # the landmark is no longer clamped (its 5600 floor clears NYAF's 2500
+    # minimum), so every ORDINARY order clamps and the landmark does not
+    assert len(doc["clamps"]) == len(doc["orders"]) - 1
     for order in doc["orders"]:
         assert order["height_cm"] >= minima[order["family"]]
         if order["family"] == "NYAF":
@@ -492,8 +502,14 @@ def test_validate_catches_each_failure_it_claims():
         order = next(o for o in d["orders"] if o["role"] == "ordinary")
         order["family"] = "NYAF"
         order["sgd_asset"] = sgd_asset_path("NYAF")
-    problems = problems_of(nyg_on_an_ordinary_order)
-    assert any("landmark-only" in p for p in problems), problems
+    # exclusivity is now gated on the palette flag, so enable it for this
+    # assertion rather than deleting the branch's only coverage
+    SGD_PALETTE[LANDMARK_FAMILY]["landmark_only"] = True
+    try:
+        problems = problems_of(nyg_on_an_ordinary_order)
+        assert any("landmark-only" in p for p in problems), problems
+    finally:
+        SGD_PALETTE[LANDMARK_FAMILY]["landmark_only"] = False
 
     def overlapping(d):
         d["orders"][1]["center"] = list(d["orders"][0]["center"])
@@ -628,7 +644,8 @@ def test_apply_height_bands_spreads_requests_and_keeps_ordering():
     assert doc == before, "apply_height_bands must not mutate its input"
     assert banded is not doc
     for order in banded["orders"]:
-        lo, hi = HEIGHT_BAND_CM[order["family"]]
+        lo, hi = (LANDMARK_HEIGHT_BAND_CM if order["role"] == "landmark"
+                  else HEIGHT_BAND_CM[order["family"]])
         assert lo <= order["height_cm"] <= hi
         assert order["height_cm"] >= STYLE_MIN_HEIGHT_CM[order["family"]]
     # within one family, a taller request is never a shorter building
@@ -644,7 +661,7 @@ def test_apply_height_bands_spreads_requests_and_keeps_ordering():
 def test_apply_height_bands_puts_the_landmark_at_the_top_of_its_band():
     banded = apply_height_bands(make_doc())
     landmark = [o for o in banded["orders"] if o["role"] == "landmark"][0]
-    assert landmark["height_cm"] == HEIGHT_BAND_CM[landmark["family"]][1]
+    assert landmark["height_cm"] == LANDMARK_HEIGHT_BAND_CM[1]
     # and the landmark is taller than every ordinary building
     others = [o["height_cm"] for o in banded["orders"]
               if o["role"] != "landmark"]
