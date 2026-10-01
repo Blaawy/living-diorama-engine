@@ -118,11 +118,27 @@ FOUNDATION_ONLY_INSTANCES = 72
 #: every other family sits at ``FOUNDATION_ONLY_INSTANCES`` and is never
 #: selectable (see the module docstring).
 SGD_PALETTE: dict[str, dict[str, Any]] = {
-    "SFD": {"role_band": "low-rise, fine grain", "instances": 1032},
-    "NYAE": {"role_band": "mid-rise", "instances": 352},
-    "NYAF": {"role_band": "mid-rise and landmark", "instances": 352,
-             "landmark_only": False},
+    "SFD": {"role_band": "every band and the landmark", "instances": 1032,
+            "landmark_only": False},
 }
+
+#: NYAE and NYAF were removed after the FULL-CITY render. Both passed every
+#: machine check that existed -- walls present, hundreds of instances, height
+#: ratio 0.93+ -- and 44 of the 72 buildings rendered as thin shafts. Measured
+#: (EVIDENCE/PHASE_02/wall_inventory_and_coverage.json, render_truth_probe.json):
+#: the project's NY kits hold exactly ONE wall mesh per level, the 28-69 cm
+#: ``Wall_01S`` filler, with every material slot null. Twenty of those on a
+#: ~150 m perimeter cover 3-11 % of a facade. SFD's kit has a real ~5 m module
+#: with materials and covers 1.02-1.09 of the perimeter on every floor.
+#: The earlier "NYAF removed the shafts" A/B was wrong: it compared instance
+#: counts and height ratio, neither of which sees a hollow facade.
+#:
+#: SFD was then measured at 3400 / 4200 / 5000 / 6500 / 9000 cm
+#: (EVIDENCE/PHASE_02/sfd_height_probe*.json): coverage >= 1.02 on every one of
+#: up to 63 floors, built/planned 1.02-1.07, zero null material slots. It is the
+#: only family in this project's mesh subset that is a building on screen, so
+#: it serves every band and the landmark. Bringing NYAE/NYAF back needs the
+#: wall-mesh import (526 files, 771 MB), which the Director declined.
 
 #: NYG and NYGA were removed after Block V2's VISUAL gate, which every machine
 #: check passed blind. NYG built 4,406 modules at height ratio 0.98 and still
@@ -153,11 +169,10 @@ SGD_PALETTE: dict[str, dict[str, Any]] = {
 #: landmark which is denser still (2510).
 #:
 #: The palette as a sorted literal, so the import-time check is order-free.
-_PALETTE_FAMILIES: tuple[str, ...] = (
-    "NYAE", "NYAF", "SFD")
+_PALETTE_FAMILIES: tuple[str, ...] = ("SFD",)
 
 #: The only family an ordinary order may not wear.
-LANDMARK_FAMILY = "NYAF"
+LANDMARK_FAMILY = "SFD"
 
 #: Minimum viable height per family, in cm -- **all measured**, not inferred.
 #: A grammar given too little height produces ZERO geometry, so a request below
@@ -168,8 +183,6 @@ LANDMARK_FAMILY = "NYAF"
 #: Evidence: EVIDENCE/PHASE_02/pcg_sgd_minheights.json.
 STYLE_MIN_HEIGHT_CM: dict[str, float | None] = {
     "SFD": 2500.0,    # [214] levels 0, 01-04
-    "NYAE": 2500.0,   # [152] levels 0, 2-6
-    "NYAF": 2500.0,   # [172] levels 0, 2-7
 }
 
 #: Height used for a family whose real minimum is unmeasured.  Chosen by hand,
@@ -191,9 +204,10 @@ DEFAULT_MIN_HEIGHT_CM = 2000.0
 #: design intent (a slot asked to be taller stays taller) while every height
 #: stays viable.
 HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
-    "SFD": (2500.0, 3400.0),     # low-rise, fine grain
-    "NYAE": (2500.0, 5200.0),
-    "NYAF": (2500.0, 5200.0),
+    # 3400 was a taste limit while SFD was "the low-rise family". It is now
+    # the only family, and it is measured solid to 9000, so the ordinary band
+    # runs to the old mid-rise ceiling.
+    "SFD": (2500.0, 5200.0),
 }
 
 
@@ -413,9 +427,9 @@ LANDMARK_FLOOR_CM = 5600.0
 #: is deliberately absent: it is landmark-only.
 ROLE_BAND_FAMILIES: dict[str, tuple[str, ...]] = {
     "low-rise": ("SFD",),
-    "mid-rise": ("NYAE", "NYAF"),
-    "upper-mid": ("NYAF",),
-    "tall": ("NYAF",),
+    "mid-rise": ("SFD",),
+    "upper-mid": ("SFD",),
+    "tall": ("SFD",),
 }
 
 #: Upper bound of each band in cm of *requested* height; a request exactly at a

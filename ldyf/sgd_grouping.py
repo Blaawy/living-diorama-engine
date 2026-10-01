@@ -151,8 +151,18 @@ DEPTH_CHOICES_CM: tuple[float, ...] = (3000.0, 3750.0, 4500.0)
 #: ``(tier, hint cm)`` -- the hint height handed to ``family_for`` so the role
 #: band, and hence the family, actually varies.  A raw 1600-2400 cm request would
 #: put every group in the low-rise band, where ``SFD`` stands alone.
+#:
+#: The mid hint is 3800, not the 2800 it was while NYAE/NYAF existed. With one
+#: family the ONLY thing that separates two neighbours on a street is height, and
+#: 2500 against 2800 is two SFD floors -- it reads as one flat wall. 2500 / 3800
+#: / 6500 puts at least ten floors between any two tiers.
 TIER_HINTS_CM: tuple[tuple[str, float], ...] = (
-    ("low", 1700.0), ("mid", 2800.0), ("tall", 6500.0))
+    ("low", 1700.0), ("mid", 3800.0), ("tall", 6500.0))
+
+#: Two neighbours on a side that wear the SAME family must differ in planned
+#: height by at least this much, or the side reads as one flat wall. It is three
+#: SFD floors (130 cm each, measured).
+NEIGHBOUR_HEIGHT_STEP_CM = 390.0
 
 #: The landmark is always this much taller than the tallest ordinary group of its
 #: block, so it stays the block's landmark after clamping.
@@ -846,14 +856,17 @@ def group_slots(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> list[
 
 
 def _family_and_hint(group_id: str, seed: int, avoid: str | None,
-                     landmark: bool) -> tuple[str, str, float]:
+                     landmark: bool,
+                     avoid_tier: str | None = None) -> tuple[str, str, float]:
     """``(family, tier, hint)`` for one group.
 
     Tiers are tried in a digest-rotated order and the first whose family differs
     from ``avoid`` (the previous group of the same side) wins, so two groups
-    adjacent along a side never share a family.  ``avoid`` is always reachable:
-    every band except the low-rise one offers two candidates, and the low-rise
-    family is never the family of a mid or tall tier.
+    adjacent along a side never look alike.
+
+    When no tier offers a different family -- the palette is down to ``SFD``
+    alone, the only family whose walls exist in this project -- the first tier
+    other than ``avoid_tier`` wins instead, so the neighbours differ in HEIGHT.
     """
     offset = _digest("sgd_group_tier", group_id, seed) % len(TIER_HINTS_CM)
     rotation = TIER_HINTS_CM[offset:] + TIER_HINTS_CM[:offset]
@@ -864,7 +877,10 @@ def _family_and_hint(group_id: str, seed: int, avoid: str | None,
     for tier, hint in rotation:
         family = _sgd.family_for(group_id, hint, seed, avoid=avoid)
         if family != avoid:
-            break
+            return family, tier, hint
+    for tier, hint in rotation:
+        if tier != avoid_tier:
+            return _sgd.family_for(group_id, hint, seed, avoid=avoid), tier, hint
     return family, tier, hint
 
 
@@ -900,6 +916,7 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
     groups = group_slots(layout, block_id, seed=seed)
     requests = _slot_requests_cm(layout, seed)
     previous: dict[float, str] = {}
+    previous_tier: dict[float, str] = {}
     orders: list[dict] = []
     clamps: list[dict] = []
     landmark_group: dict | None = None
@@ -927,9 +944,8 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
         _avoid = previous.get(side_yaw)
         if group_id in _before_landmark:
             _avoid = _sgd.LANDMARK_FAMILY
-        family, _tier_name, hint = _family_and_hint(group_id, seed,
-                                                    _avoid,
-                                                    is_landmark)
+        family, _tier_name, hint = _family_and_hint(
+            group_id, seed, _avoid, is_landmark, previous_tier.get(side_yaw))
         # The landmark counts as a neighbour on its side. It is PINNED to
         # LANDMARK_FAMILY, and since that family is no longer exclusive (NYG
         # rendered as shafts, so NYAF now serves both roles) the ordinary group
@@ -937,6 +953,8 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
         # NYAF too -- which is exactly what made block_1_1's east:0 and east:1
         # share a family. Recording it closes that hole.
         previous[side_yaw] = family
+        # the landmark is its own tier: it is taller than every ordinary group
+        previous_tier[side_yaw] = "landmark" if is_landmark else _tier_name
         wanted = [hint] + [requests[sid] for sid in group["slot_ids"]
                            if sid in requests]
         requested = _f3(max(wanted))
@@ -1400,12 +1418,21 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
             side_groups,
             key=lambda g: (_as_pair(g.get("center")) or (0.0, 0.0))[1 if vertical else 0])
         for first, second in zip(ordered_groups, ordered_groups[1:]):
-            f1 = (order_by_id.get(first.get("group_id")) or {}).get("family")
-            f2 = (order_by_id.get(second.get("group_id")) or {}).get("family")
+            o1 = order_by_id.get(first.get("group_id")) or {}
+            o2 = order_by_id.get(second.get("group_id")) or {}
+            f1, f2 = o1.get("family"), o2.get("family")
+            # Same family is allowed -- SFD is the only family with real walls
+            # -- but then the two must differ in height, or the side is one
+            # flat wall.
             if f1 and f1 == f2:
-                problems.append("groups %r and %r on side yaw %s both wear %s"
-                                % (first.get("group_id"), second.get("group_id"),
-                                   side_yaw, f1))
+                step = abs(float(o1.get("height_cm") or 0.0)
+                           - float(o2.get("height_cm") or 0.0))
+                if step < NEIGHBOUR_HEIGHT_STEP_CM - GEOM_EPS_CM:
+                    problems.append(
+                        "groups %r and %r on side yaw %s both wear %s and "
+                        "differ by only %s cm in height (need %s)"
+                        % (first.get("group_id"), second.get("group_id"),
+                           side_yaw, f1, _f3(step), NEIGHBOUR_HEIGHT_STEP_CM))
 
     # -- counts, clamps, composition ------------------------------------------
     counts = doc.get("counts")

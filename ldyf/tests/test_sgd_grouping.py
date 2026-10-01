@@ -559,23 +559,33 @@ def test_other_blocks_carry_no_landmark():
 
 def test_variation_is_present_and_deterministic():
     doc = grouped_orders(LAYOUT, LANDMARK_BLOCK, seed=SEED)
-    families = {o["family"] for o in doc["orders"] if o["role"] == "ordinary"}
+    # one family (the only one with real walls), so the variation that is left
+    # is massing: height tiers and group sizes
+    heights = {o["height_cm"] for o in doc["orders"] if o["role"] == "ordinary"}
     sizes = {len(g["slot_ids"]) for g in doc["groups"]}
-    assert len(families) >= 2
+    assert {o["family"] for o in doc["orders"]} == {"SFD"}
+    assert len(heights) >= 2
     assert len(sizes) >= 2
     assert json_bytes(doc) == json_bytes(
         grouped_orders(LAYOUT, LANDMARK_BLOCK, seed=SEED))
 
 
 @pytest.mark.parametrize("block_id", BLOCK_IDS)
-def test_adjacent_groups_on_a_side_never_share_a_family(block_id):
-    doc = grouped_orders(LAYOUT, block_id, seed=SEED)
-    for groups in axis_groups(doc["groups"]).values():
-        families = [order_of(doc, g["group_id"])["family"] for g in groups]
-        for i, pair in enumerate(zip(families, families[1:])):
-            assert pair[0] != pair[1], \
-                "%s and %s both wear %s" % (groups[i]["group_id"],
-                                            groups[i + 1]["group_id"], pair[0])
+def test_adjacent_groups_on_a_side_never_look_alike(block_id):
+    from ldyf.sgd_buildings import apply_height_bands
+    from ldyf.sgd_grouping import NEIGHBOUR_HEIGHT_STEP_CM
+    raw = grouped_orders(LAYOUT, block_id, seed=SEED)
+    # the rule must hold for the plan AND for what is actually sent to Unreal
+    for doc in (raw, apply_height_bands(raw, never_lower=True)):
+        for groups in axis_groups(doc["groups"]).values():
+            pairs = [order_of(doc, g["group_id"]) for g in groups]
+            for a, b in zip(pairs, pairs[1:]):
+                assert (a["family"] != b["family"]
+                        or abs(a["height_cm"] - b["height_cm"])
+                        >= NEIGHBOUR_HEIGHT_STEP_CM), \
+                    "%s and %s both wear %s at %s / %s" % (
+                        a["id"], b["id"], a["family"],
+                        a["height_cm"], b["height_cm"])
 
 
 # --------------------------------------------------------------- dimensions --
@@ -755,9 +765,10 @@ def test_validate_rejects_a_second_or_damaged_landmark():
     doc = broken()
     landmark = next(o for o in doc["orders"] if o["role"] == "landmark")
     landmark["family"] = "NYAE"
-    landmark["sgd_asset"] = sgd_asset_path("NYAE")
+    landmark["sgd_asset"] = \
+        "/CitySamplePCG/PCG/DataAssets/Buildings/NYAE/SGD_NYAE_A.SGD_NYAE_A"
     problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
-    assert any("expected NYAF" in p for p in problems), problems
+    assert any("expected SFD" in p for p in problems), problems
 
     doc = broken()
     doc["landmark_id"] = "nope"
@@ -853,17 +864,16 @@ def test_validate_rejects_counts_clamps_and_schema_damage():
     assert validate_groups("not a document", LAYOUT, LANDMARK_BLOCK)
 
 
-def test_validate_rejects_a_repeated_family_along_a_side():
+def test_validate_rejects_same_family_neighbours_at_the_same_height():
     doc = broken()
     rewritten = False
     for groups in axis_groups(doc["groups"]).values():
         for first, second in zip(groups, groups[1:]):
             if first["role"] == "landmark" or second["role"] == "landmark":
                 continue
-            for group in (first, second):
-                order = order_of(doc, group["group_id"])
-                order["family"] = "NYAE"
-                order["sgd_asset"] = sgd_asset_path("NYAE")
+            # same family already; flatten the pair to one height
+            order_of(doc, second["group_id"])["height_cm"] = \
+                order_of(doc, first["group_id"])["height_cm"]
             rewritten = True
             break
         if rewritten:
