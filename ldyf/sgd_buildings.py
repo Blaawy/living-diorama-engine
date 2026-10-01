@@ -254,6 +254,47 @@ def apply_height_bands(doc: dict) -> dict:
     return out
 
 
+#: How far a family's built mesh reaches BEYOND the ``Width`` / ``Length`` it was
+#: asked for, per side, in cm (cornices, stoops, corner quoins).  MEASURED from
+#: instance transforms x mesh bounds on generated buildings, not inferred; the
+#: excess is constant per family across every footprint tried (SFD 7040 -> 7230,
+#: 3000 -> 3190; NYAF 6183 -> 6272, 4500 -> 4589, 3750 -> 3839; NYAE 4637 -> 4721,
+#: 3000 -> 3084; NYGA 5000 -> 5025.6, 3500 -> 3525.6; NYG 4400 -> 4424,
+#: 3100 -> 3124), on both axes and at every yaw.  Rounded UP to the centimetre
+#: so a planned envelope is never smaller than what gets built.
+#: Evidence: EVIDENCE/PHASE_02/block_v2/axis_and_overhang_probe.json.
+FAMILY_OVERHANG_CM: dict[str, float] = {
+    "SFD": 95.0,
+    "NYAE": 42.0,
+    "NYAF": 45.0,
+    "NYGA": 13.0,
+    "NYG": 12.0,
+}
+
+
+def overhang_for(family: str) -> float:
+    """Per-side mesh overhang of ``family`` in cm (see :data:`FAMILY_OVERHANG_CM`)."""
+    return float(FAMILY_OVERHANG_CM[_require_palette_family(family)])
+
+
+def graph_parameters(order: Mapping[str, Any]) -> dict[str, float]:
+    """The ``Width`` / ``Length`` / ``Height`` overrides for one order.
+
+    An order's ``width_cm`` is its FRONTAGE (along the tangent of ``yaw_deg``)
+    and ``length_cm`` its receding DEPTH (along the outward normal), which is the
+    convention :func:`rect_corners` draws.  Epic's ``PCG_Bldg_SGD_test`` lays
+    ``Width`` along the volume's local **X** -- the direction ``yaw_deg`` points,
+    i.e. the outward normal -- and ``Length`` along local **Y**.  Measured on
+    eight generated buildings (a 7040 x 3000 order at yaw 180 built 7230 cm along
+    world X).  So the two are crossed here, once, and the driver writes exactly
+    what this returns.  Passing ``width_cm`` straight through as ``Width`` builds
+    every rectangle rotated a quarter turn about its own centre.
+    """
+    return {"Width": float(order["length_cm"]),
+            "Length": float(order["width_cm"]),
+            "Height": float(order["height_cm"])}
+
+
 #: Footprint depth used for a slot that carries no positive ``depth_cm``
 #: (``city_layout.building_slots`` always emits one); 1200 cm is the depth the
 #: existing building tests use.

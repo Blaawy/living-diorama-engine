@@ -758,13 +758,32 @@ def test_validate_rejects_a_second_or_damaged_landmark():
 
 
 def test_validate_accepts_a_block_without_a_landmark_order():
+    """An ORDINARY block has no landmark, and that is not a problem.
+
+    This used to strip the landmark out of block_1_1 and expect validation to
+    pass. That was the test being wrong, not the validator: block_1_1 is the
+    block the layout designates as carrying the landmark, so a block_1_1
+    document with no landmark order IS invalid. The real intent -- "a block
+    that is not supposed to have a landmark validates without one" -- is
+    checked against an ordinary block instead.
+    """
+    ordinary = next(b for b in BLOCK_IDS if b != LANDMARK_BLOCK)
+    doc = grouped_orders(LAYOUT, ordinary, seed=SEED)
+    assert doc["landmark_id"] is None
+    assert not [o for o in doc["orders"] if o["role"] == "landmark"]
+    assert validate_groups(doc, LAYOUT, ordinary) == []
+
+
+def test_validate_rejects_the_landmark_block_missing_its_landmark():
+    """Removing the landmark from the block that must carry it is a defect."""
     doc = broken()
     doc["orders"] = [o for o in doc["orders"] if o["role"] != "landmark"]
     doc["landmark_id"] = None
     doc["counts"]["orders"] = len(doc["orders"])
     doc["counts"]["ordinary"] = len(doc["orders"])
     doc["counts"]["landmark"] = 0
-    assert validate_groups(doc, LAYOUT, LANDMARK_BLOCK) == []
+    problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
+    assert any("landmark" in p for p in problems), problems
 
 
 def test_validate_rejects_counts_clamps_and_schema_damage():
@@ -964,3 +983,77 @@ def test_landmark_group_keeps_selected_slot_in_a_contiguous_run(seed):
                if str(slot["slot_id"]) in wanted]
     assert indices == list(range(min(indices), max(indices) + 1))
     assert len(indices) in GROUP_SIZE_CHOICES
+
+
+# ------------------------------------------- known-bad regression fixture --
+
+
+KNOWN_BAD_PATH = (Path(__file__).resolve().parent / "data"
+                  / "sgd_grouping_067c039_block_1_1.json")
+
+
+def test_known_bad_067c039_document_is_rejected():
+    """The rejected v1 output must never validate clean again.
+
+    `ldyf/tests/data/sgd_grouping_067c039_block_1_1.json` is the real document
+    the grouping module produced at commit 067c039, kept verbatim.
+
+    A correction worth recording, because it nearly went the other way: that
+    document was first reported as containing four rectangle OVERLAPS. It does
+    not. The measurement behind that claim had the yaw->axis mapping backwards
+    -- `yaw` is the OUTWARD facing direction, so depth runs along X for yaw
+    0/180 and along Y for yaw 90/270, and the check swapped on the wrong pair.
+    Re-measured correctly the document has ZERO overlaps, and the validator of
+    the day was right to report none.
+
+    What it really contains is 16 defects of other kinds: three pairs separated
+    by only 10, 49 and 10 cm against a 150 cm minimum clearance, seven
+    footprints below the 3000 cm production minimum, a 1201 cm sliver frontage,
+    and a landmark at 7000 cm against a 14000 cm target with an ordinary
+    neighbour at 6500. The validator of the day returned `[]` for all of that,
+    which is the regression this pins.
+    """
+    doc = json.loads(KNOWN_BAD_PATH.read_text(encoding="utf-8"))
+    problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
+    assert problems, "the known-bad 067c039 document validated clean"
+    joined = " | ".join(problems).lower()
+    assert "clearance" in joined, problems
+    assert "minimum" in joined, problems
+    assert "landmark" in joined, problems
+
+
+def test_known_bad_067c039_has_no_overlaps_but_violates_clearance():
+    """Pin the exact distinction the first measurement got wrong.
+
+    The shared predicate must report NO overlap for these pairs, and the
+    separation must still be below the production clearance. Asserting both
+    halves keeps a future change from "fixing" clearance by letting rectangles
+    intersect, or from calling a 10 cm gap acceptable.
+    """
+    doc = json.loads(KNOWN_BAD_PATH.read_text(encoding="utf-8"))
+    by_id = {o["id"]: o for o in doc["orders"]}
+    tight = [
+        ("block_1_1:east:0", "block_1_1:south:1", 10.0),
+        ("block_1_1:east:2", "block_1_1:north:1", 49.0),
+        ("block_1_1:south:0", "block_1_1:west:0", 10.0),
+    ]
+    for a, b, gap in tight:
+        assert a in by_id and b in by_id, (a, b)
+        assert rect_overlap_metrics(by_id[a], by_id[b]) is None,             "%s / %s do not actually overlap" % (a, b)
+        got = rect_separation_cm(by_id[a], by_id[b])
+        assert abs(got - gap) < 1.0, (a, b, got, gap)
+        assert got < 150.0
+
+
+def test_every_block_clears_the_production_clearance():
+    """What the known-bad document failed, the current output must pass."""
+    for block_id in BLOCK_IDS:
+        doc = grouped_orders(LAYOUT, block_id, seed=SEED)
+        orders = doc["orders"]
+        for i in range(len(orders)):
+            for j in range(i + 1, len(orders)):
+                assert rect_overlap_metrics(orders[i], orders[j]) is None,                     (block_id, orders[i]["id"], orders[j]["id"])
+                # tolerance matches the module's own GEOM_EPS_CM: centres and
+                # spans pass through _f3, so a gap can land at 149.999 without
+                # being a real clearance defect
+                assert rect_separation_cm(orders[i], orders[j]) >= 150.0 - 0.01,                     (block_id, orders[i]["id"], orders[j]["id"])

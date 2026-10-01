@@ -36,6 +36,8 @@ from __future__ import annotations
 
 import unreal  # type: ignore[import-not-found]
 
+from ldyf.sgd_buildings import graph_parameters
+
 PREFIX = "LD_SGD"
 #: The legacy massing buildings this architecture replaces. They are one actor
 #: per building slot (``LD_Bldg_<block>_<slot>``) and sit on exactly the same
@@ -101,7 +103,9 @@ def clear_legacy(block_id: str | None = None,
         if a is None:
             continue
         label = str(a.get_actor_label())
-        if label.startswith(want):
+        # block_1_1 must not also match block_1_10
+        if label == want or label.startswith(want + "_") or (
+                not block_id and label.startswith(want)):
             removed.append(label)
             EAS.destroy_actor(a)
     return {"prefix": want, "removed_count": len(removed),
@@ -154,6 +158,8 @@ def build(doc: dict, *, block_id: str | None = None,
         actor = EAS.spawn_actor_from_class(
             unreal.PCGVolume, unreal.Vector(cx, cy, 0.0),
             unreal.Rotator(0.0, 0.0, float(order.get("yaw_deg", 0.0))))
+        # the editor may grid-snap a spawn; the plan is millimetre-exact
+        actor.set_actor_location(unreal.Vector(cx, cy, 0.0), False, False)
         actor.set_actor_label("%s_%s" % (prefix, oid.replace(":", "_")))
         actor.set_editor_property("tags", ["ld_sgd_building"])
         actor.set_actor_scale3d(_volume_scale(order))
@@ -166,10 +172,11 @@ def build(doc: dict, *, block_id: str | None = None,
         comp.set_graph(graph)
         gi = comp.get_editor_property("graph_instance")
 
+        # Width/Length are CROSSED relative to the order: the graph lays Width
+        # along local X (the outward normal), where the order keeps its depth.
+        # sgd_buildings.graph_parameters owns that mapping and its evidence.
         wrote = {}
-        for name, value in (("Width", float(order["width_cm"])),
-                            ("Length", float(order["length_cm"])),
-                            ("Height", float(order["height_cm"]))):
+        for name, value in graph_parameters(order).items():
             try:
                 H.set_float_parameter(gi, name, value)
                 wrote[name] = value
@@ -245,6 +252,8 @@ def measure(prefix: str = PREFIX) -> dict:
         meshes: dict = {}
         count = 0
         top = None
+        lo = [None, None, None]
+        hi = [None, None, None]
         for c in a.get_components_by_class(unreal.StaticMeshComponent):
             try:
                 sm = c.get_editor_property("static_mesh")
@@ -260,8 +269,10 @@ def measure(prefix: str = PREFIX) -> dict:
             meshes[name] = meshes.get(name, 0) + n
             count += n
             try:
-                mz = float(sm.get_bounding_box().max.z)
+                bb = sm.get_bounding_box()
+                mz = float(bb.max.z)
             except Exception:                                  # noqa: BLE001
+                bb = None
                 mz = 0.0
             for i in range(n):
                 try:
@@ -270,6 +281,17 @@ def measure(prefix: str = PREFIX) -> dict:
                     continue
                 z = float(t.translation.z) + mz * float(t.scale3d.z)
                 top = z if top is None else max(top, z)
+                if bb is None:
+                    continue
+                # the eight corners of this instance's mesh box, in the world
+                for px in (bb.min.x, bb.max.x):
+                    for py in (bb.min.y, bb.max.y):
+                        for pz in (bb.min.z, bb.max.z):
+                            w = unreal.MathLibrary.transform_location(
+                                t, unreal.Vector(px, py, pz))
+                            for k, v in enumerate((w.x, w.y, w.z)):
+                                lo[k] = v if lo[k] is None else min(lo[k], v)
+                                hi[k] = v if hi[k] is None else max(hi[k], v)
         levels = sorted({k.split("_L")[1].split("_")[0]
                          for k in meshes if "_L" in k},
                         key=lambda v: int(v) if v.isdigit() else 99)
@@ -280,8 +302,18 @@ def measure(prefix: str = PREFIX) -> dict:
             walls_ok += 1
         total += count
         b0, b1 = a.get_actor_bounds(False)
+        loc = a.get_actor_location()
         out["buildings"].append({
             "label": str(a.get_actor_label()),
+            "location": [round(loc.x, 3), round(loc.y, 3), round(loc.z, 3)],
+            "yaw_deg": round(float(a.get_actor_rotation().yaw), 3),
+            # what was really built, from instance transforms x mesh bounds.
+            # `origin`/`extent` below are the PCGVolume's box, which only has to
+            # CONTAIN the building and says nothing about its footprint.
+            "mesh_box": None if lo[0] is None else {
+                "x_min": round(lo[0], 1), "x_max": round(hi[0], 1),
+                "y_min": round(lo[1], 1), "y_max": round(hi[1], 1),
+                "z_min": round(lo[2], 1), "z_max": round(hi[2], 1)},
             "instances": count, "distinct_meshes": len(meshes),
             "levels": levels, "has_walls": has_walls,
             "top_z_cm": None if top is None else round(top, 1),

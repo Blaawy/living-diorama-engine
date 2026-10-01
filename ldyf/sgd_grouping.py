@@ -123,8 +123,10 @@ import math
 from typing import Any, Mapping, Sequence
 
 try:  # pragma: no cover - package import path
+    from ldyf import rect_overlap as _rect
     from ldyf import sgd_buildings as _sgd
 except ImportError:  # pragma: no cover - script-mode import path
+    import rect_overlap as _rect  # type: ignore
     import sgd_buildings as _sgd  # type: ignore
 
 
@@ -168,8 +170,8 @@ SHRINK_STEP_CM = 50.0
 _CAP_MARGIN_CM = 1.0
 _SHRINK_GUARD = 400
 
-#: Geometry tolerance in centimetres (0.1 mm).  This matches _f3 rounding.
-GEOM_EPS_CM = 0.01
+#: Geometry tolerance in centimetres; the authoritative predicate's own.
+GEOM_EPS_CM = _rect.GEOM_EPS_CM
 
 #: Sides in the order the corner alternation walks them.
 SIDE_ORDER: tuple[str, ...] = ("south", "east", "north", "west")
@@ -1014,36 +1016,35 @@ def group_corners(group: Mapping[str, Any]) -> list[tuple[float, float]] | None:
     return out
 
 
-def _rect_bounds(rect: Mapping[str, Any]) -> tuple[float, float, float, float]:
-    """World-axis bounds of a cardinal grouped rectangle."""
-    corners = group_corners(rect)
-    if corners is None:
-        raise ValueError("rectangle has no comparable corners")
-    xs = [p[0] for p in corners]
-    ys = [p[1] for p in corners]
-    return min(xs), max(xs), min(ys), max(ys)
-
-
 def rect_overlap_metrics(a: Mapping[str, Any], b: Mapping[str, Any],
                          eps: float = GEOM_EPS_CM) -> dict[str, float] | None:
-    """Positive-area overlap, or None for separated/touching cardinal boxes."""
-    ax0, ax1, ay0, ay1 = _rect_bounds(a)
-    bx0, bx1, by0, by1 = _rect_bounds(b)
-    ix = min(ax1, bx1) - max(ax0, bx0)
-    iy = min(ay1, by1) - max(ay0, by0)
-    if ix <= eps or iy <= eps:
-        return None
-    return {"width_cm": _f3(ix), "depth_cm": _f3(iy),
-            "area_cm2": _f3(ix * iy)}
+    """``rect_overlap.overlap_metrics`` -- the one authoritative predicate."""
+    return _rect.overlap_metrics(a, b, eps)
 
 
 def rect_separation_cm(a: Mapping[str, Any], b: Mapping[str, Any]) -> float:
-    """Largest separating-axis gap; negative only when the boxes overlap."""
-    ax0, ax1, ay0, ay1 = _rect_bounds(a)
-    bx0, bx1, by0, by1 = _rect_bounds(b)
-    gap_x = max(ax0, bx0) - min(ax1, bx1)
-    gap_y = max(ay0, by0) - min(ay1, by1)
-    return _f3(max(gap_x, gap_y))
+    """``rect_overlap.separation_cm`` -- gap on the best separating axis."""
+    return _rect.separation_cm(a, b)
+
+
+def overlap_report(items: Any) -> list[dict]:
+    """Every overlapping pair, as ``{"a", "b", "width_cm", "depth_cm", "area_cm2"}``.
+
+    ``items`` is a grouped document (its ``orders`` are compared), a list of
+    orders / groups, or ``(id, rectangle-or-bounds)`` pairs.  This is
+    ``rect_overlap.find_overlaps`` and nothing else, so ``validate_groups``, the
+    tests and the Block V2 machine gate report the same pairs with the same
+    numbers.  ``ValueError`` for a rectangle that cannot be compared.
+    """
+    if isinstance(items, Mapping):
+        items = items.get("orders") or []
+    pairs = []
+    for item in items:
+        if isinstance(item, Mapping):
+            pairs.append((item.get("id", item.get("group_id")), item))
+        else:
+            pairs.append((item[0], item[1]))
+    return _rect.find_overlaps(pairs)
 
 
 def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
@@ -1168,7 +1169,38 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
                  and o.get("role") == "landmark"]
     if len(landmarks) > 1:
         problems.append("%d orders claim the landmark role" % len(landmarks))
+    # The landmark is not optional where the layout puts it: the project's own
+    # pick (never re-implemented here) names the block that must carry it.
+    doc_seed = doc.get("seed")
+    if isinstance(doc_seed, int) and not isinstance(doc_seed, bool) and doc_seed > 0:
+        wanted_slot = _landmark_slot_id(layout, block_id, doc_seed)
+        if wanted_slot is not None and not landmarks:
+            problems.append("block %s must carry the landmark (slot %r) but no "
+                            "order has the landmark role" % (block_id, wanted_slot))
+        if wanted_slot is None and landmarks:
+            problems.append("block %s carries a landmark order %r but the layout "
+                            "puts the landmark elsewhere"
+                            % (block_id, landmarks[0].get("id")))
+        if wanted_slot is not None:
+            holders = [g.get("group_id") for g in groups if isinstance(g, Mapping)
+                       and wanted_slot in [str(s) for s in (g.get("slot_ids") or [])]]
+            roles = [g.get("role") for g in groups if isinstance(g, Mapping)
+                     and g.get("group_id") in holders]
+            if roles != ["landmark"]:
+                problems.append("landmark slot %r is held by %r with role %r, "
+                                "expected exactly one landmark group"
+                                % (wanted_slot, holders, roles))
+    else:
+        problems.append("seed is %r, expected a positive int" % (doc_seed,))
     ids = [o.get("id") for o in orders if isinstance(o, Mapping)]
+    for kind, seen_ids in (("order", ids),
+                           ("group", [g.get("group_id") for g in groups
+                                      if isinstance(g, Mapping)])):
+        for dup in sorted({str(i) for i in seen_ids if seen_ids.count(i) > 1}):
+            problems.append("duplicate %s id %r" % (kind, dup))
+    for missing_order in sorted({str(g.get("group_id")) for g in groups
+                                 if isinstance(g, Mapping)} - {str(i) for i in ids}):
+        problems.append("group %r has no matching order" % (missing_order,))
     if doc.get("landmark_id") is not None and doc["landmark_id"] not in ids:
         problems.append("landmark_id %r is not an order id" % (doc.get("landmark_id"),))
     if landmarks:
@@ -1212,6 +1244,35 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
     for slot_id in sorted(known - set(seen)):
         problems.append("slot %r is attributed to no group" % (slot_id,))
 
+    # -- provenance: a group's slots are one contiguous run of its own side ---
+    side_runs: dict[str, list[str]] = {}
+    for slot in block_slots:
+        try:
+            side_runs.setdefault(_side_of(slot), []).append(slot)
+        except ValueError:
+            continue
+    order_on_side = {
+        side: [_slot_id(s) for s in sorted(
+            items, key=lambda s, side=side: (_along(s, side), _slot_id(s)))]
+        for side, items in side_runs.items()}
+    for group in groups:
+        if not isinstance(group, Mapping):
+            continue
+        try:
+            side = _side_of_yaw(float(group.get("side_yaw")))
+        except (TypeError, ValueError):
+            continue
+        run = order_on_side.get(side, [])
+        mine = [str(s) for s in (group.get("slot_ids") or []) if str(s) in known]
+        if any(s not in run for s in mine):
+            problems.append("group %r holds slots that are not on its %s side"
+                            % (group.get("group_id"), side))
+            continue
+        positions = sorted(run.index(s) for s in mine)
+        if positions and positions != list(range(positions[0], positions[-1] + 1)):
+            problems.append("group %r slots are not a contiguous run of the %s side"
+                            % (group.get("group_id"), side))
+
     # -- geometry: authoritative overlap/clearance + order/group consistency --
     rects = [(o.get("id"), o) for o in orders if isinstance(o, Mapping)]
     group_by_id = {g.get("group_id"): g for g in groups if isinstance(g, Mapping)}
@@ -1237,24 +1298,34 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
         if mismatch:
             problems.append("order %r geometry/role disagrees with its group" % oid)
 
-    for i in range(len(rects)):
-        for j in range(i + 1, len(rects)):
+    # Fail closed: a rectangle the predicate cannot read is a problem, never a
+    # silent "no overlap".  Groups are checked as well as orders, so a group
+    # cannot hide an overlap its order does not show.
+    for kind, rows in (("orders", rects),
+                       ("groups", sorted(group_by_id.items(),
+                                         key=lambda kv: str(kv[0])))):
+        comparable = []
+        for rid, row in rows:
             try:
-                hit = rect_overlap_metrics(rects[i][1], rects[j][1])
-                if hit is not None:
-                    problems.append(
-                        "orders %r and %r overlap width=%s depth=%s area=%s"
-                        % (rects[i][0], rects[j][0], hit["width_cm"],
-                           hit["depth_cm"], hit["area_cm2"]))
+                comparable.append((rid, _rect.cardinal_bounds(row)))
+            except ValueError as exc:
+                problems.append("%s %r cannot be compared: %s"
+                                % (kind[:-1], rid, exc))
+        for hit in overlap_report(comparable):
+            problems.append(
+                "%s %r and %r overlap width=%s depth=%s area=%s"
+                % (kind, hit["a"], hit["b"], hit["width_cm"],
+                   hit["depth_cm"], hit["area_cm2"]))
+        hits = {(hit["a"], hit["b"]) for hit in overlap_report(comparable)}
+        for i in range(len(comparable)):
+            for j in range(i + 1, len(comparable)):
+                if (comparable[i][0], comparable[j][0]) in hits:
                     continue
-                gap = rect_separation_cm(rects[i][1], rects[j][1])
+                gap = _rect.separation_cm(comparable[i][1], comparable[j][1])
                 if gap < CLEARANCE_CM[0] - GEOM_EPS_CM:
-                    problems.append("orders %r and %r clearance %.3f is below %s"
-                                    % (rects[i][0], rects[j][0], gap,
-                                       CLEARANCE_CM[0]))
-            except (KeyError, TypeError, ValueError) as exc:
-                problems.append("orders %r and %r cannot be compared: %s"
-                                % (rects[i][0], rects[j][0], exc))
+                    problems.append("%s %r and %r clearance %.3f is below %s"
+                                    % (kind, comparable[i][0], comparable[j][0],
+                                       gap, CLEARANCE_CM[0]))
 
     if len(block_slots) >= 24:
         for oid, order in rects:

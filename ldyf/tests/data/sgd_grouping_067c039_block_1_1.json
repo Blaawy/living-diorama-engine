@@ -1,0 +1,408 @@
+{
+ "clamps": [
+  {
+   "block_id": "block_1_1",
+   "family": "SFD",
+   "height_cm": 2500.0,
+   "id": "block_1_1:north:1",
+   "minimum_cm": 2500.0,
+   "requested_cm": 2100.0
+  },
+  {
+   "block_id": "block_1_1",
+   "family": "SFD",
+   "height_cm": 2500.0,
+   "id": "block_1_1:south:0",
+   "minimum_cm": 2500.0,
+   "requested_cm": 2400.0
+  },
+  {
+   "block_id": "block_1_1",
+   "family": "SFD",
+   "height_cm": 2500.0,
+   "id": "block_1_1:west:0",
+   "minimum_cm": 2500.0,
+   "requested_cm": 2100.0
+  }
+ ],
+ "counts": {
+  "families": {
+   "NYAE": 1,
+   "NYAF": 3,
+   "NYG": 1,
+   "NYGA": 1,
+   "SFD": 3
+  },
+  "groups": 9,
+  "landmark": 1,
+  "orders": 9,
+  "ordinary": 8
+ },
+ "groups": [
+  {
+   "block_id": "block_1_1",
+   "center": [
+    25965.0,
+    -36985.0
+   ],
+   "depth_cm": 1950.0,
+   "group_id": "block_1_1:south:0",
+   "role": "ordinary",
+   "side_yaw": 270.0,
+   "slot_ids": [
+    "block_1_1:f0",
+    "block_1_1:f1",
+    "block_1_1:f2",
+    "block_1_1:f3"
+   ],
+   "trimmed": {
+    "corner": "SE",
+    "inset_cm": 3300.0,
+    "reason": "non-owner inset of owner depth + clearance",
+    "side": "south",
+    "was_width_cm": 7850.0,
+    "width_cm": 4550.0
+   },
+   "width_cm": 7850.0,
+   "yaw_deg": 270.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    33095.0,
+    -36960.0
+   ],
+   "depth_cm": 2000.0,
+   "group_id": "block_1_1:south:1",
+   "role": "ordinary",
+   "side_yaw": 270.0,
+   "slot_ids": [
+    "block_1_1:f4",
+    "block_1_1:f5",
+    "block_1_1:f6"
+   ],
+   "trimmed": null,
+   "width_cm": 5810.0,
+   "yaw_deg": 270.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    36985.0,
+    -34035.0
+   ],
+   "depth_cm": 1950.0,
+   "group_id": "block_1_1:east:0",
+   "role": "ordinary",
+   "side_yaw": 0.0,
+   "slot_ids": [
+    "block_1_1:f7",
+    "block_1_1:f8",
+    "block_1_1:f9",
+    "block_1_1:f10"
+   ],
+   "trimmed": null,
+   "width_cm": 7850.0,
+   "yaw_deg": 0.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    36460.0,
+    -27950.0
+   ],
+   "depth_cm": 3000.0,
+   "group_id": "block_1_1:east:1",
+   "role": "landmark",
+   "side_yaw": 0.0,
+   "slot_ids": [
+    "block_1_1:f11",
+    "block_1_1:f12"
+   ],
+   "trimmed": null,
+   "width_cm": 3720.0,
+   "yaw_deg": 0.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    36685.0,
+    -25189.5
+   ],
+   "depth_cm": 2550.0,
+   "group_id": "block_1_1:east:2",
+   "role": "ordinary",
+   "side_yaw": 0.0,
+   "slot_ids": [
+    "block_1_1:f13"
+   ],
+   "trimmed": {
+    "corner": "NE",
+    "inset_cm": 2549.0,
+    "reason": "non-owner inset of owner depth + clearance",
+    "side": "east",
+    "was_width_cm": 3750.0,
+    "width_cm": 1201.0
+   },
+   "width_cm": 1201.0,
+   "yaw_deg": 0.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    28950.0,
+    -23164.5
+   ],
+   "depth_cm": 2249.0,
+   "group_id": "block_1_1:north:0",
+   "role": "ordinary",
+   "side_yaw": 90.0,
+   "slot_ids": [
+    "block_1_1:f20",
+    "block_1_1:f19",
+    "block_1_1:f18",
+    "block_1_1:f17"
+   ],
+   "trimmed": {
+    "corner": "NW",
+    "inset_cm": 4050.0,
+    "reason": "non-owner inset of owner depth + clearance",
+    "side": "north",
+    "was_width_cm": 9770.0,
+    "width_cm": 5720.0
+   },
+   "width_cm": 5720.0,
+   "yaw_deg": 90.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    35035.0,
+    -23290.0
+   ],
+   "depth_cm": 2500.0,
+   "group_id": "block_1_1:north:1",
+   "role": "ordinary",
+   "side_yaw": 90.0,
+   "slot_ids": [
+    "block_1_1:f16",
+    "block_1_1:f15",
+    "block_1_1:f14"
+   ],
+   "trimmed": null,
+   "width_cm": 5850.0,
+   "yaw_deg": 90.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    23040.0,
+    -32095.0
+   ],
+   "depth_cm": 2000.0,
+   "group_id": "block_1_1:west:0",
+   "role": "ordinary",
+   "side_yaw": 180.0,
+   "slot_ids": [
+    "block_1_1:f27",
+    "block_1_1:f26",
+    "block_1_1:f25",
+    "block_1_1:f24"
+   ],
+   "trimmed": null,
+   "width_cm": 7810.0,
+   "yaw_deg": 180.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    23915.0,
+    -26615.0
+   ],
+   "depth_cm": 3750.0,
+   "group_id": "block_1_1:west:1",
+   "role": "ordinary",
+   "side_yaw": 180.0,
+   "slot_ids": [
+    "block_1_1:f23",
+    "block_1_1:f22",
+    "block_1_1:f21"
+   ],
+   "trimmed": {
+    "corner": "SW",
+    "inset_cm": 3300.0,
+    "reason": "non-owner inset of owner depth + clearance",
+    "side": "west",
+    "was_width_cm": 5850.0,
+    "width_cm": 2550.0
+   },
+   "width_cm": 2550.0,
+   "yaw_deg": 180.0
+  }
+ ],
+ "landmark_id": "block_1_1:east:1",
+ "orders": [
+  {
+   "block_id": "block_1_1",
+   "center": [
+    36985.0,
+    -34035.0
+   ],
+   "family": "NYAF",
+   "height_cm": 2800.0,
+   "id": "block_1_1:east:0",
+   "length_cm": 1950.0,
+   "requested_height_cm": 2800.0,
+   "role": "ordinary",
+   "seed": 487280346,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYAF_A.SGD_NYAF_A",
+   "width_cm": 7850.0,
+   "yaw_deg": 0.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    36460.0,
+    -27950.0
+   ],
+   "family": "NYG",
+   "height_cm": 7000.0,
+   "id": "block_1_1:east:1",
+   "length_cm": 3000.0,
+   "requested_height_cm": 7000.0,
+   "role": "landmark",
+   "seed": 441040006,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/NYG/SGD_NYG_A.SGD_NYG_A",
+   "width_cm": 3720.0,
+   "yaw_deg": 0.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    36685.0,
+    -25189.5
+   ],
+   "family": "NYGA",
+   "height_cm": 6500.0,
+   "id": "block_1_1:east:2",
+   "length_cm": 2550.0,
+   "requested_height_cm": 6500.0,
+   "role": "ordinary",
+   "seed": 1821913902,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/NYGA/SGD_NYGA_A.SGD_NYGA_A",
+   "width_cm": 1201.0,
+   "yaw_deg": 0.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    28950.0,
+    -23164.5
+   ],
+   "family": "NYAF",
+   "height_cm": 2800.0,
+   "id": "block_1_1:north:0",
+   "length_cm": 2249.0,
+   "requested_height_cm": 2800.0,
+   "role": "ordinary",
+   "seed": 154706591,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYAF_A.SGD_NYAF_A",
+   "width_cm": 5720.0,
+   "yaw_deg": 90.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    35035.0,
+    -23290.0
+   ],
+   "family": "SFD",
+   "height_cm": 2500.0,
+   "id": "block_1_1:north:1",
+   "length_cm": 2500.0,
+   "requested_height_cm": 2100.0,
+   "role": "ordinary",
+   "seed": 1124718398,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/SFD/SGD_SFD_A.SGD_SFD_A",
+   "width_cm": 5850.0,
+   "yaw_deg": 90.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    25965.0,
+    -36985.0
+   ],
+   "family": "SFD",
+   "height_cm": 2500.0,
+   "id": "block_1_1:south:0",
+   "length_cm": 1950.0,
+   "requested_height_cm": 2400.0,
+   "role": "ordinary",
+   "seed": 211291975,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/SFD/SGD_SFD_A.SGD_SFD_A",
+   "width_cm": 7850.0,
+   "yaw_deg": 270.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    33095.0,
+    -36960.0
+   ],
+   "family": "NYAE",
+   "height_cm": 2800.0,
+   "id": "block_1_1:south:1",
+   "length_cm": 2000.0,
+   "requested_height_cm": 2800.0,
+   "role": "ordinary",
+   "seed": 557350010,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/NYAE/SGD_NYAE_A.SGD_NYAE_A",
+   "width_cm": 5810.0,
+   "yaw_deg": 270.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    23040.0,
+    -32095.0
+   ],
+   "family": "SFD",
+   "height_cm": 2500.0,
+   "id": "block_1_1:west:0",
+   "length_cm": 2000.0,
+   "requested_height_cm": 2100.0,
+   "role": "ordinary",
+   "seed": 2085992849,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/SFD/SGD_SFD_A.SGD_SFD_A",
+   "width_cm": 7810.0,
+   "yaw_deg": 180.0
+  },
+  {
+   "block_id": "block_1_1",
+   "center": [
+    23915.0,
+    -26615.0
+   ],
+   "family": "NYAF",
+   "height_cm": 2800.0,
+   "id": "block_1_1:west:1",
+   "length_cm": 3750.0,
+   "requested_height_cm": 2800.0,
+   "role": "ordinary",
+   "seed": 325580266,
+   "sgd_asset": "/CitySamplePCG/PCG/DataAssets/Buildings/NYAF/SGD_NYAF_A.SGD_NYAF_A",
+   "width_cm": 2550.0,
+   "yaw_deg": 180.0
+  }
+ ],
+ "schema_version": "sgd_grouping_v1",
+ "seed": 20260904,
+ "style_minimum_cm": {
+  "NYAE": 2500.0,
+  "NYAF": 2500.0,
+  "NYG": 6000.0,
+  "NYGA": 6000.0,
+  "SFD": 2500.0
+ }
+}
