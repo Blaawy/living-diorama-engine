@@ -232,6 +232,12 @@ def generate(prefix: str = PREFIX) -> dict:
     return out
 
 
+#: A building whose worst floor covers less of its perimeter than this is not a
+#: building on screen, whatever else it passes. Real SFD floors measure ~1.0;
+#: the NYAE/NYAF sliver facades measure ~0.08.
+FACADE_COVERAGE_MIN = 0.85
+
+
 def measure(prefix: str = PREFIX) -> dict:
     """What actually spawned, per building and in total.
 
@@ -239,12 +245,22 @@ def measure(prefix: str = PREFIX) -> dict:
     ``0`` means real WALL modules: the foundation ring alone already gives a
     non-zero instance count, so instance count by itself cannot tell a real
     building from a slab.
+
+    ``facade_coverage`` is the gate that matters for what a camera sees. Per
+    floor it is (summed plan width of the wall modules on that floor) / (the
+    building's perimeter); the building's value is its WORST floor. NYAE and
+    NYAF passed every earlier check -- walls present, hundreds of instances,
+    height ratio 0.93+ -- and rendered as thin shafts, because the only wall
+    mesh those kits have in this project is the 28-69 cm ``Wall_01S`` filler:
+    20 of them on a 150 m perimeter is 0.08 coverage. A real SFD floor is ~1.0.
+    ``null_material_slots`` counts material slots with nothing assigned.
     """
     EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     out: dict = {"buildings": [], "totals": {}}
     all_levels: dict = {}
     total = 0
     walls_ok = 0
+    solid_ok = 0
     for a in sorted((x for x in EAS.get_all_level_actors()
                      if x is not None
                      and str(x.get_actor_label()).startswith(prefix)),
@@ -254,6 +270,8 @@ def measure(prefix: str = PREFIX) -> dict:
         top = None
         lo = [None, None, None]
         hi = [None, None, None]
+        floor_width: dict = {}
+        null_slots = 0
         for c in a.get_components_by_class(unreal.StaticMeshComponent):
             try:
                 sm = c.get_editor_property("static_mesh")
@@ -274,6 +292,15 @@ def measure(prefix: str = PREFIX) -> dict:
             except Exception:                                  # noqa: BLE001
                 bb = None
                 mz = 0.0
+            is_wall = "Foundation" not in name
+            try:
+                null_slots += sum(1 for k in range(c.get_num_materials())
+                                  if c.get_material(k) is None)
+            except Exception:                                  # noqa: BLE001
+                pass
+            # a wall module's plan width is its longer horizontal side
+            mod_w = 0.0 if bb is None else max(float(bb.max.x - bb.min.x),
+                                               float(bb.max.y - bb.min.y))
             for i in range(n):
                 try:
                     t = c.get_instance_transform(i, True)
@@ -283,6 +310,10 @@ def measure(prefix: str = PREFIX) -> dict:
                 top = z if top is None else max(top, z)
                 if bb is None:
                     continue
+                if is_wall:
+                    fk = int(round(float(t.translation.z)))
+                    floor_width[fk] = floor_width.get(fk, 0.0) + mod_w * max(
+                        abs(float(t.scale3d.x)), abs(float(t.scale3d.y)))
                 # the eight corners of this instance's mesh box, in the world
                 for px in (bb.min.x, bb.max.x):
                     for py in (bb.min.y, bb.max.y):
@@ -301,6 +332,13 @@ def measure(prefix: str = PREFIX) -> dict:
         if has_walls:
             walls_ok += 1
         total += count
+        coverage = None
+        if floor_width and lo[0] is not None:
+            perimeter = 2.0 * ((hi[0] - lo[0]) + (hi[1] - lo[1]))
+            if perimeter > 0.0:
+                coverage = round(min(floor_width.values()) / perimeter, 3)
+        if coverage is not None and coverage >= FACADE_COVERAGE_MIN:
+            solid_ok += 1
         b0, b1 = a.get_actor_bounds(False)
         loc = a.get_actor_location()
         out["buildings"].append({
@@ -316,6 +354,8 @@ def measure(prefix: str = PREFIX) -> dict:
                 "z_min": round(lo[2], 1), "z_max": round(hi[2], 1)},
             "instances": count, "distinct_meshes": len(meshes),
             "levels": levels, "has_walls": has_walls,
+            "facade_coverage": coverage, "wall_floors": len(floor_width),
+            "null_material_slots": null_slots,
             "top_z_cm": None if top is None else round(top, 1),
             "origin": [round(b0.x, 1), round(b0.y, 1), round(b0.z, 1)],
             "extent": [round(b1.x, 1), round(b1.y, 1), round(b1.z, 1)],
@@ -324,6 +364,8 @@ def measure(prefix: str = PREFIX) -> dict:
         "buildings": len(out["buildings"]),
         "with_walls": walls_ok,
         "without_walls": len(out["buildings"]) - walls_ok,
+        "solid_facades": solid_ok,
+        "hollow_facades": len(out["buildings"]) - solid_ok,
         "instances": total,
         "levels_histogram": dict(sorted(
             all_levels.items(),
