@@ -211,12 +211,11 @@ def test_counts_and_clamps_agree_with_the_orders():
 # ------------------------------------------------------------------ palette --
 
 
-def test_palette_is_the_documented_eight_families():
+def test_palette_is_the_documented_five_families():
     # The Chicago families were dropped after measurement: each returns the
     # 32-instance foundation ring at every height tested, i.e. no usable walls
     # in this project's mesh subset. SFD carries the "visually distinct" role.
-    assert set(SGD_PALETTE) == {"SFD", "NYAC", "NYAD", "NYAE", "NYAF", "NYH",
-                                "NYGA", "NYG"}
+    assert set(SGD_PALETTE) == {"SFD", "NYAE", "NYAF", "NYGA", "NYG"}
     assert set(STYLE_MIN_HEIGHT_CM) == set(SGD_PALETTE)
     assert STYLE_MIN_HEIGHT_CM["NYAF"] == 2500.0
     # every minimum is measured now, so none may be left unknown
@@ -345,15 +344,15 @@ def test_requested_height_below_minimum_never_survives_into_an_order():
 def test_set_style_minimums_injects_a_measured_table():
     before = style_minimums()
     try:
-        table = set_style_minimums({"NYAC": 4200.0})
-        assert table["NYAC"] == 4200.0
-        assert minimum_for("NYAC") == 4200.0
-        assert clamp_height("NYAC", 3000.0)["height_cm"] == 4200.0
+        table = set_style_minimums({"NYAE": 4200.0})
+        assert table["NYAE"] == 4200.0
+        assert minimum_for("NYAE") == 4200.0
+        assert clamp_height("NYAE", 3000.0)["height_cm"] == 4200.0
         doc = make_doc()
-        assert doc["style_minimum_cm"]["NYAC"] == 4200.0
+        assert doc["style_minimum_cm"]["NYAE"] == 4200.0
         assert validate_orders(doc) == []
-        assert set_style_minimums({"NYAC": None})["NYAC"] is None
-        assert minimum_for("NYAC") == DEFAULT_MIN_HEIGHT_CM
+        assert set_style_minimums({"NYAE": None})["NYAE"] is None
+        assert minimum_for("NYAE") == DEFAULT_MIN_HEIGHT_CM
     finally:
         set_style_minimums(before)
     assert style_minimums() == before
@@ -529,7 +528,7 @@ def test_validate_catches_each_failure_it_claims():
 
     def asset_names_another_family(d):
         order = d["orders"][0]
-        other = "NYAC" if order["family"] != "NYAC" else "NYGA"
+        other = "NYAE" if order["family"] != "NYAE" else "NYGA"
         order["sgd_asset"] = sgd_asset_path(other)
     problems = problems_of(asset_names_another_family)
     assert any("not the documented path for family" in p

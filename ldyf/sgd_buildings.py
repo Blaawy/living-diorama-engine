@@ -119,19 +119,32 @@ FOUNDATION_ONLY_INSTANCES = 72
 #: selectable (see the module docstring).
 SGD_PALETTE: dict[str, dict[str, Any]] = {
     "SFD": {"role_band": "low-rise, fine grain", "instances": 1032},
-    "NYAC": {"role_band": "mid-rise", "instances": 96},
-    "NYAD": {"role_band": "mid-rise", "instances": 168},
     "NYAE": {"role_band": "mid-rise", "instances": 352},
     "NYAF": {"role_band": "mid-rise", "instances": 352},
-    "NYH": {"role_band": "upper-mid", "instances": 122},
     "NYGA": {"role_band": "tall", "instances": 200},
     "NYG": {"role_band": "landmark only", "instances": 974,
             "landmark_only": True},
 }
 
+#: Families removed after the one-block machine check, which compared the
+#: height actually achieved against the height requested and counted the modules
+#: placed (EVIDENCE/PHASE_02/pcg_one_block.json):
+#:
+#: * ``NYAD`` -- asked for 4188 cm, built **475.5 cm** (ratio 0.11): a
+#:   single-storey slab, levels {0, 1}, 98 modules. It ignores height outright.
+#: * ``NYAC`` -- height fine (4116 of 4188) but only **56** modules across
+#:   levels {0, 6}: a foundation plus one wall course, i.e. a hollow frame.
+#: * ``NYH`` -- 54 modules at its own minimum, the same sparse signature as
+#:   NYAC, so it is refused on the same grounds rather than shipped untested.
+#: * ``CHA`` / ``CHB`` / ``CHH`` -- the 32-module foundation ring at every
+#:   height tested; no Chicago family has usable walls in this mesh subset.
+#:
+#: Families kept all achieve ratio >= 0.93 with >= 200 modules, except the
+#: landmark which is denser still (2510).
+#:
 #: The palette as a sorted literal, so the import-time check is order-free.
 _PALETTE_FAMILIES: tuple[str, ...] = (
-    "NYAC", "NYAD", "NYAE", "NYAF", "NYG", "NYGA", "NYH", "SFD")
+    "NYAE", "NYAF", "NYG", "NYGA", "SFD")
 
 #: The only family an ordinary order may not wear.
 LANDMARK_FAMILY = "NYG"
@@ -145,11 +158,8 @@ LANDMARK_FAMILY = "NYG"
 #: Evidence: EVIDENCE/PHASE_02/pcg_sgd_minheights.json.
 STYLE_MIN_HEIGHT_CM: dict[str, float | None] = {
     "SFD": 2500.0,    # [214] levels 0, 01-04
-    "NYAC": 2500.0,   # [56]  levels 0, 6
-    "NYAD": 2500.0,   # [98]  levels 0, 1
     "NYAE": 2500.0,   # [152] levels 0, 2-6
     "NYAF": 2500.0,   # [172] levels 0, 2-7
-    "NYH": 4000.0,    # [54]  levels 0, 1, 8  -- nothing at 2500
     "NYGA": 6000.0,   # [192] levels 0, 01-07, 017 -- nothing at 2500 or 4000
     "NYG": 6000.0,    # [838] levels 0, 01-07, 017 -- landmark only
 }
@@ -174,11 +184,8 @@ DEFAULT_MIN_HEIGHT_CM = 2000.0
 #: stays viable.
 HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
     "SFD": (2500.0, 3400.0),     # low-rise, fine grain
-    "NYAC": (2500.0, 5200.0),    # mid-rise
-    "NYAD": (2500.0, 5200.0),
     "NYAE": (2500.0, 5200.0),
     "NYAF": (2500.0, 5200.0),
-    "NYH": (4000.0, 7000.0),     # upper-mid
     "NYGA": (6000.0, 10000.0),   # tall
     "NYG": (6000.0, 14000.0),    # landmark only
 }
@@ -260,8 +267,8 @@ LANDMARK_FLOOR_CM = 5600.0
 #: is deliberately absent: it is landmark-only.
 ROLE_BAND_FAMILIES: dict[str, tuple[str, ...]] = {
     "low-rise": ("SFD",),
-    "mid-rise": ("NYAC", "NYAD", "NYAE", "NYAF"),
-    "upper-mid": ("NYH", "NYGA"),
+    "mid-rise": ("NYAE", "NYAF"),
+    "upper-mid": ("NYGA",),
     "tall": ("NYGA",),
 }
 
