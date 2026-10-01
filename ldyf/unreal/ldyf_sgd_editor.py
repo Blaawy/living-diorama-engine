@@ -37,6 +37,12 @@ from __future__ import annotations
 import unreal  # type: ignore[import-not-found]
 
 PREFIX = "LD_SGD"
+#: The legacy massing buildings this architecture replaces. They are one actor
+#: per building slot (``LD_Bldg_<block>_<slot>``) and sit on exactly the same
+#: footprints, so leaving them in place buries the new buildings inside the old
+#: ones -- the first one-block render showed the rejected massing, not the
+#: shape-grammar buildings at all.
+LEGACY_PREFIX = "LD_Bldg"
 GRAPH_PATH = "/CitySamplePCG/PCG/DataAssets/Buildings/PCG_Bldg_SGD_test"
 
 #: A default `PCGVolume` brush is 100 uu of extent per axis, so a scale of N
@@ -73,6 +79,33 @@ def clear(prefix: str = PREFIX) -> int:
             EAS.destroy_actor(a)
             n += 1
     return n
+
+
+def clear_legacy(block_id: str | None = None,
+                 prefix: str = LEGACY_PREFIX) -> dict:
+    """Destroy the legacy massing buildings this architecture replaces.
+
+    ``block_id`` restricts the removal to one block, which is what the one-block
+    gate needs: the rest of the city keeps its old buildings so the converted
+    block can be compared against them.
+
+    Only actors whose label starts with ``LD_Bldg`` are touched, so roads,
+    dressing, crowds, vehicles and cameras cannot be caught by accident. The
+    labels removed are returned rather than just counted, so a reviewer can see
+    exactly what went.
+    """
+    EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    want = "%s_%s" % (prefix, block_id) if block_id else prefix
+    removed = []
+    for a in list(EAS.get_all_level_actors()):
+        if a is None:
+            continue
+        label = str(a.get_actor_label())
+        if label.startswith(want):
+            removed.append(label)
+            EAS.destroy_actor(a)
+    return {"prefix": want, "removed_count": len(removed),
+            "removed": sorted(removed)[:40]}
 
 
 def _volume_scale(order: dict) -> "unreal.Vector":
