@@ -216,6 +216,77 @@ HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
 LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 
 
+#: How each grammar quantises height, as ``(reserve_cm, top_offset_cm,
+#: floor_step_cm)``: the grammar fits ``n = floor((H - reserve) / step)`` whole
+#: floors and the built top is ``top_offset + n * step``.
+#:
+#: MEASURED on the full-city build (EVIDENCE/PHASE_02/pcg_full_city.json):
+#:   NYAF  2800->2789.5  3074->2789.5  5200->5064.5  6500->6364.5  9000->8964.5
+#:         i.e. a 189.5 cm parapet on top of 8, 8, 15, 19 and 27 floors of 325.
+#:   NYAE  2800->2599.8  2930->2599.8  3074->2924.9  5200->4874.8
+#:         i.e. 8, 8, 9 and 15 floors of 325 with nothing on top.
+#: NYAE's reserve is only BRACKETED by those points (2930 gives 8 floors, 3074
+#: gives 9, so it lies in 5..149 cm). 150 is used: the conservative end, which
+#: can only under-predict a floor and therefore only ever raises a plan.
+#: SFD is absent on purpose -- it always builds TALLER than asked (1.06-1.09).
+FLOOR_LADDER_CM: dict[str, tuple[float, float, float]] = {
+    "NYAE": (150.0, 0.0, 325.0),
+    "NYAF": (189.5, 189.5, 325.0),
+}
+
+#: Below this predicted built/planned ratio a height is moved up a floor. It
+#: sits above the 0.90 fidelity gate with room for the model being conservative.
+SNAP_RATIO = 0.92
+#: Planned height sits this far above the floor it targets, so float rounding
+#: at an exact floor boundary cannot drop the building a whole storey.
+SNAP_MARGIN_CM = 20.0
+
+
+def predicted_top_cm(family: str, height_cm: float) -> float:
+    """A conservative LOWER BOUND on the top a grammar builds for a plan."""
+    if family not in FLOOR_LADDER_CM:
+        return float(height_cm)
+    reserve, top_offset, step = FLOOR_LADDER_CM[family]
+    floors = int((float(height_cm) - reserve) // step)
+    return top_offset + max(floors, 0) * step
+
+
+def snap_to_floors(doc: dict) -> dict:
+    """Move a planned height up a floor when the grammar would build short.
+
+    A grammar builds whole floors, so a planned 2930 cm NYAE comes out at
+    2600 cm -- ratio 0.887, under the 0.90 fidelity gate -- because it falls
+    just short of the ninth floor. Three buildings failed the full-city gate
+    exactly this way. Where the predicted ratio is below :data:`SNAP_RATIO` the
+    plan is raised to the next floor, so what is planned is what gets built.
+
+    Heights only ever go UP, and the landmark is left alone: its ceiling is an
+    asset limit and its ratio is already 0.996. Returns a new document and
+    records every change under ``floor_snaps``.
+    """
+    orders = doc.get("orders") or []
+    if not orders:
+        raise ValueError("document has no orders")
+    out = dict(doc)
+    new_orders = []
+    snaps = []
+    for o in orders:
+        row = dict(o)
+        fam = o["family"]
+        h = float(o["height_cm"])
+        if o.get("role") != "landmark" and fam in FLOOR_LADDER_CM:
+            if predicted_top_cm(fam, h) / h < SNAP_RATIO:
+                reserve, _top, step = FLOOR_LADDER_CM[fam]
+                floors = int((h - reserve) // step) + 1
+                row["height_cm"] = _f3(reserve + floors * step + SNAP_MARGIN_CM)
+                snaps.append({"id": o["id"], "family": fam, "was_cm": h,
+                              "height_cm": row["height_cm"]})
+        new_orders.append(row)
+    out["orders"] = new_orders
+    out["floor_snaps"] = snaps
+    return out
+
+
 def apply_height_bands(doc: dict, *, never_lower: bool = False) -> dict:
     """Spread clamped heights back out inside each family's recommended band.
 

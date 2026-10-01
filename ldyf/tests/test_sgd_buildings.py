@@ -695,3 +695,44 @@ def test_apply_height_bands_never_lower_only_lifts_ordinary_orders():
     plain = apply_height_bands(doc)
     assert any(a["height_cm"] < b["height_cm"]
                for a, b in zip(plain["orders"], doc["orders"]))
+
+
+def test_predicted_top_never_exceeds_the_measured_builds():
+    from ldyf.sgd_buildings import predicted_top_cm
+    # (family, planned, measured built) from the full-city build
+    measured = (("NYAE", 2800.0, 2599.8), ("NYAE", 2930.0, 2599.8),
+                ("NYAE", 3074.0, 2924.9), ("NYAE", 5200.0, 4874.8),
+                ("NYAF", 2800.0, 2789.5), ("NYAF", 3074.0, 2789.5),
+                ("NYAF", 5200.0, 5064.5), ("NYAF", 6500.0, 6364.5),
+                ("NYAF", 9000.0, 8964.5))
+    exact = 0
+    for fam, planned, built in measured:
+        got = predicted_top_cm(fam, planned)
+        # a LOWER bound: it may under-predict by a floor, never over-predict
+        assert got <= built + 1.0, (fam, planned, got, built)
+        assert built - got <= 325.0 + 1.0, (fam, planned, got, built)
+        exact += abs(got - built) < 1.0
+    assert exact >= 8      # only NYAE 3074 sits on the bracketed boundary
+    assert predicted_top_cm("SFD", 2500.0) == 2500.0   # no ladder: unchanged
+
+
+def test_snap_to_floors_only_raises_and_clears_the_fidelity_gate():
+    from ldyf.sgd_buildings import predicted_top_cm, snap_to_floors
+    doc = make_doc()
+    target = next(o for o in doc["orders"] if o["role"] != "landmark")
+    target["family"] = "NYAE"
+    target["height_cm"] = 2930.0          # the exact case that failed: 0.887
+    before = copy.deepcopy(doc)
+    snapped = snap_to_floors(doc)
+    assert doc == before                  # input untouched
+    for a, b in zip(doc["orders"], snapped["orders"]):
+        assert b["height_cm"] >= a["height_cm"]
+        if b["role"] == "landmark":
+            assert b["height_cm"] == a["height_cm"]
+        if b["family"] in ("NYAE", "NYAF") and b["role"] != "landmark":
+            ratio = predicted_top_cm(b["family"], b["height_cm"]) / b["height_cm"]
+            assert ratio >= 0.92, (b["id"], ratio)
+    moved = [s for s in snapped["floor_snaps"] if s["id"] == target["id"]]
+    assert moved and moved[0]["height_cm"] == 3095.0   # 150 + 9 floors + 20
+    with pytest.raises(ValueError):
+        snap_to_floors({"orders": []})
