@@ -120,3 +120,50 @@ def test_verify_ledger_re_runs_the_RIGHT_extractor_for_each_entry():
         "the derived-effect cache must be keyed on the extractor as well as the "
         "sealed result"
     )
+
+
+# ---------------------------------------------------------------------------
+# runtime truth guards
+# ---------------------------------------------------------------------------
+
+
+def test_an_unapproved_extractor_cannot_register_at_runtime():
+    """Prevention, not detection.
+
+    The closed set used to be enforced only by a test, which a red-team
+    reviewer called out exactly: a module that registered an extractor as an
+    import side effect gained the right to write measured_effect entries, and
+    only a later test run would have noticed. A measured_effect is the one
+    place a number enters the ledger, so the registry refuses at runtime.
+    """
+    from ldyf import consequence  # noqa: F401  (registers the Phase 3 four)
+    from ldyf.persistent_changes import (
+        APPROVED_EXTRACTORS,
+        CONSEQUENCE_EXTRACTORS,
+        LedgerError,
+    )
+
+    assert set(CONSEQUENCE_EXTRACTORS) == set(APPROVED_EXTRACTORS)
+
+    with pytest.raises(LedgerError, match="not approved"):
+        CONSEQUENCE_EXTRACTORS["smuggled_effect_v1"] = lambda *a, **k: []
+    with pytest.raises(LedgerError, match="not approved"):
+        CONSEQUENCE_EXTRACTORS[123] = lambda *a, **k: []
+    assert "smuggled_effect_v1" not in CONSEQUENCE_EXTRACTORS
+
+
+def test_an_approved_extractor_cannot_be_rebound_or_removed():
+    """Write-once: nothing may replace the function that computes the truth."""
+    from ldyf import consequence  # noqa: F401
+    from ldyf.persistent_changes import CONSEQUENCE_EXTRACTORS, LedgerError
+
+    original = CONSEQUENCE_EXTRACTORS["closure_effect_v1"]
+    with pytest.raises(LedgerError, match="already registered"):
+        CONSEQUENCE_EXTRACTORS["closure_effect_v1"] = lambda *a, **k: []
+    with pytest.raises(LedgerError, match="refusing to unregister"):
+        del CONSEQUENCE_EXTRACTORS["closure_effect_v1"]
+    assert CONSEQUENCE_EXTRACTORS["closure_effect_v1"] is original
+
+    # re-registering the SAME function is harmless and must stay allowed, or a
+    # module could not be imported twice
+    CONSEQUENCE_EXTRACTORS["closure_effect_v1"] = original

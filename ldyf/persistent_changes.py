@@ -151,7 +151,57 @@ _EFFECT_UNITS = {
 
 # Extractors that MUST NOT be trusted to run only from append time: verify_ledger
 # re-validates their payload invariants without re-running them.
-CONSEQUENCE_EXTRACTORS: dict[str, Callable[[dict[str, Any], Path], list[dict[str, Any]]]] = {}
+#: The ONLY extractor names this world will ever accept. A name that is not
+#: here cannot be registered at all -- not by an import, not by a plugin, not
+#: by a test helper that forgot to clean up.
+APPROVED_EXTRACTORS: frozenset[str] = frozenset({
+    "closure_effect_v1",          # Phase 1
+    "speed_limit_effect_v1",      # Phase 3
+    "traffic_light_effect_v1",    # Phase 3
+    "demand_flow_effect_v1",      # Phase 3
+    "pedestrian_effect_v1",       # Phase 3
+})
+
+
+class _ExtractorRegistry(dict):
+    """A registry that refuses an unapproved extractor AT RUNTIME.
+
+    The closed set used to be enforced only by a test. A red-team reviewer put
+    that plainly: it was "detection, not prevention" -- a module that registered
+    an extractor as a side effect of being imported gained the right to write
+    measured_effect entries, and nothing but a later test run would notice.
+    Since a measured_effect is the one place a number enters the ledger, the
+    registry is the wrong place to be permissive.
+
+    Registration is also write-once: rebinding an approved name to a different
+    function would let a later import quietly replace the thing that computes
+    the truth.
+    """
+
+    def __setitem__(self, name: Any, fn: Any) -> None:
+        if not isinstance(name, str) or name not in APPROVED_EXTRACTORS:
+            raise LedgerError(
+                f"extractor {name!r} is not approved; add it to "
+                "APPROVED_EXTRACTORS by review, not by importing a module"
+            )
+        if not callable(fn):
+            raise LedgerError(f"extractor {name!r} must be callable")
+        existing = self.get(name)
+        if existing is not None and existing is not fn:
+            raise LedgerError(
+                f"extractor {name!r} is already registered; refusing to rebind "
+                "the function that computes a measured effect"
+            )
+        super().__setitem__(name, fn)
+
+    def __delitem__(self, name: Any) -> None:
+        raise LedgerError(
+            f"refusing to unregister extractor {name!r}: a ledger entry naming "
+            "it must stay re-derivable"
+        )
+
+
+CONSEQUENCE_EXTRACTORS: _ExtractorRegistry = _ExtractorRegistry()
 
 
 class LedgerError(RuntimeError):
