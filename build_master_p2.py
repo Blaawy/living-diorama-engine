@@ -123,6 +123,8 @@ def stage() -> None:
     (ev / "renders").mkdir()
     for src_name, dst_name in (
             # the city that ships
+            # the six living-world gate frames, from the MRQ playback
+            ("look_gate_final", "look_gate_final"),
             ("look_fullcity_varied", "look_fullcity_varied"),
             ("look_varied_landmark", "look_varied_landmark"),
             # the one-family city it replaces, for comparison
@@ -142,7 +144,8 @@ def stage() -> None:
     # all ships; image folders are curated (preview_mrq alone holds 2160 PNGs),
     # and every curated-out folder leaves a stub naming it, its file count and
     # its bytes, so the omission is in the manifest rather than invisible.
-    shipped_render_dirs = {"look_fullcity_varied", "look_varied_landmark",
+    shipped_render_dirs = {"look_gate_final",
+                           "look_fullcity_varied", "look_varied_landmark",
                            "look_fullcity_sfd", "look_shots_sfd",
                            "look_fullcity", "look_v2final", "preview_stills",
                            "pcg_graph_dumps", "proof"}
