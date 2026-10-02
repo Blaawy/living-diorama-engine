@@ -232,10 +232,13 @@ def generate(prefix: str = PREFIX) -> dict:
     return out
 
 
-#: A building whose worst floor covers less of its perimeter than this is not a
-#: building on screen, whatever else it passes. Real SFD floors measure ~1.0;
-#: the NYAE/NYAF sliver facades measure ~0.08.
+#: A building whose worst FACE on its worst FLOOR is covered by less wall than
+#: this is not a building on screen, whatever else it passes. Real SFD faces
+#: measure 0.95-1.2; the NYAE/NYAF sliver facades measured 0.03-0.11.
 FACADE_COVERAGE_MIN = 0.85
+
+#: Largest vertical hole allowed between one wall row and the next, in cm.
+FLOOR_GAP_MAX_CM = 25.0
 
 
 def measure(prefix: str = PREFIX) -> dict:
@@ -246,13 +249,25 @@ def measure(prefix: str = PREFIX) -> dict:
     non-zero instance count, so instance count by itself cannot tell a real
     building from a slab.
 
-    ``facade_coverage`` is the gate that matters for what a camera sees. Per
-    floor it is (summed plan width of the wall modules on that floor) / (the
-    building's perimeter); the building's value is its WORST floor. NYAE and
-    NYAF passed every earlier check -- walls present, hundreds of instances,
+    ``facade_coverage`` is the gate that matters for what a camera sees. NYAE
+    and NYAF passed every earlier check -- walls present, hundreds of instances,
     height ratio 0.93+ -- and rendered as thin shafts, because the only wall
-    mesh those kits have in this project is the 28-69 cm ``Wall_01S`` filler:
-    20 of them on a 150 m perimeter is 0.08 coverage. A real SFD floor is ~1.0.
+    mesh those kits have in this project is the 28-69 cm ``Wall_01S`` filler.
+
+    It is measured per FACE, per FLOOR, and the building's value is the worst
+    one. Wall modules (meshes named ``_Wall_``) are grouped by floor (their Z)
+    and by the quarter-turn they face; within a group, modules at the same spot
+    are counted once, and the group's summed plan width is divided by the length
+    of the side of the building it runs along. A floor with fewer than four
+    faces scores 0. So an open end, a missing facade, modules stacked on one
+    point, and a doubled wall all fail -- none of which the first version of
+    this number (total width / perimeter, wherever the modules were) could see.
+
+    ``floor_gap_cm`` is the tallest vertical hole between one wall row and the
+    next, or between the top row and the roof: a building with its middle
+    floors missing has full coverage on every floor it does have.
+
+    ``facade_coverage_total`` is the old perimeter ratio, kept for comparison.
     ``null_material_slots`` counts material slots with nothing assigned.
     """
     EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -271,6 +286,8 @@ def measure(prefix: str = PREFIX) -> dict:
         lo = [None, None, None]
         hi = [None, None, None]
         floor_width: dict = {}
+        floor_faces: dict = {}      # z -> quarter-turn -> {"w", "seen", x/y range}
+        floor_span: dict = {}       # z -> [lowest, highest] world Z the row fills
         null_slots = 0
         for c in a.get_components_by_class(unreal.StaticMeshComponent):
             try:
@@ -292,7 +309,7 @@ def measure(prefix: str = PREFIX) -> dict:
             except Exception:                                  # noqa: BLE001
                 bb = None
                 mz = 0.0
-            is_wall = "Foundation" not in name
+            is_wall = "_Wall_" in name
             try:
                 null_slots += sum(1 for k in range(c.get_num_materials())
                                   if c.get_material(k) is None)
@@ -311,9 +328,32 @@ def measure(prefix: str = PREFIX) -> dict:
                 if bb is None:
                     continue
                 if is_wall:
-                    fk = int(round(float(t.translation.z)))
-                    floor_width[fk] = floor_width.get(fk, 0.0) + mod_w * max(
-                        abs(float(t.scale3d.x)), abs(float(t.scale3d.y)))
+                    fk = int(round(float(t.translation.z) / 5.0)) * 5
+                    w_here = mod_w * max(abs(float(t.scale3d.x)),
+                                         abs(float(t.scale3d.y)))
+                    floor_width[fk] = floor_width.get(fk, 0.0) + w_here
+                    # a module's origin is not its base: the row's extent is
+                    # taken from the mesh box, not from "origin + height"
+                    sz = abs(float(t.scale3d.z))
+                    z0 = float(t.translation.z) + float(bb.min.z) * sz
+                    z1 = float(t.translation.z) + float(bb.max.z) * sz
+                    span = floor_span.setdefault(fk, [z0, z1])
+                    span[0] = min(span[0], z0)
+                    span[1] = max(span[1], z1)
+                    px, py = float(t.translation.x), float(t.translation.y)
+                    quarter = int(round(float(
+                        t.rotation.rotator().yaw) / 90.0)) % 4
+                    face = floor_faces.setdefault(fk, {}).setdefault(
+                        quarter, {"w": 0.0, "seen": set(),
+                                  "x0": px, "x1": px, "y0": py, "y1": py})
+                    spot = (int(round(px / 5.0)), int(round(py / 5.0)))
+                    if spot not in face["seen"]:      # stacked modules count once
+                        face["seen"].add(spot)
+                        face["w"] += w_here
+                    face["x0"] = min(face["x0"], px)
+                    face["x1"] = max(face["x1"], px)
+                    face["y0"] = min(face["y0"], py)
+                    face["y1"] = max(face["y1"], py)
                 # the eight corners of this instance's mesh box, in the world
                 for px in (bb.min.x, bb.max.x):
                     for py in (bb.min.y, bb.max.y):
@@ -333,11 +373,45 @@ def measure(prefix: str = PREFIX) -> dict:
             walls_ok += 1
         total += count
         coverage = None
+        coverage_total = None
+        floor_gap = None
+        faces_min = None
         if floor_width and lo[0] is not None:
-            perimeter = 2.0 * ((hi[0] - lo[0]) + (hi[1] - lo[1]))
+            ext_x, ext_y = hi[0] - lo[0], hi[1] - lo[1]
+            perimeter = 2.0 * (ext_x + ext_y)
             if perimeter > 0.0:
-                coverage = round(min(floor_width.values()) / perimeter, 3)
-        if coverage is not None and coverage >= FACADE_COVERAGE_MIN:
+                coverage_total = round(min(floor_width.values()) / perimeter, 3)
+            worst = None
+            faces_min = min(len(f) for f in floor_faces.values())
+            for faces in floor_faces.values():
+                if len(faces) < 4:
+                    worst = 0.0             # a floor with an open side
+                    continue
+                for face in faces.values():
+                    # the side this face runs along is the axis its modules
+                    # spread on; a lone module is given the shorter side
+                    run_x = face["x1"] - face["x0"]
+                    run_y = face["y1"] - face["y0"]
+                    if run_x < 1.0 and run_y < 1.0:
+                        side = min(ext_x, ext_y)
+                    else:
+                        side = ext_x if run_x >= run_y else ext_y
+                    c = face["w"] / side if side > 0.0 else 0.0
+                    worst = c if worst is None else min(worst, c)
+            coverage = None if worst is None else round(worst, 3)
+            rows = sorted(floor_span, key=lambda k: floor_span[k][0])
+            gap = 0.0
+            reach = floor_span[rows[0]][1]
+            for k in rows[1:]:
+                gap = max(gap, floor_span[k][0] - reach)
+                reach = max(reach, floor_span[k][1])
+            if top is not None:
+                gap = max(gap, top - reach)
+            floor_gap = round(gap, 1)
+        if (has_walls and coverage is not None
+                and coverage >= FACADE_COVERAGE_MIN
+                and floor_gap is not None and floor_gap <= FLOOR_GAP_MAX_CM
+                and null_slots == 0):
             solid_ok += 1
         b0, b1 = a.get_actor_bounds(False)
         loc = a.get_actor_location()
@@ -354,7 +428,10 @@ def measure(prefix: str = PREFIX) -> dict:
                 "z_min": round(lo[2], 1), "z_max": round(hi[2], 1)},
             "instances": count, "distinct_meshes": len(meshes),
             "levels": levels, "has_walls": has_walls,
-            "facade_coverage": coverage, "wall_floors": len(floor_width),
+            "facade_coverage": coverage,
+            "facade_coverage_total": coverage_total,
+            "floor_gap_cm": floor_gap, "faces_per_floor_min": faces_min,
+            "wall_floors": len(floor_width),
             "null_material_slots": null_slots,
             "top_z_cm": None if top is None else round(top, 1),
             "origin": [round(b0.x, 1), round(b0.y, 1), round(b0.z, 1)],

@@ -748,3 +748,46 @@ def test_snap_to_floors_only_raises_and_clears_the_fidelity_gate():
     assert moved and moved[0]["height_cm"] == 3095.0   # 150 + 9 floors + 20
     with pytest.raises(ValueError):
         snap_to_floors({"orders": []})
+
+
+# ---------------------------------------------------------------------------
+# red team (2026-10-02)
+# ---------------------------------------------------------------------------
+
+
+def test_banding_refuses_to_invert_the_landmark_hierarchy():
+    # the landmark is pinned to the top of its band; never_lower keeps an
+    # ordinary order where it came in. A very tall ordinary order would end up
+    # above the landmark, so that input must raise instead.
+    from ldyf.sgd_buildings import LANDMARK_HEIGHT_BAND_CM, apply_height_bands
+    doc = make_doc()
+    tall = next(o for o in doc["orders"] if o["role"] != "landmark")
+    tall["height_cm"] = LANDMARK_HEIGHT_BAND_CM[1] + 500.0
+    with pytest.raises(ValueError, match="at or above the landmark"):
+        apply_height_bands(doc, never_lower=True)
+    # without never_lower the ordinary order is banded down and it is fine
+    out = apply_height_bands(doc)
+    lm = next(o for o in out["orders"] if o["role"] == "landmark")
+    assert all(o["height_cm"] < lm["height_cm"]
+               for o in out["orders"] if o["role"] != "landmark")
+
+
+def test_snap_to_floors_refuses_a_non_positive_height():
+    from ldyf.sgd_buildings import snap_to_floors
+    doc = make_doc()
+    doc["orders"][0]["height_cm"] = 0.0
+    with pytest.raises(ValueError, match="non-positive height"):
+        snap_to_floors(doc)
+
+
+def test_snap_to_floors_is_the_identity_for_the_production_palette():
+    # FLOOR_LADDER_CM holds only retired families. SFD always builds taller
+    # than asked (1.02-1.09 measured), so it has nothing to snap: on a real
+    # document the function must change no height at all.
+    from ldyf.sgd_buildings import FLOOR_LADDER_CM, snap_to_floors
+    assert not set(FLOOR_LADDER_CM) & set(SGD_PALETTE)
+    doc = make_doc()
+    out = snap_to_floors(doc)
+    assert out["floor_snaps"] == []
+    assert [o["height_cm"] for o in out["orders"]] == \
+        [o["height_cm"] for o in doc["orders"]]

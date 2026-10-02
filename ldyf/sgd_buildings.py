@@ -288,6 +288,9 @@ def snap_to_floors(doc: dict) -> dict:
         row = dict(o)
         fam = o["family"]
         h = float(o["height_cm"])
+        if not h > 0.0:
+            raise ValueError("order %r has non-positive height %r"
+                             % (o.get("id"), o.get("height_cm")))
         if o.get("role") != "landmark" and fam in FLOOR_LADDER_CM:
             if predicted_top_cm(fam, h) / h < SNAP_RATIO:
                 reserve, _top, step = FLOOR_LADDER_CM[fam]
@@ -370,6 +373,19 @@ def apply_height_bands(doc: dict, *, never_lower: bool = False) -> dict:
                           "requested_cm": req,
                           "was_cm": float(o["height_cm"]),
                           "height_cm": height})
+    # Fail closed on the hierarchy. The landmark is pinned to the top of its
+    # band while never_lower keeps an ordinary order at whatever height it came
+    # in with, so an input with a very tall ordinary order would come out with
+    # the landmark no longer the tallest mass. Not reachable from the real
+    # layout (ordinary <= 6500), and it must not be reachable silently.
+    _lm = [o for o in new_orders if o.get("role") == "landmark"]
+    if _lm:
+        _top = max((float(o["height_cm"]) for o in new_orders
+                    if o.get("role") != "landmark"), default=0.0)
+        if _top >= float(_lm[0]["height_cm"]):
+            raise ValueError(
+                "banding would leave ordinary height %s at or above the "
+                "landmark's %s" % (_top, _lm[0]["height_cm"]))
     out["orders"] = new_orders
     out["band_remap"] = remap
     return out

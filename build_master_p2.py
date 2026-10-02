@@ -43,16 +43,15 @@ def stage() -> None:
     for d in ("preview", "reports", "evidence", "identity", "artifacts"):
         (STAGE / d).mkdir(parents=True)
     shutil.copy2(P2 / "README_FOR_CHATGPT_P2.md", STAGE / "README_FOR_CHATGPT.md")
-    for name in ("PHASE_2_REPORT.md", "PHASE_2_DECISIONS.md", "PHASE_2_GATE_PLAN.md", "PHASE_2_DESIGN_INPUTS.md", "RED_TEAM_PHASE_2.md"):
+    for name in ("PHASE_2_SGD_CITY.md", "RED_TEAM_PHASE_2_SGD.md",
+                 "PHASE_2_REPORT.md", "PHASE_2_DECISIONS.md", "PHASE_2_GATE_PLAN.md", "PHASE_2_DESIGN_INPUTS.md", "RED_TEAM_PHASE_2.md"):
         src = P2 / name
         if src.exists():
             shutil.copy2(src, STAGE / "reports" / name)
     # preview: the MP4, a still per shot, and the named viewport captures.
     # The 2,160 rendered PNGs (about 7 GB) are NEVER shipped; the report cites
     # their ffprobe record and the stills are drawn from them.
-    for png in sorted(EV.glob("*.png")):
-        shutil.copy2(png, STAGE / "preview" / png.name)
-    for sub in ("preview_stills", "views"):
+    for sub in ("preview_stills",):
         d = EV / sub
         if d.exists():
             (STAGE / "preview" / sub).mkdir(exist_ok=True)
@@ -87,6 +86,19 @@ def stage() -> None:
                     % (f.name, f.stat().st_size), encoding="utf-8")
                 continue
             shutil.copy2(f, ev / f.name)
+    # renders of the SGD city, including the ones that FAILED and the one a
+    # false "visual pass" was reported on -- shipped under names that say so
+    (ev / "renders").mkdir()
+    for src_name, dst_name in (
+            ("look_fullcity_sfd", "look_fullcity_sfd"),
+            ("look_shots_sfd", "look_shots_sfd"),
+            ("look_fullcity", "look_fullcity_NYA_FAILED"),
+            ("look_v2final", "look_v2final_RETRACTED")):
+        d = EV / src_name
+        if d.exists():
+            (ev / "renders" / dst_name).mkdir()
+            for f in sorted(d.glob("*.png")):
+                shutil.copy2(f, ev / "renders" / dst_name / f.name)
     dumps = EV / "pcg_graph_dumps"
     if dumps.exists():
         (ev / "pcg_graph_dumps").mkdir()
@@ -150,8 +162,19 @@ def stage() -> None:
             ("p2g_w1", "atkfix", "p2g_atkfix.md"),
             # City Sample PCG building architecture
             ("p2h_w1", "stylemap", "p2h_stylemap.md"),
-            ("p2h_w1", "pcgspec", "p2h_pcgspec.md")):
+            ("p2h_w1", "pcgspec", "p2h_pcgspec.md"),
+            # SGD buildings: grammar driver, grouping, palette
+            ("p2i_sgd", "sgd", "p2i_sgd.md"),
+            ("p2j_grp", "grp", "p2j_grouping.md"),
+            ("p2k_grp", "grp", "p2k_grouping.md"),
+            ("p2l_grp", "grp", "p2l_grouping.md"),
+            ("p2m_fix", "fix", "p2m_fix.md"),
+            ("p2n_pal", "pal", "p2n_palette_REFUSED_dirty_repo.md"),
+            ("p2n_pal2", "pal", "p2n_palette.md")):
         src = RUNS / run / task / "report.md"
+        if not src.exists() and (RUNS / run).is_dir():
+            found = sorted((RUNS / run).glob("*/report.md"))
+            src = found[0] if len(found) == 1 else src
         if src.exists():
             shutil.copy2(src, rt / name)
     # identity
@@ -181,6 +204,7 @@ def stage() -> None:
     shutil.copy2(proj / "LivingDioramaYF.uproject", up / "LivingDioramaYF.uproject")
     shutil.copy2(proj / "Config" / "DefaultEngine.ini", up / "DefaultEngine.ini")
     for rel in ("Content/LD/L_LivingDiorama.umap", "Content/PCG/PCG_LD_Roads.uasset",
+                "Content/LD/LS_Preview.uasset",
                 "Content/LD/Materials/MI_LD_Ground.uasset",
                 "Content/LD/Materials/MI_LD_Sidewalk.uasset",
                 # authored in this pass: road paint and the procedural facade
@@ -202,7 +226,12 @@ def stage() -> None:
     for tool in ("build_master_p2.py", "FREE_DEPENDENCY_LOCK.json"):
         if (WS / tool).exists():
             shutil.copy2(WS / tool, art / tool)
-    for tool in ("import_city_sample_subset.py", "update_pcg_ground.py", "probe_vehicle_mesh.py", "inspect_city_sample_fast.py"):
+    for tool in ("import_city_sample_subset.py", "update_pcg_ground.py", "probe_vehicle_mesh.py", "inspect_city_sample_fast.py",
+                 # the SGD city: build, gate, street life, lighting, guarded save, probes
+                 "step40_fullcity.py", "step41_streetlife_sgd.py", "step42_lighting_nosave.py",
+                 "step43_sfd_height.py", "step44_city_gate.py", "step45_save_city.py",
+                 "probe_render_truth.py", "probe_wall_inventory.py", "tools_look.py",
+                 "sgd_orders_fullcity.json"):
         if (YF / "CACHE" / tool).exists():
             shutil.copy2(YF / "CACHE" / tool, art / tool)
     # The building-kit tests resolve their ground-truth probe as
@@ -220,6 +249,22 @@ def stage() -> None:
     # probe is missing, the build must fail loudly here instead of shipping an
     # archive whose tests cannot open their own ground truth.
     shutil.copy2(WS / "asset_probe_v3.json", art / "asset_probe_v3.json")
+    # Same law for the grouping tests: test_sgd_grouping.py opens the real
+    # layout at parents[2] / "city_layout.json" and its known-bad regression
+    # fixture under ldyf/tests/data/. Neither was staged, so a fresh
+    # extraction could not even COLLECT that test file. Unconditional, so a
+    # missing input fails the build rather than the reviewer.
+    shutil.copy2(WS / "city_layout.json", art / "city_layout.json")
+    # ...and for test_building_styles.py, which opens these two at parents[2].
+    # Sixteen tests failed from a fresh extraction for want of them.
+    for name in ("pcg_building_kits.json", "pcg_building_rules.json"):
+        shutil.copy2(WS / name, art / name)
+    (art / "ldyf" / "tests" / "data").mkdir(exist_ok=True)
+    data = sorted((WS / "ldyf" / "tests" / "data").glob("*"))
+    if not data:
+        raise SystemExit("ldyf/tests/data is empty: the grouping regression fixture is missing")
+    for f in data:
+        shutil.copy2(f, art / "ldyf" / "tests" / "data" / f.name)
 
 
 def write_sha_manifest() -> None:

@@ -1075,3 +1075,125 @@ def test_every_block_clears_the_production_clearance():
                 # spans pass through _f3, so a gap can land at 149.999 without
                 # being a real clearance defect
                 assert rect_separation_cm(orders[i], orders[j]) >= 150.0 - 0.01,                     (block_id, orders[i]["id"], orders[j]["id"])
+
+
+# ---------------------------------------------------------------------------
+# red team (2026-10-02): the neighbour rule looked along one side at a time
+# ---------------------------------------------------------------------------
+
+
+def _neighbour_pairs(doc):
+    from ldyf.sgd_grouping import neighbour_pairs
+    groups = doc["groups"]
+    for i, j in neighbour_pairs(groups):
+        yield groups[i], groups[j]
+
+
+def test_neighbour_pairs_are_the_ring_of_a_block():
+    # 8 groups, 2 per side: 4 pairs along the sides + 4 round the corners, and
+    # the corner pairs are found whatever the gap (150 cm to over 10 m on the
+    # real layout), which a distance threshold could not do
+    from ldyf.sgd_grouping import neighbour_pairs, rect_separation_cm
+    widest = 0.0
+    for block_id in BLOCK_IDS:
+        groups = grouped_orders(LAYOUT, block_id, seed=SEED)["groups"]
+        pairs = neighbour_pairs(groups)
+        assert len(pairs) == len(groups) == 8
+        same = [p for p in pairs
+                if groups[p[0]]["side_yaw"] == groups[p[1]]["side_yaw"]]
+        assert len(same) == 4 and len(pairs) - len(same) == 4
+        widest = max([widest] + [rect_separation_cm(groups[i], groups[j])
+                                 for i, j in pairs])
+    assert widest > 400.0
+    assert neighbour_pairs([]) == []
+    assert neighbour_pairs([{"group_id": "damaged"}]) == []
+
+
+@pytest.mark.parametrize("block_id", BLOCK_IDS)
+def test_neighbours_round_a_corner_never_look_alike(block_id):
+    # 17 corner pairs of the real city were the same family at the same height:
+    # one L-shaped mass wrapping the corner. The rule now sees corners.
+    from ldyf.sgd_buildings import apply_height_bands
+    from ldyf.sgd_grouping import NEIGHBOUR_HEIGHT_STEP_CM
+    corners_seen = 0
+    for seed in (SEED, 1, 2, 3, 17, 20260905):
+        raw = grouped_orders(LAYOUT, block_id, seed=seed)
+        for doc in (raw, apply_height_bands(raw, never_lower=True)):
+            for first, second in _neighbour_pairs(doc):
+                a = order_of(doc, first["group_id"])
+                b = order_of(doc, second["group_id"])
+                corners_seen += first["side_yaw"] != second["side_yaw"]
+                assert (a["family"] != b["family"]
+                        or abs(a["height_cm"] - b["height_cm"])
+                        >= NEIGHBOUR_HEIGHT_STEP_CM), (seed, a["id"], b["id"])
+    assert corners_seen > 0      # the test really did look round corners
+
+
+def test_every_group_has_two_neighbours_so_three_tiers_suffice():
+    # the generator's guarantee rests on the groups forming a ring
+    for block_id in BLOCK_IDS:
+        doc = grouped_orders(LAYOUT, block_id, seed=SEED)
+        degree = {g["group_id"]: 0 for g in doc["groups"]}
+        for first, second in _neighbour_pairs(doc):
+            degree[first["group_id"]] += 1
+            degree[second["group_id"]] += 1
+        assert set(degree.values()) == {2}, (block_id, degree)
+
+
+def test_validate_rejects_look_alike_neighbours_round_a_corner():
+    doc = broken()
+    pair = next((a, b) for a, b in _neighbour_pairs(doc)
+                if a["side_yaw"] != b["side_yaw"]
+                and "landmark" not in (a["role"], b["role"]))
+    order_of(doc, pair[1]["group_id"])["height_cm"] = \
+        order_of(doc, pair[0]["group_id"])["height_cm"]
+    problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
+    assert any("are neighbours, both wear" in p for p in problems), problems
+
+
+def test_grouped_orders_fails_closed_when_slot_requests_defeat_the_tiers():
+    # A tier is a FLOOR on a group's height: the tallest slot request wins over
+    # the hint. Slots that all ask for ~3600 put a "low" group at 3600 beside a
+    # "mid" group at 3800 -- 200 cm apart. That must raise, not be emitted.
+    layout = copy.deepcopy(LAYOUT)
+    slots = layout["building_slots"]["slots"]
+    for slot in slots:
+        slot["height_band"] = [3500.0, 3700.0]
+    raised = emitted = 0
+    for seed in range(1, 25):
+        for block_id in BLOCK_IDS:
+            try:
+                doc = grouped_orders(layout, block_id, seed=seed)
+            except ValueError as exc:
+                assert "look-alike neighbours" in str(exc)
+                raised += 1
+            else:
+                emitted += 1
+                assert validate_groups(doc, layout, block_id) == []
+    assert raised > 0            # the adversarial input really bites
+    assert raised + emitted == 24 * len(BLOCK_IDS)
+
+
+def test_tier_choice_raises_when_every_tier_is_taken():
+    from ldyf.sgd_grouping import TIER_HINTS_CM, _family_and_hint
+    taken = {("SFD", tier) for tier, _hint in TIER_HINTS_CM}
+    with pytest.raises(ValueError):
+        _family_and_hint("g", SEED, None, False, taken)
+    # two taken leaves exactly the third
+    for tier, _hint in TIER_HINTS_CM:
+        got = _family_and_hint("g", SEED, None, False, taken - {("SFD", tier)})
+        assert got[1] == tier
+
+
+def test_validate_holds_the_landmark_to_the_landmark_band():
+    # the check used to read the ORDINARY band top (5200), so a 4700 cm
+    # "landmark" over 3800 cm neighbours validated clean
+    from ldyf.sgd_buildings import LANDMARK_HEIGHT_BAND_CM
+    doc = broken()
+    for order in doc["orders"]:
+        if order["role"] == "landmark":
+            order["height_cm"] = LANDMARK_HEIGHT_BAND_CM[0] - 100.0
+        else:
+            order["height_cm"] = min(order["height_cm"], 3800.0)
+    problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
+    assert any("below the landmark band floor" in p for p in problems), problems

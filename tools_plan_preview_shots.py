@@ -69,8 +69,15 @@ def main() -> int:
     # Buildings ring every block, so a camera standing inside a block polygon
     # (or looking through one) sees a wall. One preview shot really did render
     # half a frame of black building because its bearing was typed rather than
-    # checked. Every bearing is now validated against the block polygons and
-    # rotated to the nearest one that can actually see its target.
+    # checked. Every bearing EXCEPT THE OVERVIEW's is now validated against the
+    # block polygons and rotated to the nearest one that can see its target.
+    #
+    # The overview is exempt on purpose and that is a real limit, not an
+    # oversight to be read past: it looks down at the whole city from 140 m, its
+    # target is a point inside a block, and its centre ray does pass through
+    # buildings on the way there. It is a shot OF the buildings. The test is
+    # also 2-D and checks the centre ray only, so a building can still fill part
+    # of any frame; the frames are looked at for that reason.
     layout = json.loads((EV / "city_layout.json").read_text(encoding="utf-8"))
     # SGD facades overhang the block edge (SFD: 95 cm) and stand up to 9000 cm
     # tall, so a camera a few centimetres outside the block polygon is inside a

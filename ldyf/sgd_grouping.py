@@ -164,6 +164,7 @@ TIER_HINTS_CM: tuple[tuple[str, float], ...] = (
 #: SFD floors (130 cm each, measured).
 NEIGHBOUR_HEIGHT_STEP_CM = 390.0
 
+
 #: The landmark is always this much taller than the tallest ordinary group of its
 #: block, so it stays the block's landmark after clamping.
 LANDMARK_MARGIN_CM = 500.0
@@ -857,31 +858,36 @@ def group_slots(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> list[
 
 def _family_and_hint(group_id: str, seed: int, avoid: str | None,
                      landmark: bool,
-                     avoid_tier: str | None = None) -> tuple[str, str, float]:
+                     taken: Any = ()) -> tuple[str, str, float]:
     """``(family, tier, hint)`` for one group.
 
-    Tiers are tried in a digest-rotated order and the first whose family differs
-    from ``avoid`` (the previous group of the same side) wins, so two groups
-    adjacent along a side never look alike.
+    Tiers are tried in a digest-rotated order. ``taken`` holds the
+    ``(family, tier)`` of every neighbour already decided -- the next group along
+    the side AND the group round the corner -- and the first tier whose
+    ``(family, tier)`` is not in it wins. So two neighbours never look alike:
+    they differ in family where the palette offers one, and in HEIGHT where it
+    does not, which is every case now that ``SFD`` is the only family whose
+    walls exist in this project.
 
-    When no tier offers a different family -- the palette is down to ``SFD``
-    alone, the only family whose walls exist in this project -- the first tier
-    other than ``avoid_tier`` wins instead, so the neighbours differ in HEIGHT.
+    ``avoid`` is the family preference handed to ``family_for`` (the previous
+    group of the same side); it only has an effect in a multi-family palette.
+
+    A block's groups form a ring, so a group has at most two neighbours and
+    three tiers always leave one free. If they ever do not, this raises rather
+    than emit a flat wall.
     """
+    taken = {(str(f), str(t)) for f, t in (taken or ())}
     offset = _digest("sgd_group_tier", group_id, seed) % len(TIER_HINTS_CM)
     rotation = TIER_HINTS_CM[offset:] + TIER_HINTS_CM[:offset]
     if landmark:
         tier, hint = rotation[0]
         return _sgd.family_for(group_id, hint, seed, landmark=True), tier, hint
-    family, tier, hint = None, rotation[0][0], rotation[0][1]
     for tier, hint in rotation:
         family = _sgd.family_for(group_id, hint, seed, avoid=avoid)
-        if family != avoid:
+        if (str(family), str(tier)) not in taken:
             return family, tier, hint
-    for tier, hint in rotation:
-        if tier != avoid_tier:
-            return _sgd.family_for(group_id, hint, seed, avoid=avoid), tier, hint
-    return family, tier, hint
+    raise ValueError("group %r has no (family, tier) left: neighbours hold %s"
+                     % (group_id, sorted(taken)))
 
 
 def _slot_requests_cm(layout: Mapping[str, Any], seed: int) -> dict[str, float]:
@@ -916,7 +922,16 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
     groups = group_slots(layout, block_id, seed=seed)
     requests = _slot_requests_cm(layout, seed)
     previous: dict[float, str] = {}
-    previous_tier: dict[float, str] = {}
+    # who stands next to whom, by geometry: along a side and round a corner
+    neighbours: dict[str, set[str]] = {str(g["group_id"]): set() for g in groups}
+    for _i, _j in neighbour_pairs(groups):
+        neighbours[str(groups[_i]["group_id"])].add(str(groups[_j]["group_id"]))
+        neighbours[str(groups[_j]["group_id"])].add(str(groups[_i]["group_id"]))
+    # the landmark is its own tier, taller than every ordinary group, and it is
+    # known before anything else is decided
+    look_of: dict[str, tuple[str, str]] = {
+        str(g["group_id"]): (str(_sgd.LANDMARK_FAMILY), "landmark")
+        for g in groups if g["role"] == "landmark"}
     orders: list[dict] = []
     clamps: list[dict] = []
     landmark_group: dict | None = None
@@ -945,7 +960,8 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
         if group_id in _before_landmark:
             _avoid = _sgd.LANDMARK_FAMILY
         family, _tier_name, hint = _family_and_hint(
-            group_id, seed, _avoid, is_landmark, previous_tier.get(side_yaw))
+            group_id, seed, _avoid, is_landmark,
+            {look_of[n] for n in neighbours[str(group_id)] if n in look_of})
         # The landmark counts as a neighbour on its side. It is PINNED to
         # LANDMARK_FAMILY, and since that family is no longer exclusive (NYG
         # rendered as shafts, so NYAF now serves both roles) the ordinary group
@@ -953,8 +969,8 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
         # NYAF too -- which is exactly what made block_1_1's east:0 and east:1
         # share a family. Recording it closes that hole.
         previous[side_yaw] = family
-        # the landmark is its own tier: it is taller than every ordinary group
-        previous_tier[side_yaw] = "landmark" if is_landmark else _tier_name
+        look_of[str(group_id)] = (str(family),
+                                  "landmark" if is_landmark else _tier_name)
         wanted = [hint] + [requests[sid] for sid in group["slot_ids"]
                            if sid in requests]
         requested = _f3(max(wanted))
@@ -973,7 +989,7 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
     if landmark_group is not None:
         group_id = landmark_group["group_id"]
         family, _tier_name, _hint = _family_and_hint(group_id, seed, None, True)
-        production_target = float(_sgd.HEIGHT_BAND_CM[family][1])
+        production_target = float(_sgd.LANDMARK_HEIGHT_BAND_CM[0])
         requested = _f3(max(LANDMARK_MARGIN_CM + ordinary_top,
                             float(_sgd.LANDMARK_FLOOR_CM),
                             production_target))
@@ -987,6 +1003,14 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
 
     orders.sort(key=lambda o: o["id"])
     clamps.sort(key=lambda c: c["id"])
+    # Fail closed. A tier is a FLOOR on a group's height (the tallest slot
+    # request wins over the hint), so a layout whose slots ask for more than a
+    # tier hint can put two neighbours at the same height in spite of the tier
+    # rotation. That must not leave this function as a document.
+    _flat = _neighbour_problems(groups, orders)
+    if _flat:
+        raise ValueError("grouped_orders would emit look-alike neighbours: %s"
+                         % "; ".join(_flat[:3]))
     return {
         "schema_version": SCHEMA_VERSION,
         "orders": orders,
@@ -1007,6 +1031,95 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
         "seed": int(seed),
         "groups": groups,
     }
+
+
+def neighbour_pairs(groups: Any) -> list[tuple[int, int]]:
+    """Index pairs of groups that stand next to each other in one block.
+
+    Two kinds, both topological rather than "closer than N cm":
+
+    * consecutive groups along a side;
+    * at each of the block's four corners, the group nearest that corner on
+      each of the two sides that meet there.
+
+    The corner matters. The rule used to look along one side at a time, and on
+    the real city 17 pairs of buildings that meet at a block corner came out at
+    the same height in the same family -- one L-shaped mass wrapping the corner,
+    which is exactly what the rectangles-only rule forbids. A distance threshold
+    cannot stand in for this: corner gaps on the real layout run from 150 cm to
+    1080 cm (the corner owner can be much deeper than its neighbour) and overlap
+    the gaps between groups that are not neighbours at all.
+
+    A group whose rectangle cannot be read is skipped; that is reported by the
+    geometry checks, not here.
+    """
+    boxes: dict[int, tuple[float, float, float, float]] = {}
+    by_side: dict[float, list[int]] = {}
+    for i, g in enumerate(groups):
+        if not isinstance(g, Mapping):
+            continue
+        try:
+            boxes[i] = _rect.as_bounds(g)
+            by_side.setdefault(float(g.get("side_yaw")), []).append(i)
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not boxes:
+        return []
+    pairs: set[tuple[int, int]] = set()
+    for side_yaw, idx in by_side.items():
+        axis = 2 if side_yaw in (SIDE_YAW["east"], SIDE_YAW["west"]) else 0
+        ordered = sorted(idx, key=lambda i: boxes[i][axis] + boxes[i][axis + 1])
+        for a, b in zip(ordered, ordered[1:]):
+            pairs.add((min(a, b), max(a, b)))
+    x0 = min(b[0] for b in boxes.values())
+    x1 = max(b[1] for b in boxes.values())
+    y0 = min(b[2] for b in boxes.values())
+    y1 = max(b[3] for b in boxes.values())
+
+    def reach(i: int, cx: float, cy: float) -> float:
+        bx0, bx1, by0, by1 = boxes[i]
+        dx = max(bx0 - cx, 0.0, cx - bx1)
+        dy = max(by0 - cy, 0.0, cy - by1)
+        return math.hypot(dx, dy)
+
+    for cx, cy in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+        along_x = by_side.get(SIDE_YAW["south"] if cy == y0 else SIDE_YAW["north"])
+        along_y = by_side.get(SIDE_YAW["west"] if cx == x0 else SIDE_YAW["east"])
+        if not along_x or not along_y:
+            continue
+        a = min(along_x, key=lambda i: (reach(i, cx, cy), i))
+        b = min(along_y, key=lambda i: (reach(i, cx, cy), i))
+        pairs.add((min(a, b), max(a, b)))
+    return sorted(pairs)
+
+
+def _neighbour_problems(groups: Any, orders: Any) -> list[str]:
+    """Pairs of neighbouring groups that would read as one mass.
+
+    Neighbours are the pairs :func:`neighbour_pairs` returns -- along a side
+    or round a corner. The same family is allowed (SFD is
+    the only family with real walls) but then the planned heights must differ by
+    :data:`NEIGHBOUR_HEIGHT_STEP_CM`.
+    """
+    problems: list[str] = []
+    order_by_id = {o.get("id"): o for o in orders if isinstance(o, Mapping)}
+    rects = list(groups)
+    for i, j in neighbour_pairs(rects):
+        first, second = rects[i], rects[j]
+        o1 = order_by_id.get(first.get("group_id")) or {}
+        o2 = order_by_id.get(second.get("group_id")) or {}
+        f1, f2 = o1.get("family"), o2.get("family")
+        if not f1 or f1 != f2:
+            continue
+        step = abs(float(o1.get("height_cm") or 0.0)
+                   - float(o2.get("height_cm") or 0.0))
+        if step < NEIGHBOUR_HEIGHT_STEP_CM - GEOM_EPS_CM:
+            problems.append(
+                "groups %r and %r are neighbours, both wear %s and differ by "
+                "only %s cm in height (need %s)"
+                % (first.get("group_id"), second.get("group_id"), f1,
+                   _f3(step), NEIGHBOUR_HEIGHT_STEP_CM))
+    return problems
 
 
 def _order(group: Mapping[str, Any], family: str, clamp: Mapping[str, Any],
@@ -1262,10 +1375,15 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
                             % (landmarks[0].get("id"), landmarks[0].get("family"),
                                _sgd.LANDMARK_FAMILY))
         landmark_height = float(landmarks[0].get("height_cm") or 0.0)
-        target = float(_sgd.HEIGHT_BAND_CM[_sgd.LANDMARK_FAMILY][1])
-        if landmark_height < 0.90 * target - GEOM_EPS_CM:
-            problems.append("landmark %r height %s is below 90%% of target %s"
-                            % (landmarks[0].get("id"), landmark_height, target))
+        # The landmark's own band, not the ordinary one. This used to read
+        # HEIGHT_BAND_CM[LANDMARK_FAMILY], which became the ORDINARY SFD band
+        # (5200) the moment the landmark stopped having a family of its own --
+        # so a 4700 cm "landmark" validated clean.
+        target = float(_sgd.LANDMARK_HEIGHT_BAND_CM[0])
+        if landmark_height < target - GEOM_EPS_CM:
+            problems.append("landmark %r height %s is below the landmark band "
+                            "floor %s" % (landmarks[0].get("id"),
+                                          landmark_height, target))
         ordinary = [o for o in orders if isinstance(o, Mapping)
                     and o.get("role") == "ordinary"]
         if ordinary:
@@ -1417,22 +1535,11 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
         ordered_groups = sorted(
             side_groups,
             key=lambda g: (_as_pair(g.get("center")) or (0.0, 0.0))[1 if vertical else 0])
-        for first, second in zip(ordered_groups, ordered_groups[1:]):
-            o1 = order_by_id.get(first.get("group_id")) or {}
-            o2 = order_by_id.get(second.get("group_id")) or {}
-            f1, f2 = o1.get("family"), o2.get("family")
-            # Same family is allowed -- SFD is the only family with real walls
-            # -- but then the two must differ in height, or the side is one
-            # flat wall.
-            if f1 and f1 == f2:
-                step = abs(float(o1.get("height_cm") or 0.0)
-                           - float(o2.get("height_cm") or 0.0))
-                if step < NEIGHBOUR_HEIGHT_STEP_CM - GEOM_EPS_CM:
-                    problems.append(
-                        "groups %r and %r on side yaw %s both wear %s and "
-                        "differ by only %s cm in height (need %s)"
-                        % (first.get("group_id"), second.get("group_id"),
-                           side_yaw, f1, _f3(step), NEIGHBOUR_HEIGHT_STEP_CM))
+        del ordered_groups
+    # Same family is allowed -- SFD is the only family with real walls -- but
+    # then neighbours must differ in height. One predicate, shared with the
+    # generator, and it sees corners as well as sides.
+    problems.extend(_neighbour_problems(groups, orders))
 
     # -- counts, clamps, composition ------------------------------------------
     counts = doc.get("counts")
