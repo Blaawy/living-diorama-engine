@@ -45,8 +45,22 @@ def _linear(rgb):
     return unreal.LinearColor(float(rgb[0]), float(rgb[1]), float(rgb[2]), 1.0)
 
 
-def ensure_tree_materials(*, leaf_tint=(0.46, 0.60, 0.22),
-                          leaf_subsurface=(0.32, 0.50, 0.12)) -> dict:
+#: Leaf colour, tuned on rendered frames rather than picked on a colour wheel.
+#:
+#: The first values (0.46, 0.60, 0.22) / (0.32, 0.50, 0.12) read as fluorescent
+#: lime: a bright yellow-green multiplying an already bright cap texture. The
+#: Director rejected them as synthetic. Dropping both in proportion
+#: (0.24, 0.35, 0.15) over-corrected to a washed-out mint, because the
+#: subsurface term then dominated the darker base colour. These values are the
+#: third render: green-dominant rather than yellow-dominant, and the subsurface
+#: lowered FURTHER than the tint so the lit side carries the colour and the
+#: shaded side stays readable without glowing.
+#:
+#: Vegetation architecture is untouched -- same authored meshes, same
+#: MSM_TWO_SIDED_FOLIAGE, and the SkyLight stays MOVABLE, which is what keeps
+#: shadowed foliage from rendering black at all.
+def ensure_tree_materials(*, leaf_tint=(0.16, 0.34, 0.11),
+                          leaf_subsurface=(0.10, 0.22, 0.06)) -> dict:
     """Create the leaf master and the leaf/bark instances if absent."""
     eal = unreal.EditorAssetLibrary
     at = unreal.AssetToolsHelpers.get_asset_tools()
