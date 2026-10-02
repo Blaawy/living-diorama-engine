@@ -171,7 +171,9 @@ def stage() -> None:
             shutil.copy2(P2 / "proof" / f, ev / "proof" / f)
     # worker reports verbatim
     rt = ev / "deepseek_workers"
-    rt.mkdir()
+    # the generic subfolder pass above may already have shipped this folder's
+    # text evidence, so the directory can exist by now
+    rt.mkdir(exist_ok=True)
     for run, task, name in (
             ("yf_p2_build1", "roads", "p2_build_roads.md"),
             ("yf_p2_build1", "interp", "p2_build_record_interp.md"),
