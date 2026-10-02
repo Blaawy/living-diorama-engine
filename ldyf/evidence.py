@@ -116,7 +116,8 @@ def admit_rule_manifest_version(doc: Any) -> str:
     if not isinstance(doc, dict):
         raise EvidenceError("rule_manifest must be a document")
     version = doc.get("schema_version")
-    if not isinstance(version, str) or version not in RULE_MANIFEST_SCHEMAS:
+    # exact `str`: a str subclass can lie about equality and hashing
+    if type(version) is not str or version not in RULE_MANIFEST_SCHEMAS:
         raise EvidenceError(
             f"rule_manifest declares schema_version {version!r}; admitted versions "
             f"are {sorted(RULE_MANIFEST_SCHEMAS)}"

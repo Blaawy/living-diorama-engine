@@ -87,6 +87,7 @@ __all__ = [
     "LEDGER_SCHEMAS",
     "admit_ledger_version",
     "migrate_ledger",
+    "EXTRACTOR_RULE_TYPES",
     "save",
     "load",
     "compute_entry_hash",
@@ -176,6 +177,21 @@ V3_ONLY_EXTRACTORS: frozenset[str] = frozenset({
     "pedestrian_effect_v1",
 })
 
+#: Which rule classes each extractor may measure. An extractor's NAME is not a
+#: licence to measure anything: `closure_effect_v1` summarises trip statistics
+#: and would cheerfully summarise a speed-limit or a demand run, so a Phase 3
+#: measurement could enter a legacy ledger simply by being filed under the
+#: legacy extractor's name. A measured effect must be attributed to a rule on
+#: the ledger, and that rule's class must be one its extractor is for.
+#: `None` means any director rule (the pedestrian check runs on every class).
+EXTRACTOR_RULE_TYPES: dict[str, frozenset[str] | None] = {
+    "closure_effect_v1": frozenset({"edge_closure", "lane_closure"}),
+    "speed_limit_effect_v1": frozenset({"speed_limit"}),
+    "traffic_light_effect_v1": frozenset({"traffic_light_program"}),
+    "demand_flow_effect_v1": frozenset({"demand_flow"}),
+    "pedestrian_effect_v1": None,
+}
+
 # Extractors that MUST NOT be trusted to run only from append time: verify_ledger
 # re-validates their payload invariants without re-running them.
 #: The ONLY extractor names this world will ever accept. A name that is not
@@ -229,6 +245,27 @@ class _ExtractorRegistry(dict):
 
 
 CONSEQUENCE_EXTRACTORS: _ExtractorRegistry = _ExtractorRegistry()
+
+
+def _extractor(name: Any):
+    """The registered extractor called `name`, loading the Phase 3 ones on demand.
+
+    The four Phase 3 extractors live in `ldyf.consequence` and register when it
+    is imported. Nothing imported it from here, so a perfectly valid v3 ledger
+    could only be verified if some OTHER module happened to have been imported
+    first -- the current version could not be read through its own module. An
+    approved name that is not registered yet triggers that import.
+    """
+    if name not in CONSEQUENCE_EXTRACTORS and name in APPROVED_EXTRACTORS:
+        import importlib
+
+        importlib.import_module("ldyf.consequence")
+    if name not in CONSEQUENCE_EXTRACTORS:
+        raise LedgerError(
+            f"unknown extractor {name!r}; only registered deterministic "
+            f"extractors may create simulation truth: {sorted(APPROVED_EXTRACTORS)}"
+        )
+    return CONSEQUENCE_EXTRACTORS[name]
 
 
 class LedgerError(RuntimeError):
@@ -377,11 +414,7 @@ def _validate_provenance(prov: dict[str, Any]) -> None:
                 "a simulation entry must name the deterministic extractor that derived it. "
                 "A consequence with no extractor is an assertion, not simulation truth."
             )
-        if ex not in CONSEQUENCE_EXTRACTORS:
-            raise LedgerError(
-                f"unknown extractor {ex!r}; only registered deterministic extractors "
-                f"may create simulation truth: {sorted(CONSEQUENCE_EXTRACTORS)}"
-            )
+        _extractor(ex)          # raises on an unknown name; loads Phase 3 on demand
         if not prov.get("run_id"):
             raise LedgerError("a simulation entry must carry the sealed result's run_id")
         rec = prov.get("record_sha256")
@@ -405,12 +438,45 @@ def admit_ledger_version(ledger: Any) -> str:
     if not isinstance(ledger, dict):
         raise LedgerError(f"a ledger must be a document, got {type(ledger).__name__}")
     version = ledger.get("schema_version")
-    if not isinstance(version, str) or version not in LEDGER_SCHEMAS:
+    # `type(...) is str`, not isinstance: a str SUBCLASS can override equality
+    # and hashing, compare equal to one version here and unequal to it at the
+    # mixing check two lines later, and still serialise as a legacy version.
+    if type(version) is not str or version not in LEDGER_SCHEMAS:
         raise LedgerError(
             f"unexpected schema_version {version!r}; admitted versions are "
             f"{sorted(LEDGER_SCHEMAS)}"
         )
     return version
+
+
+_LEDGER_SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
+_LEDGER_VALIDATORS: dict[str, Any] = {}
+
+
+def _check_declared_schema(ledger: dict[str, Any], version: str) -> None:
+    """Apply the JSON schema of the version the ledger declares. All of it.
+
+    Declaring a version used to select two name checks and nothing else, so a
+    "v2" document could carry extra top-level fields, extra entry fields, a
+    whole demand_flow payload under a legacy change type, or no `entries` at
+    all, and still verify. The schema is the contract; this is where it is
+    enforced, on every append and every load, and a violation is a LedgerError
+    like any other.
+    """
+    from jsonschema import Draft202012Validator
+
+    if version not in _LEDGER_VALIDATORS:
+        _LEDGER_VALIDATORS[version] = Draft202012Validator(json.loads(
+            (_LEDGER_SCHEMA_DIR / LEDGER_SCHEMAS[version]).read_text(encoding="utf-8")))
+    try:
+        errors = sorted(_LEDGER_VALIDATORS[version].iter_errors(ledger),
+                        key=lambda e: [str(x) for x in e.path])
+    except Exception as exc:                      # e.g. a NaN the validator chokes on
+        raise LedgerError(f"{version}: document cannot be validated: {exc}") from exc
+    if errors:
+        e = errors[0]
+        where = "/".join(str(x) for x in e.path) or "<root>"
+        raise LedgerError(f"{version} schema violation at {where}: {e.message[:300]}")
 
 
 def _check_entry_admitted_by_version(version: str, entry: dict[str, Any],
@@ -435,7 +501,8 @@ def _check_entry_admitted_by_version(version: str, entry: dict[str, Any],
         )
 
 
-def migrate_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
+def migrate_ledger(ledger: dict[str, Any], *,
+                   evidence_dir: str | Path | None = None) -> dict[str, Any]:
     """A ledger at the CURRENT version, from one at any admitted version.
 
     The migration is deterministic and it is deliberately almost nothing:
@@ -446,18 +513,26 @@ def migrate_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
     sealed against. The input is verified before and the output after; the
     input is never modified, and the sealed file it came from is never touched.
     A ledger already at the current version is returned as an equal copy.
+
+    What "refuses a tampered ledger" means, exactly. The hashes are unkeyed, so
+    a ledger whose entries were altered AND whose hashes were recomputed is
+    internally consistent and cannot be told from an honest one by looking at
+    it alone. Pass `evidence_dir` and every simulation entry is re-derived from
+    the sealed artefacts on disk before and after, which is the only check that
+    catches a resealed fabrication. Without it, migration guarantees exactly
+    what `verify_ledger` without evidence guarantees, and no more.
     """
-    verify_ledger(ledger)
+    verify_ledger(ledger, evidence_dir=evidence_dir)
     out = copy.deepcopy(ledger)
     out["schema_version"] = SCHEMA_VERSION
-    verify_ledger(out)
+    verify_ledger(out, evidence_dir=evidence_dir)
     if out["entries"] != ledger["entries"] or out["ledger_hash"] != ledger["ledger_hash"]:
         raise LedgerError("migration altered sealed content; refusing")  # pragma: no cover
     return out
 
 
 def new_ledger(world_id: str, *, schema_version: str = SCHEMA_VERSION) -> dict[str, Any]:
-    if schema_version not in LEDGER_SCHEMAS:
+    if type(schema_version) is not str or schema_version not in LEDGER_SCHEMAS:
         raise LedgerError(
             f"cannot create a ledger at schema_version {schema_version!r}; "
             f"admitted versions are {sorted(LEDGER_SCHEMAS)}"
@@ -506,16 +581,35 @@ def _check_entry_against_chain(entries: list[dict[str, Any]], entry: dict[str, A
         if entry.get("reverses") is not None:
             raise LedgerError("only a reversal may set 'reverses'")
 
-    if prov.get("source") == "simulation" and entry.get("rule_id"):
-        # A consequence attributed to a rule must follow that rule on the chain.
-        if not any(
-            e["provenance"].get("source") == "director_rule"
-            and e.get("rule_id") == entry["rule_id"]
-            for e in entries
-        ):
+    if prov.get("source") == "simulation":
+        # A consequence is the consequence OF something. It must name a rule,
+        # that rule must precede it on the chain, and the rule must be of a
+        # class the extractor is for -- otherwise any run's statistics could be
+        # filed under any extractor's name, which is how a speed-limit or a
+        # demand measurement got into a legacy ledger as "closure_effect_v1".
+        rule_id = entry.get("rule_id")
+        if not rule_id:
             raise LedgerError(
-                f"consequence attributed to rule {entry['rule_id']!r}, but no director_rule "
+                "a simulation consequence must be attributed to a rule: rule_id is "
+                "required, and must name a director_rule entry earlier on this ledger"
+            )
+        rules = [
+            e for e in entries
+            if e["provenance"].get("source") == "director_rule"
+            and e.get("rule_id") == rule_id and e["change_type"] != "reversal"
+        ]
+        if not rules:
+            raise LedgerError(
+                f"consequence attributed to rule {rule_id!r}, but no director_rule "
                 "entry with that rule_id precedes it on the ledger"
+            )
+        extractor = prov.get("extractor")
+        allowed = EXTRACTOR_RULE_TYPES.get(extractor, frozenset())
+        if allowed is not None and not any(r["change_type"] in allowed for r in rules):
+            raise LedgerError(
+                f"extractor {extractor!r} measures {sorted(allowed)} rules, but rule "
+                f"{rule_id!r} is a {sorted({r['change_type'] for r in rules})}; a "
+                "measurement cannot be filed under another rule class's extractor"
             )
 
 
@@ -538,9 +632,9 @@ def _append_entry(
     """
     if change_type not in CHANGE_TYPES:
         raise LedgerError(f"unknown change_type {change_type!r}")
+    version = admit_ledger_version(ledger)
     _check_entry_admitted_by_version(
-        admit_ledger_version(ledger),
-        {"change_type": change_type, "provenance": provenance}, "append")
+        version, {"change_type": change_type, "provenance": provenance}, "append")
     _validate_payload(change_type, payload)
     _validate_provenance(provenance)
 
@@ -577,6 +671,8 @@ def _append_entry(
     out = dict(ledger)
     out["entries"] = entries
     out["ledger_hash"] = compute_ledger_hash(entries)
+    # the grown ledger must still be a document of the version it declares
+    _check_declared_schema(out, version)
     return out, cid
 
 
@@ -592,6 +688,26 @@ _CHANGE_BLOCK_TO_TYPE = {
 }
 
 
+def _check_manifest_matches_ledger(ledger: dict[str, Any],
+                                   rule_manifest: dict[str, Any]) -> None:
+    """A legacy ledger binds legacy rule manifests, and nothing newer.
+
+    The ledger keeps only the manifest's hash, so a v2 ledger that bound a
+    rule_manifest_v2 would look, to a reader from before Phase 3, like a legacy
+    ledger whose evidence it then cannot admit. A current ledger may bind
+    either: reading old evidence is what admission is for.
+    """
+    from .evidence import LEGACY_RULE_MANIFEST_VERSION
+
+    if (admit_ledger_version(ledger) == LEGACY_SCHEMA_VERSION
+            and rule_manifest.get("schema_version") != LEGACY_RULE_MANIFEST_VERSION):
+        raise LedgerError(
+            f"a {LEGACY_SCHEMA_VERSION} ledger binds only {LEGACY_RULE_MANIFEST_VERSION} "
+            f"manifests, got {rule_manifest.get('schema_version')!r}; migrate the "
+            "ledger with migrate_ledger first"
+        )
+
+
 def _director_provenance(rule_manifest: dict[str, Any]) -> dict[str, Any]:
     return {
         "source": "director_rule",
@@ -605,6 +721,7 @@ def append_director_rule(
 ) -> tuple[dict[str, Any], str]:
     """Record the Director's declared rule, derived from its sealed manifest."""
     verify_rule_manifest(rule_manifest)
+    _check_manifest_matches_ledger(ledger, rule_manifest)
 
     change = rule_manifest["change"]
     keys = list(change.keys())
@@ -674,6 +791,7 @@ def append_reversal(
 ) -> tuple[dict[str, Any], str]:
     """Undo a standing change by appending a reversal. The original is never removed."""
     verify_rule_manifest(rule_manifest)
+    _check_manifest_matches_ledger(ledger, rule_manifest)
     payload = {"kind": "reversal", "reverses_change_id": reverses_change_id}
     if "statement" in rule_manifest:
         payload["reason"] = rule_manifest["statement"]
@@ -839,14 +957,13 @@ def append_simulation_consequence(
     rule_id: str | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     """Record what the simulation actually produced. Evidence in, entries out."""
+    # The ledger is admitted BEFORE any extractor runs. Admission used to happen
+    # only inside the per-payload loop, so an extractor that derived no payloads
+    # returned a bad-version ledger unchanged and unrefused.
+    version = admit_ledger_version(ledger)
+    _check_declared_schema(ledger, version)
     verify_simulation_result(simulation_result)
-
-    if extractor_name not in CONSEQUENCE_EXTRACTORS:
-        raise LedgerError(
-            f"unknown extractor {extractor_name!r}; only registered deterministic "
-            f"extractors may create simulation truth: {sorted(CONSEQUENCE_EXTRACTORS)}"
-        )
-    extractor = CONSEQUENCE_EXTRACTORS[extractor_name]
+    extractor = _extractor(extractor_name)
 
     try:
         payloads = extractor(simulation_result, Path(evidence_dir))
@@ -893,8 +1010,9 @@ def verify_ledger(ledger: dict[str, Any], *, evidence_dir: str | Path | None = N
     derives. A fabricated-but-well-formed entry fails here.
     """
     version = admit_ledger_version(ledger)
+    _check_declared_schema(ledger, version)
 
-    entries = ledger.get("entries", [])
+    entries = ledger["entries"]
     prev = GENESIS_HASH
     seen: set[str] = set()
     for i, e in enumerate(entries):
@@ -959,7 +1077,7 @@ def _verify_entries_against_evidence(entries: list[dict[str, Any]], evidence_dir
                     f"sealed simulation_result.json with that hash exists under {evidence_dir}"
                 )
             doc, base = match
-            ex = CONSEQUENCE_EXTRACTORS[prov["extractor"]]
+            ex = _extractor(prov["extractor"])
             derived_cache[want] = ex(doc, base)
             rec = doc.get("artifacts", {}).get("ruled_record_frames", {}).get("sha256")
             if prov.get("record_sha256") != rec:
@@ -972,12 +1090,14 @@ def _verify_entries_against_evidence(entries: list[dict[str, Any]], evidence_dir
 
 
 def is_active(ledger: dict[str, Any], change_id: str) -> bool:
+    admit_ledger_version(ledger)
     if change_id not in {e["change_id"] for e in ledger["entries"]}:
         raise LedgerError(f"unknown change {change_id!r}")
     return not any(e.get("reverses") == change_id for e in ledger["entries"])
 
 
 def active_changes(ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    admit_ledger_version(ledger)
     reversed_ids = {e["reverses"] for e in ledger["entries"] if e.get("reverses")}
     return [
         e for e in ledger["entries"]
@@ -986,10 +1106,12 @@ def active_changes(ledger: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def changes_from_episode(ledger: dict[str, Any], episode: int) -> list[dict[str, Any]]:
+    admit_ledger_version(ledger)
     return [e for e in ledger["entries"] if e["origin_episode"] == episode]
 
 
 def history_of(ledger: dict[str, Any], change_id: str) -> list[dict[str, Any]]:
+    admit_ledger_version(ledger)
     return [
         e for e in ledger["entries"]
         if e["change_id"] == change_id or e.get("reverses") == change_id
@@ -1008,7 +1130,26 @@ def save(ledger: dict[str, Any], path: str | Path) -> str:
     return ledger["ledger_hash"]
 
 
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """JSON object hook: refuse an object that names the same key twice.
+
+    `{"schema_version": "..._v2", ..., "schema_version": "..._v3"}` is one
+    document to a last-key-wins parser and a different one to a first-key-wins
+    parser. A ledger that two readers can disagree about is not a ledger.
+    """
+    seen: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise LedgerError(f"duplicate key {key!r} in ledger document")
+        seen[key] = value
+    return seen
+
+
 def load(path: str | Path, *, evidence_dir: str | Path | None = None) -> dict[str, Any]:
-    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"),
+                         object_pairs_hook=_no_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        raise LedgerError(f"{path}: not a JSON document: {exc}") from exc
     verify_ledger(doc, evidence_dir=evidence_dir)
     return doc

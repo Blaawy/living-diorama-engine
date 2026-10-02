@@ -611,6 +611,40 @@ def test_attack_a_junction_that_selects_no_completed_trip_is_refused(tmp_path):
         extract_traffic_light_effect_v1(result, tmp_path)
 
 
+
+#: The rule class each extractor measures, as a rule manifest change block. A
+#: measurement is refused unless it is attributed to a rule of the right class.
+_RULE_CHANGE = {
+    "speed_limit_effect_v1": {"speed_limit": {"target_kind": "edge",
+                                              "target_ids": ["B1B2"], "mps": 4.0}},
+    "traffic_light_effect_v1": {"tls_program": {"tls_id": "B1", "program_id": "0"}},
+    "demand_flow_effect_v1": {"demand_flow": {
+        "flow_id": "f1", "from_edge": "A0A1", "to_edge": "B2C2",
+        "vehicles_per_hour": 120.0, "depart_begin": 0.0, "depart_end": 300.0,
+        "vtype": "DEFAULT_VEHTYPE"}},
+    "pedestrian_effect_v1": {"close_edges": {"edge_ids": ["B1B2"],
+                                             "disallow": ["passenger"]}},
+    "closure_effect_v1": {"close_edges": {"edge_ids": ["B1B2"],
+                                          "disallow": ["passenger"]}},
+}
+
+
+def ledger_with_rule_for(extractor: str, rule_id: str = "the_rule"):
+    from ldyf.evidence import seal_rule_manifest
+    from ldyf.persistent_changes import append_director_rule
+
+    manifest = seal_rule_manifest({
+        "schema_version": "rule_manifest_v2", "rule_id": rule_id, "episode_number": 1,
+        "declared_utc": "2026-10-02T00:00:00Z", "statement": "A test rule.",
+        "applies_at_sim_second": 60.0, "permanent": True, "baseline_required": True,
+        "prediction": {"text": "Something measurable changes.",
+                       "declared_before_run": True, "metric": "trips_completed",
+                       "direction": "decrease"},
+        "change": _RULE_CHANGE[extractor], "manifest_hash": "",
+    })
+    ledger, _ = append_director_rule(new_ledger("riverside"), rule_manifest=manifest)
+    return ledger
+
 # ==========================================================================
 # Through the ledger
 # ==========================================================================
@@ -630,15 +664,18 @@ def test_each_extractor_round_trips_through_the_ledger(tmp_path, extractor, over
     (tmp_path / "simulation_result.json").write_text(json.dumps(result), encoding="utf-8")
 
     ledger, ids = append_simulation_consequence(
-        new_ledger("riverside"),
+        ledger_with_rule_for(extractor),
         simulation_result=result,
         extractor_name=extractor,
         evidence_dir=tmp_path,
+        rule_id="the_rule",
     )
     verify_ledger(ledger)
     verify_ledger(ledger, evidence_dir=tmp_path)            # re-derives from the sealed bytes
     assert ids
-    for entry in ledger["entries"]:
+    measured = [e for e in ledger["entries"] if e["change_type"] == "measured_effect"]
+    assert len(measured) == len(ids) == len(ledger["entries"]) - 1   # entry 0 is the rule
+    for entry in measured:
         payload = entry["payload"]
         assert payload["metric"] in _EFFECT_UNITS
         assert payload["unit"] == _EFFECT_UNITS[payload["metric"]]
@@ -651,12 +688,17 @@ def test_an_edited_effect_is_refused_by_evidence_aware_verification(tmp_path):
     result = make_evidence(tmp_path)
     (tmp_path / "simulation_result.json").write_text(json.dumps(result), encoding="utf-8")
     ledger, _ = append_simulation_consequence(
-        new_ledger("riverside"), simulation_result=result,
+        ledger_with_rule_for("speed_limit_effect_v1"), simulation_result=result,
         extractor_name="speed_limit_effect_v1", evidence_dir=tmp_path,
+        rule_id="the_rule",
     )
     tampered = json.loads(json.dumps(ledger))
-    tampered["entries"][0]["payload"]["ruled_value"] = 999.0
-    tampered["entries"][0]["payload"]["delta"] = 889.0
+    assert tampered["entries"][1]["change_type"] == "measured_effect"
+    # a tamper that stays self-consistent (delta == ruled - baseline), so that
+    # only re-derivation from the sealed evidence can refuse it
+    edited = tampered["entries"][1]["payload"]
+    edited["ruled_value"] = round(edited["baseline_value"] + 889.0, 2)
+    edited["delta"] = 889.0
     prev = "0" * 64
     for entry in tampered["entries"]:
         entry["prev_hash"] = prev

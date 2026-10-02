@@ -100,8 +100,8 @@ def test_the_legacy_schema_files_are_unchanged_since_they_were_sealed_against(na
 
 
 def test_the_sealed_phase_1_ledger_is_admitted_unchanged():
-    """Never skipped: the decisive compatibility check."""
-    jsonschema = pytest.importorskip("jsonschema")
+    """Never skipped: the decisive compatibility check. jsonschema is required."""
+    import jsonschema
     doc = _sealed("persistent_changes.json")
     before = json.dumps(doc, sort_keys=True)
     assert pc.admit_ledger_version(doc) == pc.LEGACY_SCHEMA_VERSION
@@ -137,7 +137,7 @@ def test_a_new_ledger_declares_the_current_version():
 
 
 def test_a_v3_ledger_with_demand_flow_validates_against_the_v3_schema_only():
-    jsonschema = pytest.importorskip("jsonschema")
+    import jsonschema
     rule = ev.seal_rule_manifest(_rule(ev.RULE_MANIFEST_VERSION, DEMAND))
     lg, _ = pc.append_director_rule(pc.new_ledger("riverside"), rule_manifest=rule)
     pc.verify_ledger(lg)
@@ -278,7 +278,7 @@ def test_migration_is_deterministic_and_idempotent():
 
 
 def test_a_migrated_ledger_validates_against_the_v3_schema():
-    jsonschema = pytest.importorskip("jsonschema")
+    import jsonschema
     out = pc.migrate_ledger(_sealed("persistent_changes.json"))
     jsonschema.validate(out, _schema("persistent_changes_v3.schema.json"))
 

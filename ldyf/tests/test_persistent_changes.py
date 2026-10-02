@@ -134,6 +134,20 @@ def make_rule(episode=1, rule_id="close_the_bridge", edges=("B1C1",), disallow=(
         {"close_edges": {"edge_ids": list(edges), "disallow": list(disallow)}}))
 
 
+def ruled_ledger(episode=1):
+    """A ledger that already carries the closure rule a measurement is OF.
+
+    A measured effect must be attributed to a rule on the ledger, of a class its
+    extractor is for; an unattributed measurement is refused. Tests that are
+    about something else start from here.
+    """
+    lg, _ = append_director_rule(new_ledger("riverside"), rule_manifest=make_rule(episode=episode))
+    return lg
+
+
+RULE = "close_the_bridge"
+
+
 def sim_prov(result: dict) -> dict:
     return {"source": "simulation", "simulation_result_sha256": result["result_hash"],
             "run_id": "ruled", "extractor": "closure_effect_v1",
@@ -197,7 +211,7 @@ def test_attack_forged_entry_with_bogus_seal_hash_is_rejected_on_verify(tmp_path
     forged["provenance"] = {"source": "simulation", "simulation_result_sha256": "0" * 64,
                             "run_id": "ruled", "extractor": "closure_effect_v1"}
     bad = _resealed(lg, lg["entries"] + [forged])
-    with pytest.raises(LedgerError, match="record sha256"):
+    with pytest.raises(LedgerError, match="record sha256|record_sha256"):
         verify_ledger(bad)
 
 
@@ -207,13 +221,12 @@ def test_attack_forged_measured_effect_with_unknown_metric_is_rejected(tmp_path)
     forged = copy.deepcopy(lg["entries"][0])
     forged["change_id"] = "chg_" + "b" * 16
     forged["change_type"] = "measured_effect"
-    forged["rule_id"] = None
     forged["payload"] = {"kind": "measured_effect", "metric": "citizens_made_happy",
                          "baseline_value": 0.0, "ruled_value": 1000.0, "delta": 1000.0,
                          "unit": "", "source_field": "tripinfo.citizens_made_happy"}
     forged["provenance"] = sim_prov(result)
     bad = _resealed(lg, lg["entries"] + [forged])
-    with pytest.raises(LedgerError, match="unknown metric"):
+    with pytest.raises(LedgerError, match="unknown metric|schema violation at entries/1/payload"):
         verify_ledger(bad)
 
 
@@ -401,24 +414,29 @@ def test_every_director_change_kind_round_trips(change, expected_type):
 
 def test_simulation_consequence_is_computed_from_consistent_files(tmp_path):
     result = make_evidence(tmp_path)
-    lg, ids = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
-                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+    lg, ids = append_simulation_consequence(ruled_ledger(), simulation_result=result,
+                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                            rule_id=RULE)
     verify_ledger(lg)
-    by = {e["payload"]["metric"]: e["payload"] for e in lg["entries"]}
+    measured = [e for e in lg["entries"] if e["change_type"] == "measured_effect"]
+    assert len(measured) == len(ids) == len(lg["entries"]) - 1     # entry 0 is the rule
+    by = {e["payload"]["metric"]: e["payload"] for e in measured}
     assert by["trips_completed"]["delta"] == -1.0           # 2 baseline trips -> 1 ruled
     assert by["avg_time_loss_s"]["delta"] == 20.0
     assert "walks_completed" not in by and "avg_walk_length_m" not in by   # unchanged: not remembered
-    for e in lg["entries"]:
+    for e in measured:
         assert e["provenance"]["extractor"] == "closure_effect_v1"
         assert e["provenance"]["record_sha256"] == result["artifacts"]["ruled_record_frames"]["sha256"]
 
 
 def test_identical_evidence_yields_identical_ledger_hash(tmp_path):
     result = make_evidence(tmp_path)
-    a, _ = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
-                                         extractor_name="closure_effect_v1", evidence_dir=tmp_path)
-    b, _ = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
-                                         extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+    a, _ = append_simulation_consequence(ruled_ledger(), simulation_result=result,
+                                         extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                         rule_id=RULE)
+    b, _ = append_simulation_consequence(ruled_ledger(), simulation_result=result,
+                                         extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                         rule_id=RULE)
     assert a["ledger_hash"] == b["ledger_hash"]
 
 
@@ -632,7 +650,6 @@ def test_attack_B2_well_formed_forgery_fails_evidence_aware_verify(tmp_path):
     forged = copy.deepcopy(lg["entries"][0])
     forged["change_id"] = "chg_" + "c" * 16
     forged["change_type"] = "measured_effect"
-    forged["rule_id"] = None
     forged["payload"] = {"kind": "measured_effect", "metric": "trips_completed",
                          "baseline_value": 0.0, "ruled_value": 100.0, "delta": 100.0,
                          "unit": "trips", "source_field": "tripinfo.trips_completed"}
@@ -650,13 +667,15 @@ def test_attack_B2_real_entry_with_swapped_payload_fails_evidence_aware_verify(t
     extractor does not derive."""
     result = make_evidence(tmp_path)
     (tmp_path / "simulation_result.json").write_text(json.dumps(result), encoding="utf-8")
-    lg, ids = append_simulation_consequence(new_ledger("riverside"), simulation_result=result,
-                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path)
+    lg, ids = append_simulation_consequence(ruled_ledger(), simulation_result=result,
+                                            extractor_name="closure_effect_v1", evidence_dir=tmp_path,
+                                            rule_id=RULE)
     verify_ledger(lg, evidence_dir=tmp_path)             # genuine: passes
     tampered = copy.deepcopy(lg["entries"])
-    tampered[0]["payload"]["baseline_value"] = 0.0
-    tampered[0]["payload"]["ruled_value"] = 5.0
-    tampered[0]["payload"]["delta"] = 5.0
+    assert tampered[1]["change_type"] == "measured_effect"   # entry 0 is the rule
+    tampered[1]["payload"]["baseline_value"] = 0.0
+    tampered[1]["payload"]["ruled_value"] = 5.0
+    tampered[1]["payload"]["delta"] = 5.0
     bad = _resealed(lg, tampered)
     with pytest.raises(LedgerError, match="not one the extractor derives"):
         verify_ledger(bad, evidence_dir=tmp_path)
@@ -691,7 +710,7 @@ def test_attack_B4_out_of_order_episodes_and_bad_sim_time_are_rejected():
     # and re-checked on verify for a hand-edited ledger
     bad = copy.deepcopy(lg); bad["entries"][0]["applied_at_sim_second"] = -1.0
     bad = _resealed(bad, bad["entries"])
-    with pytest.raises(LedgerError, match="finite non-negative"):
+    with pytest.raises(LedgerError, match="finite non-negative|less than the minimum"):
         verify_ledger(bad)
 
 
