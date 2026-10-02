@@ -14,6 +14,13 @@ LivingDioramaYF/Binaries/
 LivingDioramaYF/Content/*
 !LivingDioramaYF/Content/PCG/
 !LivingDioramaYF/Content/LD/
+# LS_Look.uasset is render scratch: tools_look.py and tools_peek.py recreate
+# it from nothing on every preview, nine commits hold nine different blobs,
+# no intentional version exists anywhere in its history, and no level, MRQ
+# config or production module reads it. It was swept into three unrelated
+# commits by a careless `git add -A`. LS_Preview is NOT scratch -- it is
+# built by ldyf/unreal/ldyf_preview.py and shipped -- and stays tracked.
+LivingDioramaYF/Content/LD/LS_Look.uasset
 LivingDioramaYF/Plugins/*/Content/
 LivingDioramaYF/DerivedDataCache/
 LivingDioramaYF/Intermediate/
