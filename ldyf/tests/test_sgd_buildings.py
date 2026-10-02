@@ -213,15 +213,18 @@ def test_counts_and_clamps_agree_with_the_orders():
 # ------------------------------------------------------------------ palette --
 
 
-def test_palette_is_the_one_family_with_real_walls():
-    # NYAE and NYAF were dropped after the full-city render: the project's NY
-    # kits hold only the 28-69 cm Wall_01S filler with null materials, so those
-    # buildings cover 3-11 % of their facade and render as shafts. SFD covers
-    # 1.02-1.09 on every floor up to 9000 cm and is the only family left.
-    assert set(SGD_PALETTE) == {"SFD"}
+def test_palette_is_the_five_measured_families():
+    # The city was all-SFD because SFD was the only family whose wall meshes
+    # were ALL present in the project -- 8 wanted, 8 held. The others were
+    # missing most of theirs, so PCG had nothing to place and they measured as
+    # slabs, hollow frames or shafts. With the meshes imported, five families
+    # pass the full gate at every production height; NYAF (0.831), CHH (0.771),
+    # SFE (0.696), CHJ (0.650) and NYH (0.607, 180.9 cm hole) still fail it.
+    assert set(SGD_PALETTE) == {"CHF", "NYAA", "NYAE", "SFC", "SFD"}
     assert set(STYLE_MIN_HEIGHT_CM) == set(SGD_PALETTE)
-    assert STYLE_MIN_HEIGHT_CM["SFD"] == 2500.0
-    assert LANDMARK_FAMILY == "SFD"
+    assert all(v == 2500.0 for v in STYLE_MIN_HEIGHT_CM.values())
+    assert LANDMARK_FAMILY == "NYAE"
+    assert LANDMARK_FAMILY in SGD_PALETTE
     # every minimum is measured now, so none may be left unknown
     assert all(v is not None for v in STYLE_MIN_HEIGHT_CM.values())
     # nothing is landmark-only: the landmark shares SFD with every ordinary
@@ -244,7 +247,7 @@ def test_every_palette_family_is_reachable_and_none_other_is():
             assert family in SGD_PALETTE
             seen.add(family)
     assert seen == set(SGD_PALETTE)
-    assert family_for("slot:0", 9000.0, SEED, landmark=True) == "SFD"
+    assert family_for("slot:0", 9000.0, SEED, landmark=True) == LANDMARK_FAMILY
     assert family_for("slot:0", 9000.0, SEED, landmark=True) == \
         family_for("slot:1", 1500.0, SEED, landmark=True)
 
@@ -256,9 +259,12 @@ def test_role_bands_cover_the_palette():
     assert role_band_for(2300.0) == "mid-rise"
     assert role_band_for(5000.0) == "upper-mid"
     assert role_band_for(9000.0) == "tall"
-    # every band is served by the one family that has walls
-    assert family_for("slot:0", 1600.0, SEED) == "SFD"
-    assert family_for("slot:0", 9000.0, SEED) == "SFD"
+    # every band is served by all five, so a slot gets a palette family at any
+    # height -- which one is the grouping layer's business, not this test's
+    assert family_for("slot:0", 1600.0, SEED) in SGD_PALETTE
+    assert family_for("slot:0", 9000.0, SEED) in SGD_PALETTE
+    for band, fams in ROLE_BAND_FAMILIES.items():
+        assert set(fams) == set(SGD_PALETTE), band
 
 
 def test_no_order_carries_a_family_outside_the_palette():
@@ -280,11 +286,12 @@ def test_exactly_one_landmark_and_it_is_the_tallest():
     assert doc["landmark_id"] == landmarks[0]["id"]
     assert doc["counts"]["landmark"] == 1
     assert doc["counts"]["ordinary"] == len(doc["orders"]) - 1
-    assert landmarks[0]["family"] == "SFD"
-    assert landmarks[0]["sgd_asset"] == \
-        "/CitySamplePCG/PCG/DataAssets/Buildings/SFD/SGD_SFD_A.SGD_SFD_A"
-    # an ordinary order wears SFD too -- the landmark shares the family and
-    # is distinguished by height, so only the height hierarchy is asserted
+    assert landmarks[0]["family"] == LANDMARK_FAMILY
+    assert landmarks[0]["sgd_asset"] == (
+        "/CitySamplePCG/PCG/DataAssets/Buildings/%s/SGD_%s_A.SGD_%s_A"
+        % (LANDMARK_FAMILY, LANDMARK_FAMILY, LANDMARK_FAMILY))
+    # an ordinary order may wear the landmark's family too -- nothing is
+    # landmark-only -- so only the height hierarchy is asserted
     _lm = next(o for o in doc["orders"] if o["role"] == "landmark")
     for order in doc["orders"]:
         if order["role"] != "landmark":
@@ -448,17 +455,21 @@ def test_yaw_derivation_is_stable_for_north_and_south_frontages():
             pytest.approx(1.0, abs=1e-6)
 
 
-def test_a_one_family_band_repeats_that_family_and_nothing_else():
-    # family_for can only rotate when a band offers an alternative. With SFD
-    # the only family that has walls, every slot wears it; what keeps two
-    # neighbours apart is HEIGHT, which sgd_grouping enforces and tests.
+def test_a_band_with_five_families_actually_varies_them():
+    # This test used to be a tautology: with one family in every band the
+    # predicate `set(families) == {"SFD"}` could not fail, and `avoid="SFD"`
+    # returned "SFD". A reviewer proved it was empty. Now the band offers five
+    # families, so the rotation is observable and `avoid` has to work.
     layout = band_layout(2300.0, n=8)
     doc = make_doc(layout)
     by_id = {o["id"]: o for o in doc["orders"]}
     families = [by_id[s["slot_id"]]["family"] for s in layout_slots(layout)]
-    assert set(families) == {"SFD"}
     assert set(families) <= set(ROLE_BAND_FAMILIES["mid-rise"])
-    assert family_for("slot:0", 2300.0, SEED, avoid="SFD") == "SFD"
+    assert len(set(families)) > 1, families
+    for fam in SGD_PALETTE:
+        got = family_for("slot:0", 2300.0, SEED, avoid=fam)
+        assert got != fam, (fam, got)
+        assert got in SGD_PALETTE
 
 
 # ---------------------------------------------------------------- validator --
@@ -709,39 +720,50 @@ def test_apply_height_bands_never_lower_only_lifts_ordinary_orders():
 def test_predicted_top_never_exceeds_the_measured_builds():
     from ldyf.sgd_buildings import predicted_top_cm
     # (family, planned, measured built) from the full-city build
-    measured = (("NYAE", 2800.0, 2599.8), ("NYAE", 2930.0, 2599.8),
-                ("NYAE", 3074.0, 2924.9), ("NYAE", 5200.0, 4874.8),
-                ("NYAF", 2800.0, 2789.5), ("NYAF", 3074.0, 2789.5),
+    # NYAF is retired but keeps its row, measured on the OLD builds
+    measured = (("NYAF", 2800.0, 2789.5), ("NYAF", 3074.0, 2789.5),
                 ("NYAF", 5200.0, 5064.5), ("NYAF", 6500.0, 6364.5),
                 ("NYAF", 9000.0, 8964.5))
-    exact = 0
     for fam, planned, built in measured:
         got = predicted_top_cm(fam, planned)
         # a LOWER bound: it may under-predict by a floor, never over-predict
         assert got <= built + 1.0, (fam, planned, got, built)
         assert built - got <= 325.0 + 1.0, (fam, planned, got, built)
-        exact += abs(got - built) < 1.0
-    assert exact >= 8      # only NYAE 3074 sits on the bracketed boundary
-    # SFD now has a MEASURED row, so it is held to the same lower-bound
-    # contract as the retired families: never over-predict, and never by more
-    # than one floor.
-    for planned, built in ((3400.0, 3634.8), (4200.0, 4414.8),
-                           (5000.0, 5194.8), (6500.0, 6624.8),
-                           (9000.0, 9224.8)):
-        got = predicted_top_cm("SFD", planned)
-        assert got <= built + 1.0, (planned, got, built)
-        assert built - got <= 130.0 + 1.0, (planned, got, built)
+    # Every LIVE family's row was fitted to five measured builds and must
+    # reproduce all five EXACTLY. Under-predicting is not harmless: it drags
+    # the predicted ratio under SNAP_RATIO and snaps heights that build
+    # perfectly well, which would move most of the city for nothing.
+    # EVIDENCE/PHASE_02/family_probe_{2500,3800,5200,6500,9000}.json
+    live = {
+        "CHF": ((2500.0, 2455.4), (3800.0, 3655.4), (5200.0, 5155.3),
+                (6500.0, 6355.3), (9000.0, 8755.3)),
+        "NYAA": ((2500.0, 2491.6), (3800.0, 3791.6), (5200.0, 5091.5),
+                 (6500.0, 6391.5), (9000.0, 8991.6)),
+        "NYAE": ((2500.0, 2304.8), (3800.0, 3604.8), (5200.0, 4904.7),
+                 (6500.0, 6204.7), (9000.0, 8804.8)),
+        "SFC": ((2500.0, 2225.5), (3800.0, 3425.5), (5200.0, 5025.5),
+                (6500.0, 6225.5), (9000.0, 8625.5)),
+        "SFD": ((2500.0, 2724.8), (3800.0, 4024.8), (5200.0, 5324.9),
+                (6500.0, 6624.8), (9000.0, 9224.8)),
+    }
+    assert set(live) == set(SGD_PALETTE)
+    for fam, points in live.items():
+        for planned, built in points:
+            got = predicted_top_cm(fam, planned)
+            assert abs(got - built) <= 0.2, (fam, planned, got, built)
     # a family outside the palette and outside the ladder is still answered
     # with the plan; a family INSIDE the palette without a row must raise.
     assert predicted_top_cm("NOT_A_FAMILY", 2500.0) == 2500.0
 
 
 def test_snap_to_floors_only_raises_and_clears_the_fidelity_gate():
-    from ldyf.sgd_buildings import predicted_top_cm, snap_to_floors
+    from ldyf.sgd_buildings import SNAP_RATIO, predicted_top_cm, snap_to_floors
     doc = make_doc()
     target = next(o for o in doc["orders"] if o["role"] != "landmark")
-    target["family"] = "NYAE"
-    target["height_cm"] = 2930.0          # the exact case that failed: 0.887
+    # SFC is the live case: it builds to ratio 0.890 at a flat 2500 cm request,
+    # measured, which is under the 0.90 fidelity gate.
+    target["family"] = "SFC"
+    target["height_cm"] = 2500.0
     before = copy.deepcopy(doc)
     snapped = snap_to_floors(doc)
     assert doc == before                  # input untouched
@@ -749,11 +771,12 @@ def test_snap_to_floors_only_raises_and_clears_the_fidelity_gate():
         assert b["height_cm"] >= a["height_cm"]
         if b["role"] == "landmark":
             assert b["height_cm"] == a["height_cm"]
-        if b["family"] in ("NYAE", "NYAF") and b["role"] != "landmark":
+        if b["role"] != "landmark":
             ratio = predicted_top_cm(b["family"], b["height_cm"]) / b["height_cm"]
-            assert ratio >= 0.92, (b["id"], ratio)
+            assert ratio >= SNAP_RATIO, (b["id"], b["family"], ratio)
     moved = [s for s in snapped["floor_snaps"] if s["id"] == target["id"]]
-    assert moved and moved[0]["height_cm"] == 3095.0   # 150 + 9 floors + 20
+    # 0 reserve + 7 floors x 400 + 20 margin
+    assert moved and moved[0]["height_cm"] == 2820.0
     with pytest.raises(ValueError):
         snap_to_floors({"orders": []})
 
@@ -810,13 +833,20 @@ def test_predicted_top_refuses_a_palette_family_without_a_ladder(monkeypatch):
         sb.snap_to_floors(doc)
 
 
-def test_snap_to_floors_does_not_move_the_production_palette():
-    # SFD has a measured row now, but it builds TALLER than asked at every
-    # production height (ratio 1.019-1.069), so nothing is ever snapped. This
-    # asserts the outcome, not the absence of a table row.
-    from ldyf.sgd_buildings import snap_to_floors
+def test_snap_to_floors_only_ever_raises_a_height():
+    # Four of the five families build taller than asked and are never snapped;
+    # SFC builds short at the bottom of the band and is. Whatever the mix, a
+    # snap may only raise a height and only an ordinary one.
+    from ldyf.sgd_buildings import SNAP_RATIO, predicted_top_cm, snap_to_floors
     doc = make_doc()
     out = snap_to_floors(doc)
-    assert out["floor_snaps"] == []
-    assert [o["height_cm"] for o in out["orders"]] == \
-        [o["height_cm"] for o in doc["orders"]]
+    was = {o["id"]: o["height_cm"] for o in doc["orders"]}
+    for o in out["orders"]:
+        assert o["height_cm"] >= was[o["id"]], o["id"]
+        if o["role"] == "landmark":
+            assert o["height_cm"] == was[o["id"]]
+        else:
+            ratio = predicted_top_cm(o["family"], o["height_cm"]) / o["height_cm"]
+            assert ratio >= SNAP_RATIO, (o["id"], o["family"], ratio)
+    for s in out["floor_snaps"]:
+        assert s["height_cm"] > s["was_cm"]

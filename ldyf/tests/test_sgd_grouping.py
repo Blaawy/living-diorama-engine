@@ -561,11 +561,13 @@ def test_other_blocks_carry_no_landmark():
 
 def test_variation_is_present_and_deterministic():
     doc = grouped_orders(LAYOUT, LANDMARK_BLOCK, seed=SEED)
-    # one family (the only one with real walls), so the variation that is left
-    # is massing: height tiers and group sizes
+    # five families now, so the variation is facade AND massing. With one
+    # family this could only check heights and group sizes.
     heights = {o["height_cm"] for o in doc["orders"] if o["role"] == "ordinary"}
     sizes = {len(g["slot_ids"]) for g in doc["groups"]}
-    assert {o["family"] for o in doc["orders"]} == {"SFD"}
+    families = {o["family"] for o in doc["orders"]}
+    assert families <= set(SGD_PALETTE), families
+    assert len(families) >= 2, families
     assert len(heights) >= 2
     assert len(sizes) >= 2
     assert json_bytes(doc) == json_bytes(
@@ -766,11 +768,11 @@ def test_validate_rejects_a_second_or_damaged_landmark():
 
     doc = broken()
     landmark = next(o for o in doc["orders"] if o["role"] == "landmark")
-    landmark["family"] = "NYAE"
-    landmark["sgd_asset"] = \
-        "/CitySamplePCG/PCG/DataAssets/Buildings/NYAE/SGD_NYAE_A.SGD_NYAE_A"
+    wrong = next(f for f in sorted(SGD_PALETTE) if f != LANDMARK_FAMILY)
+    landmark["family"] = wrong
+    landmark["sgd_asset"] = sgd_asset_path(wrong)
     problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)
-    assert any("expected SFD" in p for p in problems), problems
+    assert any("expected %s" % LANDMARK_FAMILY in p for p in problems), problems
 
     doc = broken()
     doc["landmark_id"] = "nope"
@@ -873,9 +875,14 @@ def test_validate_rejects_same_family_neighbours_at_the_same_height():
         for first, second in zip(groups, groups[1:]):
             if first["role"] == "landmark" or second["role"] == "landmark":
                 continue
-            # same family already; flatten the pair to one height
-            order_of(doc, second["group_id"])["height_cm"] = \
-                order_of(doc, first["group_id"])["height_cm"]
+            # With five families a neighbour pair no longer shares a family by
+            # default, so BOTH halves of the violation have to be made: same
+            # family AND the same height.
+            a = order_of(doc, first["group_id"])
+            b = order_of(doc, second["group_id"])
+            b["family"] = a["family"]
+            b["sgd_asset"] = sgd_asset_path(a["family"])
+            b["height_cm"] = a["height_cm"]
             rewritten = True
             break
         if rewritten:
@@ -1187,15 +1194,20 @@ def test_grouped_orders_fails_closed_when_slot_requests_defeat_the_tiers():
     assert raised + emitted == 24 * len(BLOCK_IDS)
 
 
-def test_tier_choice_raises_when_every_tier_is_taken():
+def test_tier_choice_raises_when_every_combination_is_taken():
     from ldyf.sgd_grouping import TIER_HINTS_CM, _family_and_hint
-    taken = {("SFD", tier) for tier, _hint in TIER_HINTS_CM}
+    # every (family, tier) pair taken: there is nothing left to choose
+    taken = {(fam, tier) for fam in SGD_PALETTE for tier, _hint in TIER_HINTS_CM}
     with pytest.raises(ValueError):
         _family_and_hint("g", SEED, None, False, taken)
-    # two taken leaves exactly the third
-    for tier, _hint in TIER_HINTS_CM:
-        got = _family_and_hint("g", SEED, None, False, taken - {("SFD", tier)})
-        assert got[1] == tier
+    # Each tier has ONE family it would choose -- family_for hashes the group
+    # and the tier's hint height, it does not try families in turn. So free
+    # exactly the pair that tier would pick, and that pair must come back.
+    import ldyf.sgd_buildings as _sgd
+    for tier, hint in TIER_HINTS_CM:
+        want = _sgd.family_for("g", hint, SEED)
+        got = _family_and_hint("g", SEED, None, False, taken - {(want, tier)})
+        assert got[0] == want and got[1] == tier, (tier, want, got)
 
 
 def test_validate_holds_the_landmark_to_the_landmark_band():

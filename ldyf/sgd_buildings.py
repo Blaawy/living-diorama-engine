@@ -29,19 +29,35 @@ consumes this path: the graph-instance override takes the *object* path of the
 shape-grammar definition data asset (package path plus the object's name inside
 that package), so dropping the suffix makes the override resolve to nothing.
 
-**The palette and why it is closed.**  ``SGD_PALETTE`` holds exactly one
-family, ``SFD``: the only family whose wall meshes exist in this project (its
-instance count in Epic's demo is recorded with it).  Every other family is
-refused.  The ones never admitted produced the foundation-only baseline of 72
-instances, i.e. walls are missing.  ``NYAD``, ``NYAC``, ``NYH``,
-``CHA``/``CHB``/``CHH``, ``NYG``, ``NYGA``, ``NYAE`` and ``NYAF`` were admitted
-once and removed after a build or a render showed them to be a slab, a hollow
-frame or thin shafts; the comments above ``_PALETTE_FAMILIES`` keep each
-measurement.  :func:`family_for` and :func:`sgd_asset_path` refuse a family
-outside the palette with ``ValueError``, and :func:`_check_palette` re-checks
-the whole table at import time (the same import-time discipline
-``building_styles`` uses).  Nothing is landmark-only: ``LANDMARK_FAMILY`` is
-``SFD`` as well, and the landmark is told apart by HEIGHT -- its own
+**The palette and why it is closed.**  ``SGD_PALETTE`` holds FIVE families:
+``CHF``, ``NYAA``, ``NYAE``, ``SFC`` and ``SFD``.  Every one of them was
+measured, in the real city on the real ground, at every production height
+(2500 / 3800 / 5200 / 6500 / 9000 cm) against the full gate -- per-face
+per-floor unioned facade coverage, four faces on every floor, no vertical hole,
+zero null material slots, and built height and wall reach against the plan.
+The evidence is ``EVIDENCE/PHASE_02/family_probe_*.json``.
+
+Why there was ever one family: the project held only part of Epic's building
+content, and ``SFD`` was the only family whose meshes were ALL present -- 8
+wanted, 8 held.  Every other family was missing most of its wall meshes, so PCG
+had nothing to place and the result was a slab, a hollow frame or thin shafts.
+That is what ``CHA`` measuring foundation-only and ``NYAD`` at ratio 0.11 were
+really recording: a missing-asset problem being read as a grammar problem.  With
+the meshes imported (``EVIDENCE/PHASE_02/import_manifest_buildings.json`` and
+``import_manifest_materials.json``) the same grammars build solid facades.
+
+Measured and REFUSED on the same gate, so they stay out: ``NYAF`` (coverage
+0.831, under 0.85), ``CHH`` (0.771), ``SFE`` (0.696), ``CHJ`` (0.650) and
+``NYH`` (0.607 with a 180.9 cm vertical hole).  Having the meshes is not
+sufficient; these five families genuinely do not tile a facade at our
+footprint.  Families never admitted at all produced the foundation-only
+baseline of 72 instances.
+
+:func:`family_for` and :func:`sgd_asset_path` refuse a family outside the
+palette with ``ValueError``, and :func:`_check_palette` re-checks the whole
+table at import time (the same import-time discipline ``building_styles``
+uses).  Nothing is landmark-only: ``LANDMARK_FAMILY`` is ``NYAE``, which also
+serves ordinary slots, and the landmark is told apart by HEIGHT -- its own
 ``LANDMARK_HEIGHT_BAND_CM`` -- not by family.
 
 **Reused, not reinvented.**  Slot traversal, the trusted slot ``yaw`` field,
@@ -123,12 +139,27 @@ SGD_ASSET_RE = re.compile(
 FOUNDATION_ONLY_INSTANCES = 72
 
 #: The production palette: family -> the role band it is chosen for and the
-#: instance count measured in Epic's own demo.  Exactly one family, ``SFD``;
-#: every other family either sits at ``FOUNDATION_ONLY_INSTANCES`` or was
-#: removed after a build or render check (below), and is never selectable
-#: (see the module docstring).
+#: instance count MEASURED on a 4500 x 3000 cm probe at 5200 cm
+#: (``EVIDENCE/PHASE_02/family_probe_5200.json``), with the facade coverage the
+#: same probe measured.  Every family here passed the full gate at every
+#: production height; everything else is refused (see the module docstring).
 SGD_PALETTE: dict[str, dict[str, Any]] = {
-    "SFD": {"role_band": "every band and the landmark", "instances": 1032,
+    # coverage 0.933 -- the best of the five
+    "CHF": {"role_band": "every band", "instances": 768,
+            "landmark_only": False},
+    # coverage 0.897
+    "NYAA": {"role_band": "every band", "instances": 1328,
+             "landmark_only": False},
+    # coverage 0.927; also the landmark family
+    "NYAE": {"role_band": "every band and the landmark", "instances": 1542,
+             "landmark_only": False},
+    # coverage 0.850 -- exactly on the gate, and it needs the floor ladder:
+    # a flat 2500 cm request builds to ratio 0.890 and is snapped up to 2820
+    "SFC": {"role_band": "every band", "instances": 1320,
+            "landmark_only": False},
+    # coverage 0.884. The family the whole city was built from before this
+    # import, and the only one that was ever solid without it.
+    "SFD": {"role_band": "every band", "instances": 1062,
             "landmark_only": False},
 }
 
@@ -184,12 +215,15 @@ SGD_PALETTE: dict[str, dict[str, Any]] = {
 #: SFD is still in the palette.
 #:
 #: The palette as a sorted literal, so the import-time check is order-free.
-_PALETTE_FAMILIES: tuple[str, ...] = ("SFD",)
+_PALETTE_FAMILIES: tuple[str, ...] = ("CHF", "NYAA", "NYAE", "SFC", "SFD")
 
-#: The family the landmark wears. It is NOT exclusive: every ordinary order
-#: wears SFD too, and the landmark is distinguished by height
-#: (:data:`LANDMARK_HEIGHT_BAND_CM`), not by family.
-LANDMARK_FAMILY = "SFD"
+#: The family the landmark wears: ``NYAE``, measured at 9000 cm with facade
+#: coverage 0.927, height ratio 0.978 and 27 wall floors -- the tallest-reading
+#: of the five. It is NOT exclusive: NYAE serves ordinary slots too, and the
+#: landmark is distinguished by height (:data:`LANDMARK_HEIGHT_BAND_CM`), not by
+#: family. With five families the grouping layer can now give the landmark a
+#: different family from its neighbours, which it could not do with one.
+LANDMARK_FAMILY = "NYAE"
 
 #: Minimum viable height per family, in cm -- **all measured**, not inferred.
 #: A grammar given too little height produces ZERO geometry, so a request below
@@ -199,7 +233,16 @@ LANDMARK_FAMILY = "SFD"
 #: Measured instance counts at the minimum are in brackets.
 #: Evidence: EVIDENCE/PHASE_02/pcg_sgd_minheights.json.
 STYLE_MIN_HEIGHT_CM: dict[str, float | None] = {
-    "SFD": 2500.0,    # [214] levels 0, 01-04
+    # All five measured at 2500 cm on a 4500 x 3000 footprint
+    # (EVIDENCE/PHASE_02/family_probe_2500.json): every one emits real wall
+    # levels there, with the instance count in brackets. SFC is viable at 2500
+    # but builds to ratio 0.890, so the floor ladder snaps it up -- viable and
+    # faithful are different questions, and this table answers only the first.
+    "CHF": 2500.0,    # [372] 7 wall floors
+    "NYAA": 2500.0,   # [656] 6 wall floors
+    "NYAE": 2500.0,   # [726] 7 wall floors
+    "SFC": 2500.0,    # [648] 6 wall floors, ratio 0.890 -> snapped to 2820
+    "SFD": 2500.0,    # [462] 13 wall floors
 }
 
 #: Height used for a family whose minimum is ``None`` ("unknown").  No palette
@@ -222,10 +265,16 @@ DEFAULT_MIN_HEIGHT_CM = 2000.0
 #: spreads the requests back out inside these bands, which keeps the relative
 #: design intent (a slot asked to be taller stays taller) while every height
 #: stays viable.
+#: Every family carries the SAME ordinary band. All five are measured solid
+#: from 2500 to 9000, so the band is not what separates them -- the FAMILY is,
+#: and that is the point of the import. Keeping one band also keeps
+#: :func:`apply_height_bands` and ``validate_groups`` behaving exactly as they
+#: did when the city was all-SFD, which is the configuration that passed.
 HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
-    # 3400 was a taste limit while SFD was "the low-rise family". It is now
-    # the only family, and it is measured solid to 9000, so the ordinary band
-    # runs to the old mid-rise ceiling.
+    "CHF": (2500.0, 5200.0),
+    "NYAA": (2500.0, 5200.0),
+    "NYAE": (2500.0, 5200.0),
+    "SFC": (2500.0, 5200.0),
     "SFD": (2500.0, 5200.0),
 }
 
@@ -296,9 +345,34 @@ LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 #: far above :data:`SNAP_RATIO` -- but that is now a measured result rather
 #: than a gap in the table.
 FLOOR_LADDER_CM: dict[str, tuple[float, float, float]] = {
-    "NYAE": (150.0, 0.0, 325.0),
+    # NYAF and the old NYAE row are RETIRED measurements, kept as history. The
+    # live NYAE row below replaces the old one: it was measured again, on the
+    # imported meshes, and the grammar quantises differently now that it has
+    # real walls to place.
     "NYAF": (189.5, 189.5, 325.0),
-    "SFD": (0.0, 124.8, 130.0),
+    # The five live rows, each fitted to FIVE measured builds (2500 / 3800 /
+    # 5200 / 6500 / 9000 cm, EVIDENCE/PHASE_02/family_probe_*.json) and each
+    # reproducing every one of them exactly:
+    #
+    #   fam   step   built top
+    #   CHF    300   -244.6 + 300 * ceil(h / 300)
+    #   NYAA   325   -108.4 + 325 * ceil(h / 325)
+    #   NYAE   325   -295.2 + 325 * ceil(h / 325)
+    #   SFC    400   -174.5 + 400 * floor(h / 400)
+    #   SFD    130    124.8 + 130 * ceil(h / 130)
+    #
+    # predicted_top_cm computes floor((h - reserve) / step), so a family that
+    # rounds UP gets reserve = -(step - 1): for integer h that turns the floor
+    # division into the ceiling the grammar actually uses, and the row then
+    # reproduces the measurement rather than under-predicting by a whole floor.
+    # Under-predicting is not harmless -- it drags the predicted ratio below
+    # SNAP_RATIO and snaps heights that build perfectly well, which would move
+    # most of the city for no reason. SFC rounds DOWN, so its reserve is 0.
+    "CHF": (-299.0, -244.6, 300.0),
+    "NYAA": (-324.0, -108.4, 325.0),
+    "NYAE": (-324.0, -295.2, 325.0),
+    "SFC": (0.0, -174.5, 400.0),
+    "SFD": (-129.0, 124.8, 130.0),
 }
 
 #: Below this predicted built/planned ratio a height is moved up a floor. It
@@ -484,8 +558,16 @@ def apply_height_bands(doc: dict, *, never_lower: bool = False) -> dict:
 #: reached through :func:`overhang_for`, which refuses a non-palette family.
 #: Evidence: EVIDENCE/PHASE_02/block_v2/axis_and_overhang_probe.json.
 FAMILY_OVERHANG_CM: dict[str, float] = {
-    "SFD": 95.0,
-    "NYAE": 42.0,
+    # Measured on built probes, union box of every mesh instance against the
+    # planned footprint, rounded UP (EVIDENCE/PHASE_02/family_overhang.json).
+    # SFD came out 96 against the 95 recorded by the earlier, separate probe,
+    # which is the cross-check that the method is sound.
+    "CHF": 1.0,
+    "NYAA": 53.0,
+    "NYAE": 53.0,
+    "SFC": 1.0,
+    "SFD": 96.0,
+    # retired, kept as history
     "NYAF": 45.0,
 }
 
@@ -523,13 +605,16 @@ DEFAULT_FOOTPRINT_DEPTH_CM = 1200.0
 LANDMARK_FLOOR_CM = 5600.0
 
 #: Family candidates per role band, in the brief's role-band order.  Every
-#: band has the one candidate, ``SFD``, which is also the landmark family:
-#: nothing is landmark-only.
+#: band offers all five families: each is measured solid across the whole
+#: height range, so the choice is free, and offering all five is what lets the
+#: grouping layer give two neighbours different facades. With one family that
+#: code was inert -- a reviewer proved it could not be tested at all -- and
+#: every building in the city wore the same grey curtain wall.
 ROLE_BAND_FAMILIES: dict[str, tuple[str, ...]] = {
-    "low-rise": ("SFD",),
-    "mid-rise": ("SFD",),
-    "upper-mid": ("SFD",),
-    "tall": ("SFD",),
+    "low-rise": ("CHF", "NYAA", "NYAE", "SFC", "SFD"),
+    "mid-rise": ("CHF", "NYAA", "NYAE", "SFC", "SFD"),
+    "upper-mid": ("CHF", "NYAA", "NYAE", "SFC", "SFD"),
+    "tall": ("CHF", "NYAA", "NYAE", "SFC", "SFD"),
 }
 
 #: Upper bound of each band in cm of *requested* height; a request exactly at a
