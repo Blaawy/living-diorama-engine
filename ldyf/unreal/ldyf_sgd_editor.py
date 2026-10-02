@@ -240,8 +240,87 @@ FACADE_COVERAGE_MIN = 0.85
 #: Largest vertical hole allowed between one wall row and the next, in cm.
 FLOOR_GAP_MAX_CM = 25.0
 
+# A facade score says nothing about height. Both adversaries in run ``p2p_atk``
+# pointed out that a one-storey slab with four walled sides scores 1.0 and was
+# counted in ``solid_facades``: the pass condition tested coverage, the vertical
+# gap and null materials, and never asked how tall the thing was or whether its
+# WALLS reached the top. These two ratios close that, and a building whose
+# planned height is not supplied is no longer certified at all.
+HEIGHT_RATIO_MIN = 0.90
+WALL_REACH_MIN = 0.90
 
-def measure(prefix: str = PREFIX) -> dict:
+
+def _union_length(intervals, clip) -> float:
+    """Total length covered by ``intervals``, counting overlap once.
+
+    Clipped to ``clip`` so a module overhanging the footprint cannot buy
+    coverage the building does not have. This is the whole reason a doubled
+    or stacked wall can no longer inflate a facade score: union, not sum.
+    """
+    lo, hi = float(clip[0]), float(clip[1])
+    spans = []
+    for a, b in intervals:
+        a, b = (float(a), float(b)) if a <= b else (float(b), float(a))
+        a, b = max(a, lo), min(b, hi)
+        if b > a:
+            spans.append((a, b))
+    if not spans:
+        return 0.0
+    spans.sort()
+    total = 0.0
+    cur_a, cur_b = spans[0]
+    for a, b in spans[1:]:
+        if a > cur_b:
+            total += cur_b - cur_a
+            cur_a, cur_b = a, b
+        else:
+            cur_b = max(cur_b, b)
+    return total + (cur_b - cur_a)
+
+
+def worst_face_coverage(floor_faces: dict, lo, hi):
+    """Worst per-face, per-floor facade coverage, and the fewest faces on a floor.
+
+    Pure, so the one number the building gate rests on can be tested without an
+    editor. The gate attacker in run ``p2p_atk`` put this first: no test
+    imported this module at all, and ``facade_coverage`` is what an import
+    decision is made on.
+
+    ``floor_faces`` maps floor key -> quarter-turn -> a face record carrying
+    the module intervals on each axis (``ix``/``iy``) and the spread of module
+    origins (``x0``/``x1``/``y0``/``y1``). ``lo``/``hi`` are the building's
+    footprint bounds as ``(x, y)`` pairs.
+
+    A floor with fewer than four faces scores 0: a side with no wall at all is
+    not a facade with good coverage, it is a missing facade.
+    """
+    ext_x, ext_y = float(hi[0]) - float(lo[0]), float(hi[1]) - float(lo[1])
+    worst = None
+    faces_min = min((len(f) for f in floor_faces.values()), default=None)
+    for faces in floor_faces.values():
+        if len(faces) < 4:
+            worst = 0.0                     # a floor with an open side
+            continue
+        for quarter, face in faces.items():
+            run_x = face["x1"] - face["x0"]
+            run_y = face["y1"] - face["y0"]
+            if run_x >= 1.0 or run_y >= 1.0:
+                # several modules: the face runs along the axis they spread on
+                along_x = run_x >= run_y
+            else:
+                # a lone module: its own quarter-turn says which way it faces.
+                # It is NOT given the building's shorter side -- that is what
+                # let four corner posts score 1.0.
+                along_x = quarter in (0, 2)
+            side = ext_x if along_x else ext_y
+            clip = (lo[0], hi[0]) if along_x else (lo[1], hi[1])
+            covered = _union_length(face["ix"] if along_x else face["iy"], clip)
+            c = covered / side if side > 0.0 else 0.0
+            worst = c if worst is None else min(worst, c)
+    return worst, faces_min
+
+
+def measure(prefix: str = PREFIX, plan: dict | None = None) -> dict:
     """What actually spawned, per building and in total.
 
     ``levels`` is the set of City Sample level tokens seen. A token other than
@@ -256,12 +335,25 @@ def measure(prefix: str = PREFIX) -> dict:
 
     It is measured per FACE, per FLOOR, and the building's value is the worst
     one. Wall modules (meshes named ``_Wall_``) are grouped by floor (their Z)
-    and by the quarter-turn they face; within a group, modules at the same spot
-    are counted once, and the group's summed plan width is divided by the length
-    of the side of the building it runs along. A floor with fewer than four
-    faces scores 0. So an open end, a missing facade, modules stacked on one
-    point, and a doubled wall all fail -- none of which the first version of
-    this number (total width / perimeter, wherever the modules were) could see.
+    and by the quarter-turn they face. Within a group the modules' plan widths
+    are turned into INTERVALS along the face's own axis and UNIONED, and that
+    union -- clipped to the building's own footprint -- is divided by the length
+    of that footprint side. A floor with fewer than four faces scores 0.
+
+    The union is what makes the number mean anything. Two independent
+    adversaries (run ``p2p_atk``) broke the previous version, which summed
+    module widths and de-duplicated only modules within 5 cm of one spot: four
+    modules stacked at one point, measured against ``min(ext_x, ext_y)``, scored
+    1.0 and were certified as a solid facade, and a half-empty face plus one
+    copy offset 2.5 cm reached 0.85. Unioned intervals cannot be inflated by
+    repetition -- a doubled wall covers exactly what one wall covers -- so
+    coverage is now a true fraction of the side and cannot exceed 1.0.
+
+    The denominator no longer depends on where the modules happen to sit. It is
+    the footprint extent on the face's axis, taken from the union box of every
+    instance including the level-0 foundation ring, so a build whose walls are
+    missing is measured against the footprint it was supposed to fill rather
+    than against the small box its surviving pieces occupy.
 
     ``floor_gap_cm`` is the tallest vertical hole between one wall row and the
     next, or between the top row and the roof: a building with its middle
@@ -344,12 +436,13 @@ def measure(prefix: str = PREFIX) -> dict:
                     quarter = int(round(float(
                         t.rotation.rotator().yaw) / 90.0)) % 4
                     face = floor_faces.setdefault(fk, {}).setdefault(
-                        quarter, {"w": 0.0, "seen": set(),
+                        quarter, {"ix": [], "iy": [],
                                   "x0": px, "x1": px, "y0": py, "y1": py})
-                    spot = (int(round(px / 5.0)), int(round(py / 5.0)))
-                    if spot not in face["seen"]:      # stacked modules count once
-                        face["seen"].add(spot)
-                        face["w"] += w_here
+                    # the module as an interval on each axis, centred on its
+                    # origin. Which axis is the face's own is decided after the
+                    # loop, when the whole group's spread is known.
+                    face["ix"].append((px - w_here / 2.0, px + w_here / 2.0))
+                    face["iy"].append((py - w_here / 2.0, py + w_here / 2.0))
                     face["x0"] = min(face["x0"], px)
                     face["x1"] = max(face["x1"], px)
                     face["y0"] = min(face["y0"], py)
@@ -376,28 +469,14 @@ def measure(prefix: str = PREFIX) -> dict:
         coverage_total = None
         floor_gap = None
         faces_min = None
+        wall_top = None
         if floor_width and lo[0] is not None:
             ext_x, ext_y = hi[0] - lo[0], hi[1] - lo[1]
             perimeter = 2.0 * (ext_x + ext_y)
             if perimeter > 0.0:
                 coverage_total = round(min(floor_width.values()) / perimeter, 3)
-            worst = None
-            faces_min = min(len(f) for f in floor_faces.values())
-            for faces in floor_faces.values():
-                if len(faces) < 4:
-                    worst = 0.0             # a floor with an open side
-                    continue
-                for face in faces.values():
-                    # the side this face runs along is the axis its modules
-                    # spread on; a lone module is given the shorter side
-                    run_x = face["x1"] - face["x0"]
-                    run_y = face["y1"] - face["y0"]
-                    if run_x < 1.0 and run_y < 1.0:
-                        side = min(ext_x, ext_y)
-                    else:
-                        side = ext_x if run_x >= run_y else ext_y
-                    c = face["w"] / side if side > 0.0 else 0.0
-                    worst = c if worst is None else min(worst, c)
+            worst, faces_min = worst_face_coverage(
+                floor_faces, (lo[0], lo[1]), (hi[0], hi[1]))
             coverage = None if worst is None else round(worst, 3)
             rows = sorted(floor_span, key=lambda k: floor_span[k][0])
             gap = 0.0
@@ -408,15 +487,38 @@ def measure(prefix: str = PREFIX) -> dict:
             if top is not None:
                 gap = max(gap, top - reach)
             floor_gap = round(gap, 1)
+            wall_top = max(s[1] for s in floor_span.values())
+        label = str(a.get_actor_label())
+        planned = None
+        if plan is not None:
+            try:
+                planned = float(plan[label])
+            except (KeyError, TypeError, ValueError):
+                planned = None
+        height_ratio = None
+        wall_reach = None
+        if planned and planned > 0.0:
+            if top is not None:
+                height_ratio = round(top / planned, 3)
+            if wall_top is not None:
+                wall_reach = round(wall_top / planned, 3)
+        # Fail closed: no planned height means no certificate. A caller that
+        # does not say how tall the building was meant to be cannot be told
+        # that it is solid.
+        height_ok = (height_ratio is not None
+                     and height_ratio >= HEIGHT_RATIO_MIN
+                     and wall_reach is not None
+                     and wall_reach >= WALL_REACH_MIN)
         if (has_walls and coverage is not None
                 and coverage >= FACADE_COVERAGE_MIN
                 and floor_gap is not None and floor_gap <= FLOOR_GAP_MAX_CM
-                and null_slots == 0):
+                and null_slots == 0
+                and height_ok):
             solid_ok += 1
         b0, b1 = a.get_actor_bounds(False)
         loc = a.get_actor_location()
         out["buildings"].append({
-            "label": str(a.get_actor_label()),
+            "label": label,
             "location": [round(loc.x, 3), round(loc.y, 3), round(loc.z, 3)],
             "yaw_deg": round(float(a.get_actor_rotation().yaw), 3),
             # what was really built, from instance transforms x mesh bounds.
@@ -432,6 +534,10 @@ def measure(prefix: str = PREFIX) -> dict:
             "facade_coverage_total": coverage_total,
             "floor_gap_cm": floor_gap, "faces_per_floor_min": faces_min,
             "wall_floors": len(floor_width),
+            "wall_top_z_cm": None if wall_top is None else round(wall_top, 1),
+            "planned_height_cm": planned,
+            "height_ratio": height_ratio,
+            "wall_reach_ratio": wall_reach,
             "null_material_slots": null_slots,
             "top_z_cm": None if top is None else round(top, 1),
             "origin": [round(b0.x, 1), round(b0.y, 1), round(b0.z, 1)],

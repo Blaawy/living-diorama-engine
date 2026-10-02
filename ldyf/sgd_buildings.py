@@ -268,13 +268,37 @@ LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 #: can only under-predict a floor and therefore only ever raises a plan.
 #: SFD is absent on purpose -- it always builds TALLER than asked (1.02-1.09).
 #:
-#: Both rows are RETIRED families: NYAE and NYAF are out of the palette, so
-#: nothing here applies to a production order and :func:`snap_to_floors` is the
-#: identity for the SFD palette. The measurements are kept for when NY families
-#: return.
+#: NYAE and NYAF are RETIRED rows, kept as measured history.
+#:
+#: SFD's row is MEASURED, not assumed. Every family in the palette must have
+#: one: a palette family with no row used to get a silent pass out of
+#: :func:`predicted_top_cm` -- ratio 1.0, no snap, no error, and a building free
+#: to build short. Both adversaries in run ``p2p_atk`` found that
+#: independently, so both functions now refuse such a family outright.
+#:
+#: SFD was probed in the real city at five production heights
+#: (``EVIDENCE/PHASE_02/sfd_height_probe*.json``) and every point fits one law,
+#: ``top = 124.8 + 130 * ceil(h / 130)``:
+#:
+#: ====== ======== =======
+#: plan   measured ratio
+#: ====== ======== =======
+#: 3400    3634.8  1.069
+#: 4200    4414.8  1.051
+#: 5000    5194.8  1.039
+#: 6500    6624.8  1.019
+#: 9000    9224.8  1.025
+#: ====== ======== =======
+#:
+#: The row below uses ``floor`` rather than ``ceil``, which is what makes it a
+#: true lower bound: it under-predicts by at most one 130 cm floor and never
+#: over-predicts. SFD still never snaps -- its predicted ratio is 1.01-1.03,
+#: far above :data:`SNAP_RATIO` -- but that is now a measured result rather
+#: than a gap in the table.
 FLOOR_LADDER_CM: dict[str, tuple[float, float, float]] = {
     "NYAE": (150.0, 0.0, 325.0),
     "NYAF": (189.5, 189.5, 325.0),
+    "SFD": (0.0, 124.8, 130.0),
 }
 
 #: Below this predicted built/planned ratio a height is moved up a floor. It
@@ -286,8 +310,22 @@ SNAP_MARGIN_CM = 20.0
 
 
 def predicted_top_cm(family: str, height_cm: float) -> float:
-    """A conservative LOWER BOUND on the top a grammar builds for a plan."""
+    """A conservative LOWER BOUND on the top a grammar builds for a plan.
+
+    Raises for a family that is IN the palette and has no measured ladder row.
+    Returning the plan unchanged for such a family, as this did, made the
+    docstring above a tautology and -- the finding that matters -- let a newly
+    adopted family skip height snapping in silence: ratio 1.0, no snap, no
+    entry in ``floor_snaps``, no error, and a building that builds short. Both
+    adversaries in run ``p2p_atk`` found it independently. A family outside the
+    palette is still answered with the plan, because nothing will build it.
+    """
     if family not in FLOOR_LADDER_CM:
+        if family in SGD_PALETTE:
+            raise ValueError(
+                "family %r is in the palette but has no FLOOR_LADDER_CM row: "
+                "measure the floor ladder before shipping it, or a planned "
+                "height it cannot reach will pass unnoticed" % family)
         return float(height_cm)
     reserve, top_offset, step = FLOOR_LADDER_CM[family]
     floors = int((float(height_cm) - reserve) // step)
@@ -328,6 +366,11 @@ def snap_to_floors(doc: dict) -> dict:
         if not h > 0.0:
             raise ValueError("order %r has non-positive height %r"
                              % (o.get("id"), o.get("height_cm")))
+        if fam not in FLOOR_LADDER_CM and fam in SGD_PALETTE:
+            # fail closed, for the same reason predicted_top_cm does
+            raise ValueError(
+                "family %r is in the palette but has no FLOOR_LADDER_CM row; "
+                "order %r cannot be snapped" % (fam, o.get("id")))
         if o.get("role") != "landmark" and fam in FLOOR_LADDER_CM:
             if predicted_top_cm(fam, h) / h < SNAP_RATIO:
                 reserve, _top, step = FLOOR_LADDER_CM[fam]

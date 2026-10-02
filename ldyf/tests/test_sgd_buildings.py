@@ -722,7 +722,18 @@ def test_predicted_top_never_exceeds_the_measured_builds():
         assert built - got <= 325.0 + 1.0, (fam, planned, got, built)
         exact += abs(got - built) < 1.0
     assert exact >= 8      # only NYAE 3074 sits on the bracketed boundary
-    assert predicted_top_cm("SFD", 2500.0) == 2500.0   # no ladder: unchanged
+    # SFD now has a MEASURED row, so it is held to the same lower-bound
+    # contract as the retired families: never over-predict, and never by more
+    # than one floor.
+    for planned, built in ((3400.0, 3634.8), (4200.0, 4414.8),
+                           (5000.0, 5194.8), (6500.0, 6624.8),
+                           (9000.0, 9224.8)):
+        got = predicted_top_cm("SFD", planned)
+        assert got <= built + 1.0, (planned, got, built)
+        assert built - got <= 130.0 + 1.0, (planned, got, built)
+    # a family outside the palette and outside the ladder is still answered
+    # with the plan; a family INSIDE the palette without a row must raise.
+    assert predicted_top_cm("NOT_A_FAMILY", 2500.0) == 2500.0
 
 
 def test_snap_to_floors_only_raises_and_clears_the_fidelity_gate():
@@ -777,12 +788,33 @@ def test_snap_to_floors_refuses_a_non_positive_height():
         snap_to_floors(doc)
 
 
-def test_snap_to_floors_is_the_identity_for_the_production_palette():
-    # FLOOR_LADDER_CM holds only retired families. SFD always builds taller
-    # than asked (1.02-1.09 measured), so it has nothing to snap: on a real
-    # document the function must change no height at all.
-    from ldyf.sgd_buildings import FLOOR_LADDER_CM, snap_to_floors
-    assert not set(FLOOR_LADDER_CM) & set(SGD_PALETTE)
+def test_every_palette_family_has_a_measured_floor_ladder():
+    # The hole both p2p_atk adversaries found: a family in the palette with no
+    # ladder row skipped height snapping silently. The invariant that closes it
+    # is this one, and it must hold for whatever the palette becomes.
+    from ldyf.sgd_buildings import FLOOR_LADDER_CM
+    missing = sorted(set(SGD_PALETTE) - set(FLOOR_LADDER_CM))
+    assert missing == [], missing
+
+
+def test_predicted_top_refuses_a_palette_family_without_a_ladder(monkeypatch):
+    import ldyf.sgd_buildings as sb
+    monkeypatch.setitem(sb.SGD_PALETTE, "ZZZ", {"role_band": "test",
+                                                "instances": 1,
+                                                "landmark_only": False})
+    with pytest.raises(ValueError, match="no FLOOR_LADDER_CM row"):
+        sb.predicted_top_cm("ZZZ", 3000.0)
+    doc = make_doc()
+    doc["orders"][0]["family"] = "ZZZ"
+    with pytest.raises(ValueError, match="no FLOOR_LADDER_CM row"):
+        sb.snap_to_floors(doc)
+
+
+def test_snap_to_floors_does_not_move_the_production_palette():
+    # SFD has a measured row now, but it builds TALLER than asked at every
+    # production height (ratio 1.019-1.069), so nothing is ever snapped. This
+    # asserts the outcome, not the absence of a table row.
+    from ldyf.sgd_buildings import snap_to_floors
     doc = make_doc()
     out = snap_to_floors(doc)
     assert out["floor_snaps"] == []
