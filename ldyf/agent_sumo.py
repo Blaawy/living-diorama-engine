@@ -80,10 +80,22 @@ def sumo_walk(conn: Any, from_edge: str, to_edge: str) -> tuple[str, ...]:
 #: key within one episode, so caching it changes nothing but the cost.
 _ROUTE_CACHE: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
 
+#: The via-point that worked for a (destination, avoid set), without the origin.
+#: _ROUTE_CACHE is keyed on the origin too, so a population of agents walking to
+#: the same place around the same closure shared nothing: each one re-scanned
+#: every edge in the network at two routing queries a candidate. Measured: the
+#: ruled arm of a 24-agent run had not reached t = 500 s after six minutes of
+#: wall clock, while the baseline, whose avoid set is empty, finished 900 s in
+#: seconds. A waypoint is a fact about the NETWORK and the closure, not about
+#: who is walking, so the first agent to find one pays the scan and the rest
+#: route their own two legs through it.
+_VIA_CHOICE: dict[tuple[str, tuple[str, ...]], str] = {}
+
 
 def clear_route_cache() -> None:
     """Drop the memoised routes. Call between episodes, never inside one."""
     _ROUTE_CACHE.clear()
+    _VIA_CHOICE.clear()
 
 
 def walking_route(conn: Any, from_edge: str, to_edge: str,
@@ -114,7 +126,14 @@ def walking_route(conn: Any, from_edge: str, to_edge: str,
         _ROUTE_CACHE[key] = direct
         return direct
 
-    for via in sorted(candidates) or sorted(_edge_ids(conn)):
+    via_key = (to_edge, tuple(sorted(blocked)))
+    pool = sorted(candidates) or sorted(_edge_ids(conn))
+    known = _VIA_CHOICE.get(via_key)
+    if known is not None and known in pool:
+        # try the waypoint another agent already proved works, first
+        pool = [known] + [e for e in pool if e != known]
+
+    for via in pool:
         if via in blocked or via in (from_edge, to_edge):
             continue
         first = sumo_walk(conn, from_edge, via)
@@ -126,6 +145,7 @@ def walking_route(conn: Any, from_edge: str, to_edge: str,
         joined = first + (second[1:] if first[-1] == second[0] else second)
         if not blocked & set(joined):
             _ROUTE_CACHE[key] = joined
+            _VIA_CHOICE[via_key] = via
             return joined
     _ROUTE_CACHE[key] = direct
     return direct
@@ -155,12 +175,24 @@ def build_observation(
     blocked_edges: Sequence[str] = (),
     t_sim: float = 0.0,
     neighbour_radius_m: float = 25.0,
+    plan_cache: dict | None = None,
 ) -> Observation | None:
     """What this agent may know this tick, read from the live simulation.
 
     Returns None when the person is not in the simulation (not yet departed, or
     already arrived): there is no observation to make, and inventing one would
     be inventing a world.
+
+    `plan_cache`, when given, holds the route each agent is CURRENTLY walking,
+    keyed by agent, goal and avoid set. Without it this function asked SUMO for
+    a fresh route on every tick of every agent -- the route from wherever the
+    body had got to, which changes every tick, so the memo in `walking_route`
+    missed every time. Measured: 24 agents over 900 simulated seconds spent
+    about ten MINUTES of wall clock in the router, which is what made a larger
+    population look impossible. A planner that re-derives its whole plan every
+    second is also a poor model of a person: the plan is made once, and the
+    agent re-plans when its goal changes, when what it avoids changes, or when
+    it finds itself off the plan. All three force a real routing call.
     """
     try:
         current = str(conn.person.getRoadID(person_id))
@@ -174,7 +206,18 @@ def build_observation(
     target = bare(goal.target) if goal is not None else current
     avoid = tuple(sorted({bare(e) for e in blocked_edges} | {
         bare(g.target) for g in state.goal_stack if g.kind == "avoid"}))
-    route = walking_route(conn, current, target, avoid=avoid)
+    route: tuple[str, ...] = ()
+    key = (state.agent_id, target, avoid)
+    if plan_cache is not None:
+        cached = plan_cache.get(key)
+        if cached and current in cached:
+            # still on the plan: the remainder of the route SUMO computed is
+            # exactly what reachability needs, and no new route is invented
+            route = tuple(cached[cached.index(current):])
+    if not route:
+        route = walking_route(conn, current, target, avoid=avoid)
+        if plan_cache is not None and route:
+            plan_cache[key] = tuple(route)
     reachable = tuple(tok(e) for e in route) if route else ()
 
     # The agent checks reachability by walking a SUCCESSORS graph, so it must be
@@ -212,6 +255,9 @@ class PedestrianBridge:
         self.person_of: dict[str, str] = {}
         self.events: list[dict[str, Any]] = []
         self.applied_routes: dict[str, tuple[str, ...]] = {}
+        #: the route each agent is currently walking, per goal and avoid set
+        self.plan_cache: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
+        self.router_calls = 0
         self.seq = 0
 
     # -- spawning ----------------------------------------------------------
@@ -262,8 +308,12 @@ class PedestrianBridge:
         person_id = self.person_of.get(state.agent_id)
         if person_id is None:
             return state
+        before = len(self.plan_cache)
         obs = build_observation(self.conn, self.net, state, person_id,
-                                blocked_edges=blocked_edges, t_sim=t_sim)
+                                blocked_edges=blocked_edges, t_sim=t_sim,
+                                plan_cache=self.plan_cache)
+        if len(self.plan_cache) > before:
+            self.router_calls += 1
         if obs is None:
             return state
 
@@ -303,18 +353,34 @@ class PedestrianBridge:
             self._event("agent_reroute_failed", state.agent_id, t_sim,
                         {"person_id": person_id, "error": repr(exc)[:160]})
             return
+        previous = self.applied_routes.get(person_id)
         self.applied_routes[person_id] = tuple(route)
+        # The agent is now walking THIS route, so the plan it was observing
+        # against is void. Dropping only this agent's entries keeps the cache a
+        # record of current plans rather than a record of old ones.
+        for k in [k for k in self.plan_cache if k[0] == state.agent_id]:
+            del self.plan_cache[k]
+        self.plan_cache[(state.agent_id, bare(goal.target), avoid)] = tuple(route)
         # Record the ROUTE and whether the avoidance actually succeeded.
         # walking_route returns the direct route when no way round exists, so
         # "avoided: [B1B2]" alone proves only what was ASKED for, not what was
         # achieved -- and a reroute that still crosses the avoided edge is a
         # fact worth having in the log rather than a claim worth hiding.
+        #
+        # `avoidance_succeeded` is necessary and still not sufficient, which a
+        # real run showed: a person already clear of the avoided edge reroutes,
+        # the avoid set is honoured trivially, and the flag reads true while the
+        # walk is byte-for-byte the one it already had. `route_changed` is the
+        # claim that costs something, so it is recorded next to the other.
         still_crossing = sorted(set(avoid) & set(route))
         self._event("agent_rerouted", state.agent_id, t_sim,
                     {"person_id": person_id, "route": list(route),
                      "route_len": len(route), "avoided": list(avoid),
                      "avoidance_succeeded": not still_crossing,
-                     "still_crossing": still_crossing})
+                     "still_crossing": still_crossing,
+                     "previous_route": list(previous) if previous else [],
+                     "route_changed": previous is not None
+                                      and tuple(route) != tuple(previous)})
 
     # -- events ------------------------------------------------------------
     def _event(self, kind: str, agent_id: str, t_sim: float,
