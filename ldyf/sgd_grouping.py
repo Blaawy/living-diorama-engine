@@ -46,11 +46,15 @@ Each of a block's four corners is owned by exactly ONE of its two adjacent sides
 
 * the OWNING side runs its rectangle out to the corner: the corner-end group of
   the owning side has its span end set to the block corner coordinate;
-* the NON-OWNING side starts after an inset of ``owner_depth + clearance``: its
-  corner-end group is TRIMMED to that inset.
+* the NON-OWNING side starts after an inset of ``owner_depth + clearance`` --
+  the depth of the DEEPEST group on the owning side plus the block's clearance:
+  its corner-end group is TRIMMED to that inset.
 
-Worked with the brief's numbers: south side, an east side of depth 4000 owning
-the SE corner, so ``37960 - 4000 - 200 = 33760`` bounds the south rectangle.
+Worked with the brief's numbers (illustrative only: this module draws depths
+from :data:`DEPTH_CHOICES_CM` and the clearance from :data:`CLEARANCE_CM`, so
+neither 4000 nor 200 occurs in real output): south side, an east side of depth
+4000 owning the SE corner, so ``37960 - 4000 - 200 = 33760`` bounds the south
+rectangle.
 South slots past that (f5 centred 33040, f6 centred 35040) stay *sources* of
 that group -- their design intent is folded in -- but the rectangle does not span
 them.  Slots define design intent, not immutable boundaries: a rectangle may be
@@ -61,15 +65,16 @@ The rule is chosen so a perpendicular intersection is geometrically impossible
 rather than merely unobserved: the two rectangles meeting at a corner are
 separated on the *non-owning* side's own axis (its projection can only end at or
 before ``corner - owner_depth - clearance``, while the owner's projection reaches
-the corner), so no separating-axis test can find them overlapping.  The trim is a
-no-op when the non-owning side's slots already stop short of the inset line --
-which, on the real ``city_layout``, several of them do.
+the corner), so no separating-axis test can find them overlapping.  The inset
+applies whether or not the non-owning side's slots reach that far: group spans
+are laid out between the side's legal limits, not read off the slot spans.
 
-The owner's depth is shrunk -- depth first, as the brief requires -- when the
-inset would otherwise leave the non-owning side a footprint below
-:data:`MIN_GROUP_DIMENSION_CM`, and that reduction is recorded in the *owner's*
-``trimmed`` field.  A group can be a corner group at exactly one corner, so one
-group's depth is capped at most once.
+Nothing is shrunk to make room.  A group's depth is drawn once from
+:data:`DEPTH_CHOICES_CM` and never reduced; when the insets leave a side too
+little frontage to give each of its groups :data:`MIN_GROUP_DIMENSION_CM`,
+:func:`group_slots` raises ``ValueError`` instead.  The inset is recorded in the
+``trimmed`` field of the NON-owning side's corner-end group.  (An earlier design
+shrank the owner's depth first; no code does that now.)
 
 Stability of :func:`corner_owner`: ownership alternates around the block, so each
 side owns exactly one of the two corners it touches (symmetric massing, no side
@@ -83,14 +88,16 @@ dict iteration order -- so it cannot change when a layout is edited elsewhere.
 Trimming and clearance
 ----------------------
 
-* two neighbouring groups of one side split their shared boundary and each back
-  off half of a per-block clearance drawn from :data:`CLEARANCE_CM` (150 or
-  300 cm), so no two rectangles in a block are closer than 150 cm;
-* a corner-driven trim -- or a corner-driven depth reduction -- is recorded in
-  the group's ``trimmed`` field; ``None`` when nothing was reduced;
-* depths start inside :data:`DEPTH_BAND_CM` (3000..4500 cm) and are shrunk FIRST
-  if a rectangle would collide with an unrelated one.  The width is shrunk
-  second, and only once the depth floor is reached.
+* the groups of one side share the side's usable frontage in proportion to
+  their slot counts, with one full per-block clearance drawn from
+  :data:`CLEARANCE_CM` (150 or 300 cm) left between two neighbouring groups, so
+  no two rectangles in a block are closer than 150 cm;
+* a corner inset is recorded in the group's ``trimmed`` field (a reason and the
+  inset per corner); ``None`` when the group was not inset;
+* depths are 3000, 3750 or 4500 cm (:data:`DEPTH_CHOICES_CM`, inside
+  :data:`DEPTH_BAND_CM`) and are not changed afterwards.  There is no shrinking
+  pass, depth-first or otherwise: a block whose rectangles would overlap or come
+  closer than the clearance raises ``ValueError`` rather than being resized.
 
 Reference walk-through (``block_1_1``, all four sides carry 7 slots)
 -------------------------------------------------------------------
@@ -104,11 +111,12 @@ Real slot spans from ``city_layout.json`` (``depth_cm`` 1500 everywhere, widths
 * north (yaw ``90``, ``y = -22040``): f14..f20 span x 24000 -> 37960;
 * west (yaw ``180``, ``x = 22040``): f21..f27 span y -36000 -> -22040.
 
-A 7-slot side splits 4+3 (or 3+4, digest-chosen), so each side yields two groups
-and an ordinary block composes 8 buildings.  ``block_1_1`` also carries the
-landmark: its own run of :data:`LANDMARK_GROUP_SLOTS` = 2 slots that is never
-merged into a generic rectangle, plus the remaining 5 slots chunked 3+2, so that
-block composes 9 -- inside the 7-9 target.  With the SE corner owned by the south
+A 7-slot side splits 4+3, the 4-slot group first along the frontage, so each
+side yields two groups and every block composes 8 buildings -- inside the 7-9
+target.  ``block_1_1`` also carries the landmark, and it composes 8 like the
+rest: the landmark is not an extra run of its own, it is whichever of those
+groups contains the landmark slot (``east:1``, slots f11..f13, at the layout's
+seed), with its role set to ``landmark``.  With the SE corner owned by the south
 side and an east group of depth 4000 owning it in the brief's example, the south
 group that ends the run extends from 36000 out to 37960 while the east group's
 start is inset to ``-33760 = -37960 + 4000 + 200``: the two rectangles are
@@ -142,31 +150,37 @@ DEPTH_BAND_CM: tuple[float, float] = (3000.0, 4500.0)
 #: one end of this band per block, deterministically.
 CLEARANCE_CM: tuple[float, float] = (150.0, 300.0)
 
-#: Slots the landmark's own mass spans (the landmark slot plus one neighbour).
+#: Slots a landmark run of its own would span (the landmark slot plus one
+#: neighbour).  Read only by :func:`_side_runs`, which :func:`group_slots` does
+#: not call: today the landmark mass is the ordinary 3- or 4-slot group that
+#: contains the landmark slot.
 LANDMARK_GROUP_SLOTS = 2
 
 #: Concrete depths drawn from inside :data:`DEPTH_BAND_CM`.
 DEPTH_CHOICES_CM: tuple[float, ...] = (3000.0, 3750.0, 4500.0)
 
-#: ``(tier, hint cm)`` -- the hint height handed to ``family_for`` so the role
-#: band, and hence the family, actually varies.  A raw 1600-2400 cm request would
-#: put every group in the low-rise band, where ``SFD`` stands alone.
+#: ``(tier, hint cm)`` -- the hint height handed to ``family_for`` and used as a
+#: floor on the group's requested height.  The hints were introduced so the role
+#: band, and hence the family, varied; with ``SFD`` the only family every band
+#: gives ``SFD``, and what the tiers vary now is HEIGHT.
 #:
 #: The mid hint is 3800, not the 2800 it was while NYAE/NYAF existed. With one
 #: family the ONLY thing that separates two neighbours on a street is height, and
-#: 2500 against 2800 is two SFD floors -- it reads as one flat wall. 2500 / 3800
-#: / 6500 puts at least ten floors between any two tiers.
+#: 2500 against 2800 is two SFD floors -- it reads as one flat wall. The low
+#: hint of 1700 is below SFD's 2500 minimum, so a low group is clamped up to at
+#: least 2500; 2500 / 3800 / 6500 puts at least ten floors between any two tiers.
 TIER_HINTS_CM: tuple[tuple[str, float], ...] = (
     ("low", 1700.0), ("mid", 3800.0), ("tall", 6500.0))
 
-#: Two neighbours on a side that wear the SAME family must differ in planned
-#: height by at least this much, or the side reads as one flat wall. It is three
-#: SFD floors (130 cm each, measured).
+#: Two neighbours (:func:`neighbour_pairs`: consecutive along a side, or round a
+#: block corner) that wear the SAME family must differ in planned height by at
+#: least this much, or they read as one flat wall. It is three SFD floors
+#: (130 cm each, measured).
 NEIGHBOUR_HEIGHT_STEP_CM = 390.0
 
 
-#: The landmark is always this much taller than the tallest ordinary group of its
-#: block, so it stays the block's landmark after clamping.
+#: The landmark is requested at least this much taller than the tallest ordinary
+#: group of its block, so it stays the block's landmark after clamping.
 LANDMARK_MARGIN_CM = 500.0
 
 #: Smallest rectangle this layer emits on either axis, in cm.  This layer's own
@@ -174,10 +188,12 @@ LANDMARK_MARGIN_CM = 500.0
 #: shape grammar given a degenerate footprint emits nothing.
 MIN_GROUP_DIMENSION_CM = 1200.0
 
-#: Step used when a collision forces a rectangle to shrink.
+#: Step a collision-driven shrink would use.  Left from an earlier design: no
+#: code shrinks a rectangle now, and nothing reads this.
 SHRINK_STEP_CM = 50.0
 
-#: Safety margin, in cm, when a depth is capped so a trimmed group stays buildable.
+#: Safety margin, in cm, for a capped depth.  Unused for the same reason, as is
+#: ``_SHRINK_GUARD``.
 _CAP_MARGIN_CM = 1.0
 _SHRINK_GUARD = 400
 
@@ -535,8 +551,9 @@ def _chunk_sizes(count: int, *, key: str, seed: int) -> list[int]:
     """Split ``count`` slots into group sizes of about :data:`GROUP_SIZE_CHOICES`.
 
     At most four slots per group, so a side of seven becomes 4+3 and a side of
-    five becomes 3+2.  Which size comes first is drawn from a digest, so a block
-    shows both 3-slot and 4-slot spans.  Digest-driven only.
+    five becomes 3+2; a block therefore shows both 3-slot and 4-slot spans.  The
+    larger size always comes first: the sizes are built in descending order, so
+    the digest-driven descending sort below never changes them.
     """
     if count <= 0:
         return []
@@ -624,6 +641,10 @@ def _side_runs(side: str, ordered: list[dict], *, block_id: str, seed: int,
     -- itself plus the neighbour nearer the run's start -- which is never merged
     into a generic rectangle, and the slots on either side of it are chunked
     separately.
+
+    Not called: :func:`group_slots` chunks every side with :func:`_chunk_sizes`
+    alone and gives the landmark role to the group that contains the landmark
+    slot.  This is the earlier landmark-run design, kept but not in use.
     """
     ids = [_slot_id(s) for s in ordered]
     if landmark_id is None or landmark_id not in ids:
@@ -911,11 +932,15 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
 
     ``width_cm`` is the group's merged frontage span and ``length_cm`` its depth
     (``group_slots``'s ``depth_cm``).  A group's requested height is the tallest
-    request among its slots, floored by its tier hint -- so the family varies at
-    all -- and every height goes through ``sgd_buildings.clamp_height``, the only
-    place a height changes.  The landmark keeps ``role == "landmark"`` and family
-    ``NYG`` and is made taller than every ordinary group of its block by
-    ``LANDMARK_MARGIN_CM``.  ``ValueError`` as for :func:`group_slots`.
+    request among its slots, floored by its tier hint -- with one family, the
+    tier is what makes two neighbours differ -- and every height goes through
+    ``sgd_buildings.clamp_height``, the only place THIS function changes a height
+    (``sgd_buildings.apply_height_bands`` may lift it afterwards).  The landmark
+    keeps ``role == "landmark"`` and wears ``LANDMARK_FAMILY`` (``SFD``, like
+    every ordinary group); it is requested at least ``LANDMARK_MARGIN_CM`` above
+    the tallest ordinary group of its block and never below
+    ``LANDMARK_HEIGHT_BAND_CM[0]``.  ``ValueError`` as for :func:`group_slots`,
+    and when two neighbours would come out looking alike.
     """
     seed = _require_seed(seed)
     block_id = str(block_id)
@@ -940,9 +965,11 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
     # Which group, if any, is immediately BEFORE the landmark on its own side?
     # The landmark is pinned to LANDMARK_FAMILY, and that family is no longer
     # exclusive, so a neighbour chosen before it with avoid=None can land on the
-    # same family. Looking only backwards is not enough: the landmark is second
-    # on its side, so the group ahead of it is decided first. This makes the
-    # constraint symmetric.
+    # same family. Looking only backwards is not enough: when the landmark is
+    # second on its side, the group ahead of it is decided first. This makes the
+    # constraint symmetric. With SFD the only family it cannot change the
+    # outcome -- every candidate list is ("SFD",) -- and height keeps the two
+    # apart; it matters again in a multi-family palette.
     _before_landmark: set[str] = set()
     for _i, _g in enumerate(groups):
         if _g["role"] != "landmark":
@@ -963,11 +990,13 @@ def grouped_orders(layout: Mapping[str, Any], block_id: Any, *, seed: int) -> di
             group_id, seed, _avoid, is_landmark,
             {look_of[n] for n in neighbours[str(group_id)] if n in look_of})
         # The landmark counts as a neighbour on its side. It is PINNED to
-        # LANDMARK_FAMILY, and since that family is no longer exclusive (NYG
-        # rendered as shafts, so NYAF now serves both roles) the ordinary group
-        # beside it would otherwise be chosen with avoid=None and could land on
-        # NYAF too -- which is exactly what made block_1_1's east:0 and east:1
-        # share a family. Recording it closes that hole.
+        # LANDMARK_FAMILY, and that family is not exclusive, so the ordinary
+        # group beside it would otherwise be chosen with avoid=None and could
+        # land on the same family. History: this was written when NYAF had just
+        # replaced NYG and served both roles, and it is exactly what made
+        # block_1_1's east:0 and east:1 share NYAF. Recording it closed that
+        # hole. With SFD the only family the two share it regardless, and the
+        # neighbour height step is what keeps them apart.
         previous[side_yaw] = family
         look_of[str(group_id)] = (str(family),
                                   "landmark" if is_landmark else _tier_name)
@@ -1208,15 +1237,21 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
     Claims checked: the schema tag; the order and group key sets; every order and
     group belongs to ``block_id``; positive dimensions, at least
     ``MIN_GROUP_DIMENSION_CM`` on either axis and never deeper than
-    ``DEPTH_BAND_CM[1]``; palette families only, ``NYG`` landmark-only;
-    ``sgd_asset`` matching the family; heights at or above the family's measured
-    ``STYLE_MIN_HEIGHT_CM`` and never below the request; exactly one landmark,
-    ``NYG``, taller than every ordinary order of the block; every source slot
-    attributed to exactly one group and no slot left over; no two rectangles
-    overlapping (``rects_overlap``); every rectangle inside the block region; yaw
-    values on the four cardinal sides; no two groups adjacent along a side
-    sharing a family; counts and ``clamps`` consistent with the orders; and, for
-    a block of at least 24 slots, 7-9 buildings.
+    ``DEPTH_BAND_CM[1]``; palette families only, and the landmark family refused
+    on an ordinary order only when the palette marks it ``landmark_only``
+    (nothing is today); ``sgd_asset`` matching the family; heights at or above
+    the family's measured ``STYLE_MIN_HEIGHT_CM`` and never below the request; at
+    most one landmark order -- required in the block the layout picks, refused
+    in any other -- wearing ``LANDMARK_FAMILY``, at or above
+    ``LANDMARK_HEIGHT_BAND_CM[0]`` and taller than every ordinary order of the
+    block; every source slot attributed to exactly one group and no slot left
+    over; no two rectangles overlapping and none closer than ``CLEARANCE_CM[0]``
+    (``rect_overlap``); every rectangle inside the block region; yaw values on
+    the four cardinal sides; no two neighbours (:func:`neighbour_pairs`: along a
+    side or round a corner) wearing the same family unless their heights differ
+    by at least ``NEIGHBOUR_HEIGHT_STEP_CM``; counts and ``clamps`` consistent
+    with the orders; and, for a block of at least 24 slots, 7-9 buildings each
+    with at least 3000 cm of frontage and of depth.
     """
     problems: list[str] = []
     if not isinstance(doc, Mapping):
@@ -1285,9 +1320,9 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
         else:
             # The landmark family is only EXCLUSIVE when the palette says so.
             # NYG was landmark-only and rendered as thin shafts at every height,
-            # so the landmark now shares NYAF with ordinary mid-rise buildings
-            # and is distinguished by HEIGHT instead. Enforcing exclusivity here
-            # would reject every ordinary NYAF.
+            # so the landmark now wears SFD, the same family as every ordinary
+            # building, and is distinguished by HEIGHT instead. Enforcing
+            # exclusivity here would reject every ordinary SFD.
             _exclusive = bool(
                 _sgd.SGD_PALETTE.get(_sgd.LANDMARK_FAMILY, {}).get(
                     "landmark_only"))
@@ -1524,18 +1559,7 @@ def validate_groups(doc: Mapping[str, Any], layout: Mapping[str, Any],
                                         % (kind, rid, x, y))
                         break
 
-    # -- families alternate along a side --------------------------------------
-    order_by_id = {o.get("id"): o for o in orders if isinstance(o, Mapping)}
-    by_side: dict[float, list[Mapping[str, Any]]] = {}
-    for group in groups:
-        if isinstance(group, Mapping):
-            by_side.setdefault(float(group.get("side_yaw") or 0.0), []).append(group)
-    for side_yaw, side_groups in by_side.items():
-        vertical = side_yaw in (SIDE_YAW["east"], SIDE_YAW["west"])
-        ordered_groups = sorted(
-            side_groups,
-            key=lambda g: (_as_pair(g.get("center")) or (0.0, 0.0))[1 if vertical else 0])
-        del ordered_groups
+    # -- neighbours must not look alike (along a side and round a corner) -----
     # Same family is allowed -- SFD is the only family with real walls -- but
     # then neighbours must differ in height. One predicate, shared with the
     # generator, and it sees corners as well as sides.

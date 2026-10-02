@@ -297,12 +297,10 @@ def test_landmark_requested_height_is_lifted_to_the_existing_floor():
     doc = make_doc(band_layout(1600.0, n=4))
     landmark = [o for o in doc["orders"] if o["role"] == "landmark"][0]
     assert landmark["requested_height_cm"] == LANDMARK_FLOOR
-    # LANDMARK_FLOOR is 5600 but NYAF's MEASURED minimum is 6000, so the
-    # landmark is clamped up. Below 6000 NYAF emits no geometry at all, so this
-    # clamp is load-bearing, not cosmetic.
-    # NYAF's measured minimum (2500) is BELOW the 5600 landmark floor, so the
-    # landmark is no longer clamped upward -- it simply keeps its floor. With
-    # NYG this was the other way round and the clamp was load-bearing.
+    # SFD's measured minimum (2500) is BELOW the 5600 landmark floor, so the
+    # landmark is not clamped upward -- it simply keeps its floor. History:
+    # under an earlier landmark family whose minimum was recorded as 6000 it
+    # was the other way round and the clamp was load-bearing.
     assert STYLE_MIN_HEIGHT_CM["SFD"] < LANDMARK_FLOOR
     assert landmark["height_cm"] == LANDMARK_FLOOR
     assert not any(c["id"] == landmark["id"] for c in doc["clamps"])
@@ -336,10 +334,9 @@ def test_clamp_height_raises_the_height_and_reports_the_clamp():
 def test_requested_height_below_minimum_never_survives_into_an_order():
     doc = make_doc(band_layout(1600.0, n=5))
     minima = doc["style_minimum_cm"]
-    # every order clamps in this band, the landmark included: its 5600 floor is
-    # below NYAF's measured 6000 minimum
-    # the landmark is no longer clamped (its 5600 floor clears NYAF's 2500
-    # minimum), so every ORDINARY order clamps and the landmark does not
+    # every ORDINARY order clamps in this band (1600 against SFD's 2500
+    # minimum) and the landmark does not: its 5600 floor clears 2500. History:
+    # under an earlier landmark family with a 6000 minimum it clamped as well.
     assert len(doc["clamps"]) == len(doc["orders"]) - 1
     for order in doc["orders"]:
         assert order["height_cm"] >= minima[order["family"]]

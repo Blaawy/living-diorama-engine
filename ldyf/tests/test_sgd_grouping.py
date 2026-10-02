@@ -510,8 +510,10 @@ def test_landmark_is_preserved_and_tallest_in_its_block():
     assert landmark["id"] == doc["landmark_id"]
     assert landmark["family"] == LANDMARK_FAMILY
     # grouped_orders does not apply height bands -- that is apply_height_bands'
-    # job -- so the landmark here carries the LANDMARK_FLOOR. What must hold at
-    # this stage is the hierarchy, not a specific band value.
+    # job -- so the landmark here carries its pre-band request: the tallest
+    # ordinary group plus LANDMARK_MARGIN_CM, and at least the landmark band
+    # floor. What must hold at this stage is the hierarchy, not a specific
+    # band value.
     assert landmark["height_cm"] == max(o["height_cm"] for o in doc["orders"])
     assert doc["counts"]["landmark"] == 1
     ordinary = [o for o in doc["orders"] if o["role"] == "ordinary"]
@@ -607,7 +609,7 @@ def test_a_thin_side_still_yields_buildable_groups():
     layout = ring_layout("thin", slots_per_side=2)
     doc = grouped_orders(layout, "thin", seed=SEED)
     assert validate_groups(doc, layout, "thin") == []
-    assert len(doc["orders"]) == 4          # 3 ordinary sides + the landmark run
+    assert len(doc["orders"]) == 4          # one group per side, one the landmark
     for order in doc["orders"]:
         assert order["width_cm"] >= MIN_GROUP_DIMENSION_CM - 1e-6
         assert order["length_cm"] >= MIN_GROUP_DIMENSION_CM - 1e-6
@@ -1024,12 +1026,23 @@ def test_known_bad_067c039_document_is_rejected():
     Re-measured correctly the document has ZERO overlaps, and the validator of
     the day was right to report none.
 
-    What it really contains is 16 defects of other kinds: three pairs separated
-    by only 10, 49 and 10 cm against a 150 cm minimum clearance, seven
-    footprints below the 3000 cm production minimum, a 1201 cm sliver frontage,
-    and a landmark at 7000 cm against a 14000 cm target with an ordinary
-    neighbour at 6500. The validator of the day returned `[]` for all of that,
-    which is the regression this pins.
+    What it really contained, as counted at the time, was 16 defects of other
+    kinds: three pairs separated by only 10, 49 and 10 cm against a 150 cm
+    minimum clearance, seven footprints below the 3000 cm production minimum, a
+    1201 cm sliver frontage, and a landmark at 7000 cm against what was then a
+    14000 cm target with an ordinary neighbour at 6500. The validator of the
+    day returned `[]` for all of that, which is the regression this pins.
+
+    Why it is rejected TODAY (24 problems when run against the current
+    validator): the three clearance violations, each reported once for the
+    orders and once for the groups; nine footprint complaints (seven depths and
+    two frontages, 1201 and 2550 cm, below the 3000 cm production minimum); six
+    orders wearing families that have since left the palette (NYAF, NYAE, NYG,
+    NYGA); the landmark wearing NYG where SFD is expected; and two neighbour
+    pairs in one family at one height. The landmark's 7000 cm is NOT among
+    them: there is no 14000 cm target any more, the landmark band floor is
+    6000, and 7000 is taller than its 6500 neighbour. So the "landmark"
+    assertion below is met by the family complaint, not by a height one.
     """
     doc = json.loads(KNOWN_BAD_PATH.read_text(encoding="utf-8"))
     problems = validate_groups(doc, LAYOUT, LANDMARK_BLOCK)

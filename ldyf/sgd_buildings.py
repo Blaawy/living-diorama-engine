@@ -23,21 +23,26 @@ and seed -- nothing else.
 
 **Asset path and its object suffix.**  Every order's ``sgd_asset`` is
 ``/CitySamplePCG/PCG/DataAssets/Buildings/<FAMILY>/SGD_<FAMILY>_A.SGD_<FAMILY>_A``
-(:func:`sgd_asset_path`), e.g. ``.../NYAF/SGD_NYAF_A.SGD_NYAF_A``.  The trailing
+(:func:`sgd_asset_path`), e.g. ``.../SFD/SGD_SFD_A.SGD_SFD_A``.  The trailing
 ``.SGD_<FAMILY>_A`` object suffix is **required** by the engine call that
 consumes this path: the graph-instance override takes the *object* path of the
 shape-grammar definition data asset (package path plus the object's name inside
 that package), so dropping the suffix makes the override resolve to nothing.
 
-**The palette and why it is closed.**  ``SGD_PALETTE`` holds the nine families
-that were measured to produce real wall modules with the meshes actually
-installed (instance counts in Epic's demo are recorded per family).  Every
-other family produced the foundation-only baseline of 72 instances, i.e. walls
-are missing, so those families must never be selected: :func:`family_for` and
-:func:`sgd_asset_path` refuse a family outside the palette with ``ValueError``,
-and :func:`_check_palette` re-checks the whole table at import time (the same
-import-time discipline ``building_styles`` uses).  ``NYG`` is **landmark
-only** -- no ordinary order may wear it and :func:`validate_orders` says so.
+**The palette and why it is closed.**  ``SGD_PALETTE`` holds exactly one
+family, ``SFD``: the only family whose wall meshes exist in this project (its
+instance count in Epic's demo is recorded with it).  Every other family is
+refused.  The ones never admitted produced the foundation-only baseline of 72
+instances, i.e. walls are missing.  ``NYAD``, ``NYAC``, ``NYH``,
+``CHA``/``CHB``/``CHH``, ``NYG``, ``NYGA``, ``NYAE`` and ``NYAF`` were admitted
+once and removed after a build or a render showed them to be a slab, a hollow
+frame or thin shafts; the comments above ``_PALETTE_FAMILIES`` keep each
+measurement.  :func:`family_for` and :func:`sgd_asset_path` refuse a family
+outside the palette with ``ValueError``, and :func:`_check_palette` re-checks
+the whole table at import time (the same import-time discipline
+``building_styles`` uses).  Nothing is landmark-only: ``LANDMARK_FAMILY`` is
+``SFD`` as well, and the landmark is told apart by HEIGHT -- its own
+``LANDMARK_HEIGHT_BAND_CM`` -- not by family.
 
 **Reused, not reinvented.**  Slot traversal, the trusted slot ``yaw`` field,
 the single footprint rule and the landmark slot decision all come from
@@ -69,17 +74,20 @@ rectangle, facing the street.  The building therefore faces the street, not a
 world axis, and ``length_cm`` always measures backwards from that front wall.
 
 **Height: clamp, never re-randomise.**  A grammar given too little height makes
-**zero** geometry: ``NYAF`` at 1500 cm yielded nothing while 6000 cm yielded a
-real 7-storey building, so 6000.0 is the one measured minimum in
-``STYLE_MIN_HEIGHT_CM`` and every other family is ``None`` ("unknown -- use
-``DEFAULT_MIN_HEIGHT_CM``") until a measured table lands via
-:func:`set_style_minimums`.  The requested height for a slot comes from the
-existing massing rule (``building_kits.massing_variation``, the same source the
-previous building path used), lifted to ``building_kits.LANDMARK_MIN_HEIGHT_CM``
-for the landmark; :func:`clamp_height` then raises -- never lowers, never
-re-rolls -- a request that is below its family's minimum and *reports* that it
-did (``clamped``, and one entry in the document's ``clamps`` list).  No height
-is invented anywhere else in this module.
+**zero** geometry, so every palette family carries a MEASURED minimum in
+``STYLE_MIN_HEIGHT_CM`` (``SFD``: 2500.0).  ``None`` in that table still means
+"unknown -- use ``DEFAULT_MIN_HEIGHT_CM``", but no family is unknown today: a
+``None`` can only arrive through :func:`set_style_minimums` or the ``minimums``
+argument.  (History: the first such measurement was ``NYAF`` yielding nothing
+at 1500 cm, before ``NYAF`` left the palette.)  The requested height for a slot
+comes from the existing massing rule (``building_kits.massing_variation``, the
+same source the previous building path used), lifted to
+``building_kits.LANDMARK_MIN_HEIGHT_CM`` for the landmark; :func:`clamp_height`
+then raises -- never lowers, never re-rolls -- a request that is below its
+family's minimum and *reports* that it did (``clamped``, and one entry in the
+document's ``clamps`` list).  :func:`sgd_orders` changes a height nowhere else;
+:func:`apply_height_bands` and :func:`snap_to_floors` are separate, later
+passes over a finished document.
 
 Pure stdlib (``hashlib``/``math``/``re``), deterministic (sha256 digests, never
 ``random``), floats routed through :func:`_f3`.
@@ -109,14 +117,16 @@ SGD_ASSET_RE = re.compile(
     r"/CitySamplePCG/PCG/DataAssets/Buildings/"
     r"(?P<family>[A-Z]+)/SGD_(?P=family)_A\.SGD_(?P=family)_A\Z")
 
-#: Instance count every family *outside* the palette produced in Epic's demo:
-#: the foundation-only baseline, i.e. no usable walls.
+#: Instance count every family that was NEVER in the palette produced in Epic's
+#: demo: the foundation-only baseline, i.e. no usable walls.  (Families that
+#: were admitted and later removed failed other checks; see below.)
 FOUNDATION_ONLY_INSTANCES = 72
 
 #: The production palette: family -> the role band it is chosen for and the
-#: instance count measured in Epic's own demo.  Exactly these nine families;
-#: every other family sits at ``FOUNDATION_ONLY_INSTANCES`` and is never
-#: selectable (see the module docstring).
+#: instance count measured in Epic's own demo.  Exactly one family, ``SFD``;
+#: every other family either sits at ``FOUNDATION_ONLY_INSTANCES`` or was
+#: removed after a build or render check (below), and is never selectable
+#: (see the module docstring).
 SGD_PALETTE: dict[str, dict[str, Any]] = {
     "SFD": {"role_band": "every band and the landmark", "instances": 1032,
             "landmark_only": False},
@@ -145,9 +155,12 @@ SGD_PALETTE: dict[str, dict[str, Any]] = {
 #: rendered as four thin vertical SHAFTS rather than a tower -- identically at
 #: 14000, 11000, 9000, 7000 and 5000 cm, so it is neither a height nor an aspect
 #: problem: the family simply produces slender shaft forms with this mesh
-#: subset. An in-situ A/B settled it -- swapping ONLY the landmark family to
-#: NYAF, at the same 14000 cm, removed the shafts and produced a solid
-#: 13,839.5 cm mass (ratio 0.988, 914 modules). NYGA is dropped as never
+#: subset. At the time an in-situ A/B was read as settling it -- swapping ONLY
+#: the landmark family to NYAF, at the same 14000 cm, built a 13,839.5 cm mass
+#: (ratio 0.988, 914 modules) and was recorded as "removed the shafts". That
+#: reading was wrong (see the NYAE/NYAF note above: instance counts and height
+#: ratio do not see a hollow facade) and NYAF has since been removed too. The
+#: case against NYG stands on its own renders. NYGA is dropped as never
 #: visually verified: no slot ever requested its band, so it would have shipped
 #: untested, and that is exactly how NYG got through.
 #: Evidence: EVIDENCE/PHASE_02/look_blockv2_nyaf14/, landmark_aspect.json.
@@ -165,13 +178,17 @@ SGD_PALETTE: dict[str, dict[str, Any]] = {
 #: * ``CHA`` / ``CHB`` / ``CHH`` -- the 32-module foundation ring at every
 #:   height tested; no Chicago family has usable walls in this mesh subset.
 #:
-#: Families kept all achieve ratio >= 0.93 with >= 200 modules, except the
-#: landmark which is denser still (2510).
+#: At that check the families then kept all achieved ratio >= 0.93 with >= 200
+#: modules, and the landmark of the day was denser still (2510).
+#: Those numbers did not see hollow facades; of the families kept then, only
+#: SFD is still in the palette.
 #:
 #: The palette as a sorted literal, so the import-time check is order-free.
 _PALETTE_FAMILIES: tuple[str, ...] = ("SFD",)
 
-#: The only family an ordinary order may not wear.
+#: The family the landmark wears. It is NOT exclusive: every ordinary order
+#: wears SFD too, and the landmark is distinguished by height
+#: (:data:`LANDMARK_HEIGHT_BAND_CM`), not by family.
 LANDMARK_FAMILY = "SFD"
 
 #: Minimum viable height per family, in cm -- **all measured**, not inferred.
@@ -185,12 +202,14 @@ STYLE_MIN_HEIGHT_CM: dict[str, float | None] = {
     "SFD": 2500.0,    # [214] levels 0, 01-04
 }
 
-#: Height used for a family whose real minimum is unmeasured.  Chosen by hand,
-#: not measured: it is strictly above the one height measured to give zero
-#: geometry (``NYAF`` at 1500 cm) and below the top of ``building_kits``'s mid
-#: band (2600 cm), so an unmeasured family keeps its requested height once the
-#: request is at least this tall.  Replace it wholesale with
-#: :func:`set_style_minimums` as soon as a measured table exists.
+#: Height used for a family whose minimum is ``None`` ("unknown").  No palette
+#: family is unknown today -- ``SFD`` is measured at 2500, which is ABOVE this
+#: value -- so this is only reached through an explicit table that leaves a
+#: family ``None`` (:func:`set_style_minimums`, or a ``minimums=`` argument).
+#: Chosen by hand, not measured, while most families were still unmeasured: it
+#: is strictly above the one height then measured to give zero geometry (the
+#: since-retired ``NYAF`` at 1500 cm) and below the top of ``building_kits``'s
+#: mid band (2600 cm).
 DEFAULT_MIN_HEIGHT_CM = 2000.0
 
 #: Recommended height band per family, in cm: ``(minimum, maximum)``.
@@ -212,21 +231,26 @@ HEIGHT_BAND_CM: dict[str, tuple[float, float]] = {
 
 
 #: The landmark's own band. It is SEPARATE from HEIGHT_BAND_CM because the
-#: landmark family is no longer exclusive: NYAF serves ordinary mid-rise slots
-#: too, and if the landmark shared that band an ordinary NYAF at the top of the
-#: range would tie with it and the landmark would stop being the tallest mass.
-#: The floor sits above every ordinary band top so the hierarchy cannot invert.
+#: landmark family is not exclusive: SFD serves every ordinary slot too, and
+#: if the landmark shared that band an ordinary SFD at the top of the range
+#: would tie with it and the landmark would stop being the tallest mass.
+#: The floor sits above the ordinary band top (5200). A grouped document can
+#: still carry an ordinary 6500 tier, above this floor, so the landmark is
+#: planned at the TOP of the band (9000) and :func:`apply_height_bands` raises
+#: if an ordinary order would reach it.
 #:
-#: The CEILING is 9000, not the 14000 originally asked for, and that is an
-#: asset limit rather than a preference. Facade density tracks how many wall
-#: VARIANTS each level has in this project's mesh subset: NYA carries 6 variants
-#: at L3 (240 placements on the landmark) but only 1 at L7 (20 placements), so
-#: above roughly 9000 cm the upper courses thin out into widely spaced piers and
-#: a 14000 cm tower renders as shafts rather than a building -- measured, not
-#: guessed. Lifting this needs a targeted mesh import: 526 missing
-#: SM_BLDG_NYA_* files, 771 MB before dependency closure, which is far past a
-#: "smallest targeted top-up" and is a Director decision, not an engineering
-#: one. Evidence: EVIDENCE/PHASE_02/shaft_probe.json.
+#: The CEILING is 9000 because that is the tallest height SFD was measured
+#: solid at (3400 / 4200 / 5000 / 6500 / 9000 cm,
+#: EVIDENCE/PHASE_02/sfd_height_probe*.json). Nothing taller has been built
+#: and looked at, so nothing taller is planned.
+#:
+#: History: 9000 was first chosen while the landmark wore NYAF, in place of
+#: the 14000 originally asked for. The argument then was that NYA carried 6
+#: wall variants at L3 but only 1 at L7, so the upper courses of a 14000 cm
+#: tower thinned out into shafts, and that lifting it needed a 526-file,
+#: 771 MB SM_BLDG_NYA_* import (EVIDENCE/PHASE_02/shaft_probe.json). That
+#: reasoning is no longer what holds the number up: NYAF is out of the
+#: palette, and its kit holds only the Wall_01S filler at every level.
 LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 
 
@@ -242,7 +266,12 @@ LANDMARK_HEIGHT_BAND_CM: tuple[float, float] = (6000.0, 9000.0)
 #: NYAE's reserve is only BRACKETED by those points (2930 gives 8 floors, 3074
 #: gives 9, so it lies in 5..149 cm). 150 is used: the conservative end, which
 #: can only under-predict a floor and therefore only ever raises a plan.
-#: SFD is absent on purpose -- it always builds TALLER than asked (1.06-1.09).
+#: SFD is absent on purpose -- it always builds TALLER than asked (1.02-1.09).
+#:
+#: Both rows are RETIRED families: NYAE and NYAF are out of the palette, so
+#: nothing here applies to a production order and :func:`snap_to_floors` is the
+#: identity for the SFD palette. The measurements are kept for when NY families
+#: return.
 FLOOR_LADDER_CM: dict[str, tuple[float, float, float]] = {
     "NYAE": (150.0, 0.0, 325.0),
     "NYAF": (189.5, 189.5, 325.0),
@@ -268,15 +297,23 @@ def predicted_top_cm(family: str, height_cm: float) -> float:
 def snap_to_floors(doc: dict) -> dict:
     """Move a planned height up a floor when the grammar would build short.
 
-    A grammar builds whole floors, so a planned 2930 cm NYAE comes out at
-    2600 cm -- ratio 0.887, under the 0.90 fidelity gate -- because it falls
-    just short of the ninth floor. Three buildings failed the full-city gate
-    exactly this way. Where the predicted ratio is below :data:`SNAP_RATIO` the
-    plan is raised to the next floor, so what is planned is what gets built.
+    INERT for the current palette: only families in :data:`FLOOR_LADDER_CM`
+    are ever moved, that table holds only the retired NYAE and NYAF, and SFD
+    always builds taller than asked. On an all-SFD document this returns the
+    same heights and an empty ``floor_snaps``. It is kept for when NY families
+    return.
 
-    Heights only ever go UP, and the landmark is left alone: its ceiling is an
-    asset limit and its ratio is already 0.996. Returns a new document and
-    records every change under ``floor_snaps``.
+    What it did while NYAE/NYAF were in the palette: a grammar builds whole
+    floors, so a planned 2930 cm NYAE came out at 2600 cm -- ratio 0.887, under
+    the 0.90 fidelity gate -- because it fell just short of the ninth floor.
+    Three buildings failed the full-city gate exactly this way. Where the
+    predicted ratio is below :data:`SNAP_RATIO` the plan is raised to the next
+    floor, so what is planned is what gets built.
+
+    Heights only ever go UP, and the landmark is left alone (when this was
+    written it wore NYAF at a ratio of 0.996 and its ceiling was treated as an
+    asset limit). Returns a new document and records every change under
+    ``floor_snaps``.
     """
     orders = doc.get("orders") or []
     if not orders:
@@ -357,12 +394,12 @@ def apply_height_bands(doc: dict, *, never_lower: bool = False) -> dict:
         height = _f3(band_lo + t * (band_hi - band_lo))
         # never below the measured minimum, whatever the band says
         height = max(height, minimum_for(fam))
-        # Grouped documents already carry a height TIER per group (2500 / 2800 /
+        # Grouped documents already carry a height TIER per group (2500 / 3800 /
         # 6500), and banding would pull the 6500 tier down to its family's 5200
-        # ceiling -- below its own request, which validate_groups rejects on
-        # eight of the nine real blocks. With never_lower the band can only
+        # ceiling -- below its own request, which validate_groups rejects, and
+        # every real block has a 6500 group. With never_lower the band can only
         # LIFT a building, so the tiers survive and the flat ones still spread.
-        # The landmark is exempt: its band ceiling is an asset limit.
+        # The landmark is exempt: it always takes the top of its own band.
         if never_lower and o.get("role") != "landmark":
             height = max(height, float(o["height_cm"]))
         row = dict(o)
@@ -399,6 +436,9 @@ def apply_height_bands(doc: dict, *, never_lower: bool = False) -> dict:
 #: 3000 -> 3084; NYGA 5000 -> 5025.6, 3500 -> 3525.6; NYG 4400 -> 4424,
 #: 3100 -> 3124), on both axes and at every yaw.  Rounded UP to the centimetre
 #: so a planned envelope is never smaller than what gets built.
+#: Only the SFD row is live. NYAE, NYAF, NYGA and NYG are all out of the
+#: palette; the NYAE and NYAF rows stay as measured history and cannot be
+#: reached through :func:`overhang_for`, which refuses a non-palette family.
 #: Evidence: EVIDENCE/PHASE_02/block_v2/axis_and_overhang_probe.json.
 FAMILY_OVERHANG_CM: dict[str, float] = {
     "SFD": 95.0,
@@ -439,8 +479,9 @@ DEFAULT_FOOTPRINT_DEPTH_CM = 1200.0
 #: read from ``building_kits.LANDMARK_MIN_HEIGHT_CM`` at call time.
 LANDMARK_FLOOR_CM = 5600.0
 
-#: Family candidates per role band, in the brief's role-band order.  ``NYG``
-#: is deliberately absent: it is landmark-only.
+#: Family candidates per role band, in the brief's role-band order.  Every
+#: band has the one candidate, ``SFD``, which is also the landmark family:
+#: nothing is landmark-only.
 ROLE_BAND_FAMILIES: dict[str, tuple[str, ...]] = {
     "low-rise": ("SFD",),
     "mid-rise": ("SFD",),
@@ -517,11 +558,13 @@ def sgd_asset_path(family: str) -> str:
 def _check_palette() -> None:
     """Import-time check: nothing outside the palette can be emitted.
 
-    Verifies that the palette is exactly the nine documented families, that no
-    palette family sits at the foundation-only baseline, that the minimum table
-    and the band tables only mention palette families, that every non-landmark
-    family is reachable from a band, that ``NYG`` is the only landmark-only
-    family, and that every family's asset path matches the documented pattern.
+    Verifies that the palette is exactly ``_PALETTE_FAMILIES`` (one family,
+    ``SFD``), that no palette family sits at the foundation-only baseline, that
+    the minimum table covers exactly the palette, that every role-band
+    candidate is a palette family and every non-landmark family is reachable
+    from a band, that no family other than ``LANDMARK_FAMILY`` is marked
+    landmark-only (none is), and that every family's asset path matches the
+    documented pattern.
     """
     if sorted(SGD_PALETTE) != sorted(_PALETTE_FAMILIES):
         raise AssertionError(
@@ -539,8 +582,9 @@ def _check_palette() -> None:
             % (sorted(STYLE_MIN_HEIGHT_CM), sorted(SGD_PALETTE)))
     # The landmark no longer has an EXCLUSIVE family, and that is deliberate.
     # NYG was landmark-only and rendered as thin shafts at every height; the
-    # only families verified on screen are the ordinary ones, so the landmark
-    # now shares NYAF and is distinguished by HEIGHT rather than by family.
+    # only family verified on screen is SFD, so the landmark wears SFD like
+    # every ordinary order and is distinguished by HEIGHT rather than by
+    # family. (It shared NYAF first; NYAF was then removed as well.)
     # What must still hold: the landmark family is in the palette, and any
     # family that DOES claim landmark_only is the landmark family.
     _require_palette_family(LANDMARK_FAMILY)
@@ -671,15 +715,19 @@ def family_for(slot_id: Any, requested_cm: float, seed: int, *,
                landmark: bool = False, avoid: str | None = None) -> str:
     """The family one slot wears, deterministic from ``(slot_id, seed)``.
 
-    The *requested* height picks the role band (:func:`role_band_for`) so tall
-    slots get tall families and low slots get ``SFD``; within the band a sha256
-    digest of ``("sgd_family", band, slot_id, seed)`` picks the starting
-    candidate and, **if that candidate is the previous slot's family in the
-    same block** (``avoid``) and the band has an alternative, the rotation
-    steps forward to the next candidate.  So two adjacent slots in one block
-    never share a family unless the band offers only one (``SFD`` in the
-    low-rise band is the one such case).  ``landmark`` short-circuits to
-    :data:`LANDMARK_FAMILY`: only a landmark may wear ``NYG``.
+    With the current palette the answer is always ``SFD``: every role band
+    lists that one candidate and :data:`LANDMARK_FAMILY` is ``SFD`` too.  The
+    selection machinery is kept for a palette with more than one family.
+
+    The *requested* height picks the role band (:func:`role_band_for`); within
+    the band a sha256 digest of ``("sgd_family", band, slot_id, seed)`` picks
+    the starting candidate and, **if that candidate is the previous slot's
+    family in the same block** (``avoid``) and the band has an alternative, the
+    rotation steps forward to the next candidate.  So two adjacent slots in one
+    block never share a family unless the band offers only one -- which every
+    band does today, so ``avoid`` has no effect and neighbours are kept apart
+    by height instead (``sgd_grouping``).  ``landmark`` short-circuits to
+    :data:`LANDMARK_FAMILY`, which is not exclusive to the landmark.
     """
     if landmark:
         return LANDMARK_FAMILY
@@ -847,12 +895,12 @@ def sgd_orders(layout: dict, *, seed: int,
     docstring: ``yaw`` is the outward frontage normal, so the front wall faces
     the street).  ``requested_height_cm`` is the height massing asked for and
     ``height_cm`` the same request after :func:`clamp_height`, which is the
-    only place in this module that changes a height.  ``family`` is a palette
-    family (tall slots get tall families, low slots ``SFD``), ``sgd_asset`` its
-    shape-grammar asset path, ``seed`` a per-order digest the driver can hand
-    Epic's grammar, and exactly one order -- the landmark -- has
-    ``role == "landmark"`` and wears ``NYG``.  ``clamps`` records every order
-    whose request had to be raised.
+    only place in this function that changes a height.  ``family`` is a palette
+    family (``SFD`` for every order, the palette's one family), ``sgd_asset``
+    its shape-grammar asset path, ``seed`` a per-order digest the driver can
+    hand Epic's grammar, and exactly one order -- the landmark -- has
+    ``role == "landmark"``; it wears :data:`LANDMARK_FAMILY`, which is ``SFD``
+    as well.  ``clamps`` records every order whose request had to be raised.
 
     ``minimums`` injects a measured ``{family: cm or None}`` table for this
     call only (:func:`set_style_minimums` changes the module default); a family
@@ -955,7 +1003,9 @@ def validate_orders(doc: dict) -> list:
     or below zero or below that family's minimum; a non-positive
     ``width_cm``/``length_cm``; an ``sgd_asset`` that does not match the
     documented pattern or does not name that order's family; a malformed
-    ``center``/``yaw_deg``; ``NYG`` on an order that is not the landmark; a
+    ``center``/``yaw_deg``; the landmark family on an order that is not the
+    landmark, but only when the palette marks that family ``landmark_only``
+    (nothing is today, so ordinary ``SFD`` orders pass); a
     duplicate id; and two rectangles that overlap (axis-aware, using
     ``center``/``width_cm``/``length_cm``/``yaw_deg``, so a rotated rectangle is
     compared in its own frame).  Document-wide it catches a wrong
@@ -1003,7 +1053,7 @@ def validate_orders(doc: dict) -> list:
                                sorted(SGD_PALETTE)))
         else:
             # exclusivity only applies when the palette actually marks the
-            # landmark family landmark_only; NYAF now serves both roles
+            # landmark family landmark_only; SFD serves both roles
             if (SGD_PALETTE.get(LANDMARK_FAMILY, {}).get("landmark_only")
                     and family == LANDMARK_FAMILY and role != "landmark"):
                 problems.append("order %s: %s is landmark-only but the role is "
