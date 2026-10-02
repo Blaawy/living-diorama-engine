@@ -22,6 +22,14 @@ EV = YF / "EVIDENCE" / "PHASE_02"
 WS = YF / "WORKSPACE"
 STAGE = YF / "CACHE" / "master_stage_p2"
 FIXED_DATE = (2026, 9, 3, 0, 0, 0)
+
+# Files that are WRITTEN BESIDE the zip after it is built, and must never be
+# swept into it. The review request asks the Director to review this MASTER;
+# an archive can no more contain the request to review itself than it can
+# contain the result of verifying itself. Sweeping it in also destroys the
+# byte-identical rebuild the verifier requires, because it does not exist at
+# first build and does at the second.
+EV_NEVER_SHIP = {"CLAUDE_PHASE2_LOCK_REVIEW_REQUEST.txt"}
 RUNS = Path(r"C:\Users\BLaAw\Desktop\main\_LIVING_DIORAMA_TOOLS\flash_bridge\runs")
 
 
@@ -72,6 +80,8 @@ def stage() -> None:
     # evidence: everything machine-written under EVIDENCE/PHASE_02
     ev = STAGE / "evidence"
     for f in sorted(EV.iterdir()):
+        if f.name in EV_NEVER_SHIP:
+            continue
         if f.is_file() and f.suffix.lower() in (".json", ".txt", ".png", ".log", ".md", ".csv"):
             if f.suffix.lower() == ".log" and f.stat().st_size > 2_000_000:
                 continue  # full editor logs are too large; excerpts are shipped
