@@ -98,7 +98,13 @@ def stage() -> None:
     art = STAGE / "artifacts"
     shutil.copytree(WS / "ldyf", art / "ldyf",
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    for name in ("pytest.ini", "build_master_p3.py"):
+    # pytest.ini plus every repo-root data file the suite reads. The tests
+    # resolve these through REPO_ROOT, so the extraction must carry them or the
+    # suite cannot even be COLLECTED from the MASTER alone -- which is exactly
+    # what the first Phase 3 build did.
+    for name in ("pytest.ini", "build_master_p3.py", "city_layout.json",
+                 "asset_probe_v3.json", "pcg_building_kits.json",
+                 "pcg_building_rules.json"):
         if (WS / name).is_file():
             shutil.copy2(WS / name, art / name)
     for f in sorted(CACHE.glob("p3_*.py")):
