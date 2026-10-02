@@ -158,6 +158,29 @@
    "how_obtained": "file copy from the local City Sample project into the Living Diorama project at the SAME /Game package path, so internal references resolve; nothing is redistributed and none of it is committed to git",
    "license": "Epic Content License",
    "manifests": {
+    "building_variety_materials": {
+     "bytes": 262511795,
+     "file": "evidence/import_manifest_materials.json",
+     "files": 891,
+     "why": "the material instances and shared building textures those meshes depend on, from the editor's own dependency closure. An offline scan of the mesh files could not see them: Unreal stores a trailing _<n> as a separate FName number, so six material instances appear in the file as one base name plus six numbers."
+    },
+    "building_variety_meshes": {
+     "bytes": 276235626,
+     "file": "evidence/import_manifest_buildings.json",
+     "files": 380,
+     "styles": [
+      "NYAE",
+      "NYAF",
+      "NYAA",
+      "NYH",
+      "CHH",
+      "CHF",
+      "CHJ",
+      "SFC",
+      "SFE"
+     ],
+     "why": "the wall/facade meshes the SGD grammars name and the project did not hold. SFD was the only complete family, which is why it was the only one that rendered solid."
+    },
     "prop_kits": {
      "bytes": 1289205317,
      "file": "evidence/prop_import_manifest.json",
@@ -184,7 +207,9 @@
    "name": "City Sample content subsets imported into LivingDioramaYF (Phase 2)",
    "reproducible_by": [
     "tools_import_props.py (prop kits)",
-    "CACHE/import_city_sample_subset.py (road graph, vehicles, humans, surfaces)"
+    "CACHE/import_city_sample_subset.py (road graph, vehicles, humans, surfaces)",
+    "CACHE/step50_import_buildings.py import_plan_chosen.json import_manifest_buildings.json (meshes)",
+    "CACHE/step52_material_closure.py then CACHE/step50_import_buildings.py import_plan_materials.json import_manifest_materials.json (materials)"
    ],
    "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
    "verified_cost_usd": 0,
@@ -200,7 +225,8 @@
     "Prop/Kit_Tree_Alder",
     "Prop/Kit_Tree_Maple_Red",
     "Prop/Kit_Tree_Maple_Sugar",
-    "Prop/Kit_TreeBase_A"
+    "Prop/Kit_TreeBase_A",
+    "Building/{NY/A,NY/H,CH/F,CH/H,CH/J,SF/C,SF/E} kit meshes + their material closure: 1271 files, 538.7 MB, for styles NYAE, NYAF, NYAA, NYH, CHH, CHF, CHJ, SFC, SFE. Approved by the Director after the all-SFD city was visually rejected as too monotonous; well inside the 771 MB that was authorised, and chosen as the cheapest closures spanning three architectural languages."
    ]
   },
   {
@@ -287,7 +313,7 @@
  "phase_recorded": 2,
  "project": "The Living Diorama \u2014 YouTube Factory",
  "recorded_utc": "2026-09-05T11:56:10Z",
- "revision_note": "v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
+ "revision_note": "Phase 2 building-variety import recorded: 1271 files / 538.7 MB of City Sample building meshes, material instances and shared textures, copied from the already-licensed local City Sample project at the same /Game package paths. Price 0; nothing downloaded, nothing redistributed, nothing committed to git. v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
  "schema_version": "free_dependency_lock_v5",
  "total_recurring_cost_usd": 0,
  "unreal_license_position": {
