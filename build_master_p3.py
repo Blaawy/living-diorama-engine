@@ -33,6 +33,12 @@ FIXED_DATE = (2026, 10, 2, 0, 0, 0)
 
 TEXT_SUFFIXES = (".md", ".json", ".txt", ".csv")
 
+#: A document that states the MASTER's own sha256 cannot live inside the MASTER:
+#: it would be stale the moment the archive is written, and the Phase 2 rev 7
+#: build shipped exactly that and failed its own verifier. The review request is
+#: addressed TO the reviewer and stays beside the archive, never in it.
+EV_NEVER_SHIP = {"CLAUDE_PHASE3_LOCK_REVIEW_REQUEST.txt"}
+
 
 def sha256_file(p: Path) -> str:
     h = hashlib.sha256()
@@ -61,6 +67,8 @@ def stage() -> None:
     ev = STAGE / "evidence"
     omitted: list[tuple[str, int, str]] = []
     for f in sorted(EV.iterdir()):
+        if f.name in EV_NEVER_SHIP:
+            continue
         if f.is_file() and f.suffix.lower() in TEXT_SUFFIXES:
             shutil.copy2(f, ev / f.name)
 
