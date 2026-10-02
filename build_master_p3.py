@@ -123,9 +123,7 @@ def stage() -> None:
         ]
         for arm, sizes in sorted(omitted_frames.items()):
             lines.append("%-12s %8d %16d" % (arm, len(sizes), sum(sizes)))
-        (ev / "OMITTED_PLAYBACK_FRAMES.txt").write_text("
-".join(lines) + "
-",
+        (ev / "OMITTED_PLAYBACK_FRAMES.txt").write_text("\n".join(lines) + "\n",
                                                         encoding="utf-8")
 
     # --- artifacts ---------------------------------------------------------
