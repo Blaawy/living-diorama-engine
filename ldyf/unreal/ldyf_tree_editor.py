@@ -54,13 +54,16 @@ def _linear(rgb):
 #: subsurface term then dominated the darker base colour. These values are the
 #: third render: green-dominant rather than yellow-dominant, and the subsurface
 #: lowered FURTHER than the tint so the lit side carries the colour and the
-#: shaded side stays readable without glowing.
+#: shaded side stays readable without glowing. The Director still read that
+#: third version as too bright, so the shipped values are a fourth: about 60%
+#: of it again, which is where the canopies finally carry internal shadow and
+#: read as foliage rather than as a bright green shape.
 #:
 #: Vegetation architecture is untouched -- same authored meshes, same
 #: MSM_TWO_SIDED_FOLIAGE, and the SkyLight stays MOVABLE, which is what keeps
 #: shadowed foliage from rendering black at all.
-def ensure_tree_materials(*, leaf_tint=(0.16, 0.34, 0.11),
-                          leaf_subsurface=(0.10, 0.22, 0.06)) -> dict:
+def ensure_tree_materials(*, leaf_tint=(0.095, 0.205, 0.070),
+                          leaf_subsurface=(0.055, 0.130, 0.038)) -> dict:
     """Create the leaf master and the leaf/bark instances if absent."""
     eal = unreal.EditorAssetLibrary
     at = unreal.AssetToolsHelpers.get_asset_tools()
