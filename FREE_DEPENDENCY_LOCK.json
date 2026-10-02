@@ -181,6 +181,12 @@
      ],
      "why": "the wall/facade meshes the SGD grammars name and the project did not hold. SFD was the only complete family, which is why it was the only one that rendered solid."
     },
+    "production_material_fidelity": {
+     "bytes": 944865676,
+     "file": "evidence/import_manifest_production_materials.json",
+     "files": 118,
+     "why": "the material and TEXTURE dependencies of the 40 meshes the 72 built buildings actually instantiate, from the editor's own asset registry. 41 of the 118 are the brick and stone COLOUR maps (_C), normals and AORMD: the production meshes had been rendering without their albedo, which is why the city read as neutral grey."
+    },
     "prop_kits": {
      "bytes": 1289205317,
      "file": "evidence/prop_import_manifest.json",
@@ -209,7 +215,8 @@
     "tools_import_props.py (prop kits)",
     "CACHE/import_city_sample_subset.py (road graph, vehicles, humans, surfaces)",
     "CACHE/step50_import_buildings.py import_plan_chosen.json import_manifest_buildings.json (meshes)",
-    "CACHE/step52_material_closure.py then CACHE/step50_import_buildings.py import_plan_materials.json import_manifest_materials.json (materials)"
+    "CACHE/step52_material_closure.py then CACHE/step50_import_buildings.py import_plan_materials.json import_manifest_materials.json (materials)",
+    "CACHE/step60_production_material_closure.py then CACHE/step50_import_buildings.py import_plan_production_materials.json import_manifest_production_materials.json"
    ],
    "source": "Fab - City Sample (PCG); already CLAIMED to the Director's Fab account, price 0",
    "verified_cost_usd": 0,
@@ -226,7 +233,8 @@
     "Prop/Kit_Tree_Maple_Red",
     "Prop/Kit_Tree_Maple_Sugar",
     "Prop/Kit_TreeBase_A",
-    "Building/{NY/A,NY/H,CH/F,CH/H,CH/J,SF/C,SF/E} kit meshes + their material closure: 1271 files, 538.7 MB, for styles NYAE, NYAF, NYAA, NYH, CHH, CHF, CHJ, SFC, SFE. Approved by the Director after the all-SFD city was visually rejected as too monotonous; well inside the 771 MB that was authorised, and chosen as the cheapest closures spanning three architectural languages."
+    "Building/{NY/A,NY/H,CH/F,CH/H,CH/J,SF/C,SF/E} kit meshes + their material closure: 1271 files, 538.7 MB, for styles NYAE, NYAF, NYAA, NYH, CHH, CHF, CHJ, SFC, SFE. Approved by the Director after the all-SFD city was visually rejected as too monotonous; well inside the 771 MB that was authorised, and chosen as the cheapest closures spanning three architectural languages.",
+    "Building/Texture/{Brick,BrickOffset,BrickStacked,Gradient,PaintedStone,Grunge} and per-kit packedA textures + 68 materials and 9 material instances: 118 files, 944.9 MB, dependency-complete for the five production families only."
    ]
   },
   {
@@ -313,7 +321,7 @@
  "phase_recorded": 2,
  "project": "The Living Diorama \u2014 YouTube Factory",
  "recorded_utc": "2026-09-05T11:56:10Z",
- "revision_note": "Phase 2 building-variety import recorded: 1271 files / 538.7 MB of City Sample building meshes, material instances and shared textures, copied from the already-licensed local City Sample project at the same /Game package paths. Price 0; nothing downloaded, nothing redistributed, nothing committed to git. v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
+ "revision_note": "Phase 2 final polish: production material fidelity restored for the five shipping families -- 118 files / 944.9 MB of City Sample materials and textures, price 0, from the already-licensed local project. Phase 2 building-variety import recorded: 1271 files / 538.7 MB of City Sample building meshes, material instances and shared textures, copied from the already-licensed local City Sample project at the same /Game package paths. Price 0; nothing downloaded, nothing redistributed, nothing committed to git. v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
  "schema_version": "free_dependency_lock_v5",
  "total_recurring_cost_usd": 0,
  "unreal_license_position": {
