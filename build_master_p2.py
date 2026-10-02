@@ -231,6 +231,7 @@ def stage() -> None:
                  "step40_fullcity.py", "step41_streetlife_sgd.py", "step42_lighting_nosave.py",
                  "step43_sfd_height.py", "step44_city_gate.py", "step45_save_city.py",
                  "probe_render_truth.py", "probe_wall_inventory.py", "tools_look.py",
+                 "verify_master_p2.py",
                  "sgd_orders_fullcity.json"):
         if (YF / "CACHE" / tool).exists():
             shutil.copy2(YF / "CACHE" / tool, art / tool)
