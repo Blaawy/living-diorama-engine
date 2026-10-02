@@ -155,6 +155,35 @@ def test_the_via_point_is_shared_across_agents():
     assert len(c.simulation.calls) <= 3
 
 
+def test_the_waypoint_search_is_bounded():
+    """An agent does not enumerate every street before deciding on a detour.
+
+    Unbounded, this scan cost two routing queries per edge in the network per
+    agent per tick, and a 24-agent run stalled for twenty minutes inside it.
+    """
+    many = [chr(ord("a") + i) for i in range(60)]
+    # a through-route that crosses B, and no detour anywhere
+    c = FakeConn({("A", "C"): ["A", "B", "C"]}, ["A", "B", "C"] + many)
+    route = BR.walking_route(c, "A", "C", avoid=["B"])
+    assert route == ("A", "B", "C")               # gave up, honestly
+    assert len(c.simulation.calls) <= 2 * BR.VIA_SEARCH_BUDGET + 1
+
+
+def test_giving_up_is_recorded_as_still_crossing():
+    many = [chr(ord("a") + i) for i in range(60)]
+    c = FakeConn({("A", "C"): ["A", "B", "C"], ("A", "B"): ["A", "B"],
+                  ("B", "C"): ["B", "C"]}, ["A", "B", "C"] + many)
+    st = _state(("A", "C"))
+    b = BR.PedestrianBridge(c, None, "ep:" + "a3" * 8)
+    assert b.spawn(st, "p0", "A", depart=1.0)
+    c.person.road["p0"] = "A"
+    obs = BR.build_observation(c, None, st, "p0", blocked_edges=["B"])
+    b._execute_replan(st, "p0", obs, 30.0)
+    p = [e for e in b.events if e["kind"] == "agent_rerouted"][0]["payload"]
+    assert p["still_crossing"] == ["B"]
+    assert p["avoidance_succeeded"] is False
+
+
 # -- observation -----------------------------------------------------------
 
 def _state(stages):

@@ -91,6 +91,20 @@ _ROUTE_CACHE: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
 #: route their own two legs through it.
 _VIA_CHOICE: dict[tuple[str, tuple[str, ...]], str] = {}
 
+#: How many waypoints an agent will try before it gives up and walks the direct
+#: route. A person does not enumerate every street in the city before deciding
+#: a detour exists, and neither can this: the scan costs two routing queries per
+#: candidate, so an unbounded one over a 100-edge network costs ~200 queries per
+#: agent per tick. Measured, that is what it costs: a 24-agent ruled arm spent
+#: more than twenty minutes of wall clock between t = 300 s and t = 350 s, while
+#: the same arm with the budget runs the whole horizon in seconds.
+#:
+#: Giving up is not faking anything. The closure bars the carriageway and leaves
+#: the footway open, so walking the direct route is a legal outcome, and the
+#: reroute event records `still_crossing`, so a walk that did not avoid what it
+#: was asked to avoid says so in the record.
+VIA_SEARCH_BUDGET = 16
+
 
 def clear_route_cache() -> None:
     """Drop the memoised routes. Call between episodes, never inside one."""
@@ -130,12 +144,22 @@ def walking_route(conn: Any, from_edge: str, to_edge: str,
     pool = sorted(candidates) or sorted(_edge_ids(conn))
     known = _VIA_CHOICE.get(via_key)
     if known is not None and known in pool:
-        # try the waypoint another agent already proved works, first
-        pool = [known] + [e for e in pool if e != known]
+        # A waypoint is already known for this destination and this closure, so
+        # the search is OVER: route the two legs through it and, if that fails
+        # from here, walk the direct route and let the record say so. Searching
+        # again from every new position is what made this unaffordable -- an
+        # agent that re-plans each second while it perceives a closure was
+        # paying a fresh network scan every second, and 24 of them together
+        # spent twenty minutes of wall clock inside one 50-second stretch.
+        pool = [known]
 
+    tried = 0
     for via in pool:
         if via in blocked or via in (from_edge, to_edge):
             continue
+        if tried >= VIA_SEARCH_BUDGET:
+            break
+        tried += 1
         first = sumo_walk(conn, from_edge, via)
         if not first or blocked & set(first):
             continue
