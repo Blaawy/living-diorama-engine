@@ -51,11 +51,20 @@ def stage() -> None:
     for d in ("preview", "reports", "evidence", "identity", "artifacts"):
         (STAGE / d).mkdir(parents=True)
     shutil.copy2(P2 / "README_FOR_CHATGPT_P2.md", STAGE / "README_FOR_CHATGPT.md")
-    for name in ("PHASE_2_SGD_CITY.md", "RED_TEAM_PHASE_2_SGD.md",
-                 "PHASE_2_REPORT.md", "PHASE_2_DECISIONS.md", "PHASE_2_GATE_PLAN.md", "PHASE_2_DESIGN_INPUTS.md", "RED_TEAM_PHASE_2.md"):
+    # Named explicitly so a report cannot arrive by accident -- but anything
+    # under PHASE_02 matching PHASE_2_*.md or RED_TEAM_*.md is a report by
+    # construction, and leaving a new one out of this list is exactly how
+    # PHASE_2_BUILDING_VARIETY.md missed the first revision-9 build.
+    named = ("PHASE_2_SGD_CITY.md", "RED_TEAM_PHASE_2_SGD.md",
+             "PHASE_2_REPORT.md", "PHASE_2_DECISIONS.md",
+             "PHASE_2_GATE_PLAN.md", "PHASE_2_DESIGN_INPUTS.md",
+             "RED_TEAM_PHASE_2.md")
+    found = {f.name for f in P2.glob("PHASE_2_*.md")} |             {f.name for f in P2.glob("RED_TEAM_*.md")}
+    for name in sorted(set(named) | found):
         src = P2 / name
         if src.exists():
             shutil.copy2(src, STAGE / "reports" / name)
+    print("reports shipped:", len(sorted(set(named) | found)))
     # preview: the MP4, a still per shot, and the named viewport captures.
     # The 2,160 rendered PNGs (about 7 GB) are NEVER shipped; the report cites
     # their ffprobe record and the stills are drawn from them.
@@ -113,8 +122,13 @@ def stage() -> None:
     # false "visual pass" was reported on -- shipped under names that say so
     (ev / "renders").mkdir()
     for src_name, dst_name in (
+            # the city that ships
+            ("look_fullcity_varied", "look_fullcity_varied"),
+            ("look_varied_landmark", "look_varied_landmark"),
+            # the one-family city it replaces, for comparison
             ("look_fullcity_sfd", "look_fullcity_sfd"),
             ("look_shots_sfd", "look_shots_sfd"),
+            # and the two that a false "visual pass" was reported on
             ("look_fullcity", "look_fullcity_NYA_FAILED"),
             ("look_v2final", "look_v2final_RETRACTED")):
         d = EV / src_name
@@ -128,7 +142,7 @@ def stage() -> None:
     # all ships; image folders are curated (preview_mrq alone holds 2160 PNGs),
     # and every curated-out folder leaves a stub naming it, its file count and
     # its bytes, so the omission is in the manifest rather than invisible.
-    shipped_render_dirs = {"look_fullcity_varied", "look_shots_varied",
+    shipped_render_dirs = {"look_fullcity_varied", "look_varied_landmark",
                            "look_fullcity_sfd", "look_shots_sfd",
                            "look_fullcity", "look_v2final", "preview_stills",
                            "pcg_graph_dumps", "proof"}
