@@ -84,7 +84,17 @@ def stage() -> None:
             continue
         if f.is_file() and f.suffix.lower() in (".json", ".txt", ".png", ".log", ".md", ".csv"):
             if f.suffix.lower() == ".log" and f.stat().st_size > 2_000_000:
-                continue  # full editor logs are too large; excerpts are shipped
+                # A silent skip is what a reviewer cannot audit: the file is
+                # simply absent and nothing in the zip says so. Leave a stub,
+                # which then enters SHA256_MANIFEST.txt like any other member.
+                (ev / (f.name + ".OMITTED.txt")).write_text(
+                    "%s was omitted from this MASTER: %d bytes of editor log, "
+                    "too large to review.\nThe excerpts that matter are quoted "
+                    "in reports/, and the full log stays in the working tree at "
+                    "EVIDENCE/PHASE_02/%s.\n" % (f.name, f.stat().st_size,
+                                                 f.name),
+                    encoding="utf-8")
+                continue
             if f.stat().st_size > 8_000_000:
                 # e.g. sequence_bake.json is ~49 MB of baked keys. Ship a
                 # stub naming it and its counts rather than silently dropping
@@ -112,6 +122,43 @@ def stage() -> None:
             (ev / "renders" / dst_name).mkdir()
             for f in sorted(d.glob("*.png")):
                 shutil.copy2(f, ev / "renders" / dst_name / f.name)
+    # Evidence subdirectories. The builder used to copy only top-level files,
+    # so anything written into a subfolder could not reach the zip at all and
+    # nothing recorded that. Text evidence from every subfolder is small, so it
+    # all ships; image folders are curated (preview_mrq alone holds 2160 PNGs),
+    # and every curated-out folder leaves a stub naming it, its file count and
+    # its bytes, so the omission is in the manifest rather than invisible.
+    shipped_render_dirs = {"look_fullcity_varied", "look_shots_varied",
+                           "look_fullcity_sfd", "look_shots_sfd",
+                           "look_fullcity", "look_v2final", "preview_stills",
+                           "pcg_graph_dumps", "proof"}
+    text_suffixes = (".md", ".json", ".txt", ".csv")
+    sub_text = 0
+    omitted_dirs = []
+    for d in sorted(x for x in EV.iterdir() if x.is_dir()):
+        if d.name in shipped_render_dirs:
+            continue
+        texts = [f for f in sorted(d.iterdir())
+                 if f.is_file() and f.suffix.lower() in text_suffixes
+                 and f.stat().st_size <= 2_000_000]
+        if texts:
+            (ev / d.name).mkdir(exist_ok=True)
+            for f in texts:
+                shutil.copy2(f, ev / d.name / f.name)
+                sub_text += 1
+        others = [f for f in d.iterdir() if f.is_file() and f not in texts]
+        if others:
+            size = sum(f.stat().st_size for f in others)
+            omitted_dirs.append((d.name, len(others), size))
+            (ev / (d.name + ".NOT_SHIPPED.txt")).write_text(
+                "EVIDENCE/PHASE_02/%s holds %d file(s) not shipped in this "
+                "MASTER (%d bytes): captures and frames, kept in the working "
+                "tree.\nThe text evidence from this folder IS shipped, under "
+                "evidence/%s/.\n" % (d.name, len(others), size, d.name),
+                encoding="utf-8")
+    print("evidence subfolders: %d text files shipped, %d folders stubbed"
+          % (sub_text, len(omitted_dirs)))
+
     dumps = EV / "pcg_graph_dumps"
     if dumps.exists():
         (ev / "pcg_graph_dumps").mkdir()
