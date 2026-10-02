@@ -25,6 +25,7 @@ class FakePerson:
         self.owner = owner
         self.added: list[tuple] = []
         self.walks: list[tuple[str, list[str]]] = []
+        self.arrivals: list[float] = []
         self.removed: list[str] = []
         self.road: dict[str, str] = {}
 
@@ -34,6 +35,10 @@ class FakePerson:
 
     def appendWalkingStage(self, pid, edges, arrival):  # noqa: N802
         self.walks.append((pid, list(edges)))
+        self.arrivals.append(arrival)
+
+    def getIDList(self):  # noqa: N802
+        return [p for p, e in self.road.items() if e]
 
     def removeStages(self, pid):  # noqa: N802
         self.removed.append(pid)
@@ -389,3 +394,59 @@ def test_the_agent_layer_never_imports_traci():
     with open(agents.__file__, encoding="utf-8") as f:
         text = f.read()
     assert "traci" not in text
+
+
+# -- the trip survives a replan, and the body's exit is recorded -----------
+
+def test_a_replan_keeps_the_legs_after_the_one_it_replanned():
+    """removeStages drops the whole trip; only re-adding one leg strands it.
+
+    Measured over 900 s before this was fixed: every rerouted person walked its
+    detour, was removed by SUMO at the end of that single leg, and no rerouted
+    agent ever reached a goal.
+    """
+    c = conn()
+    st = _state(("A", "C", "E"))
+    b = BR.PedestrianBridge(c, None, "ep:" + "a3" * 8)
+    assert b.spawn(st, "p0", "A", depart=1.0)
+    c.person.road["p0"] = "A"
+    c.person.walks.clear()
+    obs = BR.build_observation(c, None, st, "p0", blocked_edges=["B"])
+    b._execute_replan(st, "p0", obs, 30.0)
+    assert c.person.removed == ["p0"]
+    assert len(c.person.walks) == 2                   # the detour AND the next leg
+    assert c.person.walks[0][1][-1] == "C"
+    assert c.person.walks[1][1][0] == "C" and c.person.walks[1][1][-1] == "E"
+
+
+def test_a_stage_ends_along_its_goal_edge_not_at_its_first_metre():
+    c = conn()
+    st = _state(("A", "C", "E"))
+    b = BR.PedestrianBridge(c, None, "ep:" + "a3" * 8)
+    assert b.spawn(st, "p0", "A", depart=1.0)
+    assert c.person.arrivals and all(a < 0 for a in c.person.arrivals)
+
+
+def test_a_body_leaving_the_simulation_is_recorded_once():
+    c = conn()
+    st = _state(("A", "C", "E"))
+    b = BR.PedestrianBridge(c, None, "ep:" + "a3" * 8)
+    assert b.spawn(st, "p0", "A", depart=1.0)
+    c.person.road["p0"] = "A"
+    st = b.step(st, 1, t_sim=1.0)
+    c.person.road["p0"] = ""                          # SUMO removed the person
+    b.step(st, 2, t_sim=2.0)
+    b.step(st, 3, t_sim=3.0)
+    left = [e for e in b.events if e["kind"] == "agent_body_left"]
+    assert len(left) == 1
+    assert left[0]["payload"]["last_edge"] == "A"
+
+
+def test_a_body_not_yet_departed_is_not_reported_as_left():
+    c = conn()
+    st = _state(("A", "C", "E"))
+    b = BR.PedestrianBridge(c, None, "ep:" + "a3" * 8)
+    assert b.spawn(st, "p0", "A", depart=50.0)
+    c.person.road["p0"] = ""
+    b.step(st, 1, t_sim=1.0)
+    assert not [e for e in b.events if e["kind"] == "agent_body_left"]

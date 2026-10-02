@@ -91,6 +91,15 @@ _ROUTE_CACHE: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
 #: route their own two legs through it.
 _VIA_CHOICE: dict[tuple[str, tuple[str, ...]], str] = {}
 
+#: Where on its last edge a walking stage ends. 0.0 -- the value this module
+#: used first -- is the START of that edge, so a person "arrived" the instant it
+#: set foot on its goal edge, usually between two one-second agent ticks, and
+#: the agent never observed itself standing where it was going. Measured over
+#: 900 s: every agent that had been rerouted left the simulation with its goal
+#: still open. A negative position counts back from the END of the edge, so the
+#: body walks the goal edge and the agent has time to see that it is there.
+STAGE_ARRIVAL_POS = -1.0
+
 #: How many waypoints an agent will try before it gives up and walks the direct
 #: route. A person does not enumerate every street in the city before deciding
 #: a detour exists, and neither can this: the scan costs two routing queries per
@@ -282,6 +291,11 @@ class PedestrianBridge:
         #: the route each agent is currently walking, per goal and avoid set
         self.plan_cache: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
         self.router_calls = 0
+        #: the route each body was FIRST given; never overwritten by a replan
+        self.initial_routes: dict[str, tuple[str, ...]] = {}
+        self._present: set[str] = set()
+        self._left: set[str] = set()
+        self._last_edge: dict[str, str] = {}
         self.seq = 0
 
     # -- spawning ----------------------------------------------------------
@@ -311,7 +325,8 @@ class PedestrianBridge:
             if not route:
                 continue
             try:
-                self.conn.person.appendWalkingStage(person_id, list(route), 0.0)
+                self.conn.person.appendWalkingStage(person_id, list(route),
+                                                    STAGE_ARRIVAL_POS)
                 self.applied_routes.setdefault(person_id, ())
                 self.applied_routes[person_id] += tuple(route)
                 here = bare(goal.target)
@@ -319,6 +334,7 @@ class PedestrianBridge:
             except Exception:
                 continue
         if ok:
+            self.initial_routes[person_id] = self.applied_routes[person_id]
             self.person_of[state.agent_id] = person_id
             self._event("agent_spawned", state.agent_id, depart,
                         {"person_id": person_id, "origin": bare(origin),
@@ -339,7 +355,10 @@ class PedestrianBridge:
         if len(self.plan_cache) > before:
             self.router_calls += 1
         if obs is None:
+            self._note_absence(state, person_id, t_sim)
             return state
+        self._present.add(person_id)
+        self._last_edge[person_id] = bare(obs.current_edge)
 
         step = step_agent(state, obs, tick, self.episode_id)
         for record in step.records:
@@ -349,6 +368,27 @@ class PedestrianBridge:
         if step.replanned:
             self._execute_replan(step.state, person_id, obs, t_sim)
         return step.state
+
+    def _note_absence(self, state: AgentState, person_id: str,
+                      t_sim: float) -> None:
+        """Record, once, that a body which was in the simulation has left it.
+
+        The agent layer cannot be stepped without an observation, so an agent
+        whose body is gone simply stops. Without this event the log could not
+        tell "still walking" from "SUMO removed the person", and a final
+        `goals_left` read as an unfinished trip when the body had finished.
+        """
+        try:
+            still_there = person_id in self.conn.person.getIDList()
+        except Exception:
+            still_there = False
+        if still_there or person_id not in self._present or person_id in self._left:
+            return
+        self._left.add(person_id)
+        self._event("agent_body_left", state.agent_id, t_sim,
+                    {"person_id": person_id,
+                     "last_edge": self._last_edge.get(person_id, ""),
+                     "goals_left": len(state.goal_stack)})
 
     def _execute_replan(self, state: AgentState, person_id: str,
                         obs: Observation, t_sim: float) -> None:
@@ -372,7 +412,25 @@ class PedestrianBridge:
             # stages on the next step, so the replacement walk is appended
             # immediately and any failure is recorded rather than swallowed.
             self.conn.person.removeStages(person_id)
-            self.conn.person.appendWalkingStage(person_id, list(route), 0.0)
+            self.conn.person.appendWalkingStage(person_id, list(route),
+                                                STAGE_ARRIVAL_POS)
+            # removeStages dropped the WHOLE trip, not just the leg being
+            # replanned. Appending only the new leg left a rerouted person with
+            # nowhere to go after it: SUMO removed the body at the end of that
+            # leg and the agent's later goals could never be reached. Every
+            # remaining travel goal gets its stage back, routed round the same
+            # avoid set.
+            here = bare(goal.target)
+            for later in state.goal_stack[1:]:
+                if later.kind != "travel_to":
+                    continue
+                leg = walking_route(self.conn, here, bare(later.target),
+                                    avoid=avoid)
+                if not leg:
+                    continue
+                self.conn.person.appendWalkingStage(person_id, list(leg),
+                                                    STAGE_ARRIVAL_POS)
+                here = bare(later.target)
         except Exception as exc:
             self._event("agent_reroute_failed", state.agent_id, t_sim,
                         {"person_id": person_id, "error": repr(exc)[:160]})
