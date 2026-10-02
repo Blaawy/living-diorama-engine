@@ -66,6 +66,7 @@ def stage() -> None:
     # --- evidence ----------------------------------------------------------
     ev = STAGE / "evidence"
     omitted: list[tuple[str, int, str]] = []
+    omitted_frames: dict[str, list[int]] = {}
     for f in sorted(EV.iterdir()):
         if f.name in EV_NEVER_SHIP:
             continue
@@ -82,6 +83,13 @@ def stage() -> None:
             if f.suffix.lower() == ".xml" and f.name.endswith(".fcd.xml"):
                 omitted.append((f"{epdir.name}/{rel.as_posix()}",
                                 f.stat().st_size, sha256_file(f)))
+                continue
+            if (epdir.name == "playback" and f.suffix.lower() == ".png"
+                    and f.parent.name == "frames"):
+                # 960 rendered frames, ~2.7 GB. The MP4s encoded from them ARE
+                # shipped, and playback_binding.json carries the sha256 of
+                # every single frame, so their identity is in the archive.
+                omitted_frames.setdefault(rel.parts[0], []).append(f.stat().st_size)
                 continue
             target = dst / rel
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -102,6 +110,24 @@ def stage() -> None:
         (ev / "OMITTED_FCD_OUTPUT.txt").write_text("\n".join(lines) + "\n",
                                                    encoding="utf-8")
 
+    if omitted_frames:
+        lines = [
+            "The rendered PNG frames of the Phase 3 playback are NOT in this",
+            "MASTER. The MP4 encoded from each arm's frames IS shipped, and",
+            "evidence/playback/playback_binding.json lists the sha256 of every",
+            "frame (arms.<arm>.frame_sha256) and one digest over that list",
+            "(arms.<arm>.frames_digest_sha256), so a reviewer can check any",
+            "copy of the frames they are given.",
+            "",
+            "%-12s %8s %16s" % ("arm", "frames", "bytes"),
+        ]
+        for arm, sizes in sorted(omitted_frames.items()):
+            lines.append("%-12s %8d %16d" % (arm, len(sizes), sum(sizes)))
+        (ev / "OMITTED_PLAYBACK_FRAMES.txt").write_text("
+".join(lines) + "
+",
+                                                        encoding="utf-8")
+
     # --- artifacts ---------------------------------------------------------
     art = STAGE / "artifacts"
     shutil.copytree(WS / "ldyf", art / "ldyf",
@@ -117,6 +143,9 @@ def stage() -> None:
             shutil.copy2(WS / name, art / name)
     for f in sorted(CACHE.glob("p3_*.py")):
         shutil.copy2(f, art / f.name)
+    # p3_playback_render.py drives the Phase 2 pipeline THROUGH this driver
+    if (CACHE / "build_preview.py").is_file():
+        shutil.copy2(CACHE / "build_preview.py", art / "build_preview.py")
 
     # --- identity ----------------------------------------------------------
     ident = STAGE / "identity"

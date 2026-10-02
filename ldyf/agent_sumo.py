@@ -50,11 +50,21 @@ __all__ = [
     "bare",
     "build_observation",
     "clear_route_cache",
+    "join_legs",
+    "plan_trip",
     "three_stage_walk",
     "tok",
     "sumo_walk",
     "walking_route",
 ]
+
+
+#: Every routing query this process has put to SUMO. A list so the count is
+#: shared by reference; the bridge reports the difference since it was created.
+#: An earlier counter watched the plan cache grow instead, and so missed spawn
+#: routing, every replan and every waypoint probe -- it was reported as the
+#: cost of the run and was not a count of anything SUMO had been asked.
+ROUTER_QUERIES = [0]
 
 
 def sumo_walk(conn: Any, from_edge: str, to_edge: str) -> tuple[str, ...]:
@@ -65,6 +75,7 @@ def sumo_walk(conn: Any, from_edge: str, to_edge: str) -> tuple[str, ...]:
     walking-areas that the edge graph does not model. `findIntermodalRoute` is
     SUMO's own pedestrian router and is what mobility truth means here.
     """
+    ROUTER_QUERIES[0] += 1
     try:
         stages = conn.simulation.findIntermodalRoute(from_edge, to_edge, modes="")
     except Exception:
@@ -72,46 +83,30 @@ def sumo_walk(conn: Any, from_edge: str, to_edge: str) -> tuple[str, ...]:
     return tuple(e for st in stages for e in st.edges)
 
 
-#: Routes already computed this episode, keyed by (from, to, avoid). The
-#: via-point search costs up to two routing queries per candidate edge, and
-#: without this it re-ran on EVERY observation of EVERY agent once the avoid
-#: set was non-empty -- about a hundred thousand routing calls in a 300 s run,
-#: which made the episode appear to hang. The result is a pure function of the
-#: key within one episode, so caching it changes nothing but the cost.
+#: Routes already computed this episode, keyed by (from, to, avoid). The result
+#: is a pure function of the key within one episode, so caching it changes
+#: nothing but the cost.
 _ROUTE_CACHE: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
 
 #: The via-point that worked for a (destination, avoid set), without the origin.
-#: _ROUTE_CACHE is keyed on the origin too, so a population of agents walking to
-#: the same place around the same closure shared nothing: each one re-scanned
-#: every edge in the network at two routing queries a candidate. Measured: the
-#: ruled arm of a 24-agent run had not reached t = 500 s after six minutes of
-#: wall clock, while the baseline, whose avoid set is empty, finished 900 s in
-#: seconds. A waypoint is a fact about the NETWORK and the closure, not about
-#: who is walking, so the first agent to find one pays the scan and the rest
-#: route their own two legs through it.
+#: A waypoint is a fact about the NETWORK and the closure, not about who is
+#: walking, so the first agent to find one pays the scan and later agents try
+#: it FIRST. It is a preference and not a verdict: if it does not work from
+#: where a later agent stands, that agent searches on within its own budget.
+#: Trying it exclusively forced an agent through the closed edge when a
+#: different detour existed for it.
 _VIA_CHOICE: dict[tuple[str, tuple[str, ...]], str] = {}
 
-#: Where on its last edge a walking stage ends. 0.0 -- the value this module
-#: used first -- is the START of that edge, so a person "arrived" the instant it
-#: set foot on its goal edge, usually between two one-second agent ticks, and
-#: the agent never observed itself standing where it was going. Measured over
-#: 900 s: every agent that had been rerouted left the simulation with its goal
-#: still open. A negative position counts back from the END of the edge, so the
-#: body walks the goal edge and the agent has time to see that it is there.
+#: Where on its last edge a walking stage ends. 0.0 is the START of that edge,
+#: so a body "arrived" the instant it set foot on its goal edge. A negative
+#: position counts back from the END of the edge.
 STAGE_ARRIVAL_POS = -1.0
 
 #: How many waypoints an agent will try before it gives up and walks the direct
-#: route. A person does not enumerate every street in the city before deciding
-#: a detour exists, and neither can this: the scan costs two routing queries per
-#: candidate, so an unbounded one over a 100-edge network costs ~200 queries per
-#: agent per tick. Measured, that is what it costs: a 24-agent ruled arm spent
-#: more than twenty minutes of wall clock between t = 300 s and t = 350 s, while
-#: the same arm with the budget runs the whole horizon in seconds.
-#:
-#: Giving up is not faking anything. The closure bars the carriageway and leaves
-#: the footway open, so walking the direct route is a legal outcome, and the
-#: reroute event records `still_crossing`, so a walk that did not avoid what it
-#: was asked to avoid says so in the record.
+#: route. Two routing queries per candidate, so an unbounded scan is
+#: indefensible. Giving up is not faking anything: the closure bars the
+#: carriageway and leaves the footway open, so the direct walk is a legal
+#: outcome, and the reroute event records `still_crossing`.
 VIA_SEARCH_BUDGET = 16
 
 
@@ -135,9 +130,10 @@ def walking_route(conn: Any, from_edge: str, to_edge: str,
     not the pedestrian one, so it would look like avoidance while changing
     nothing. Measured on this network before this function was written.
 
-    Returns () when there is no route at all, and the DIRECT route when no
-    way round exists -- the caller can tell those apart by checking whether the
-    result still contains the avoided edge.
+    Returns () when there is no route at all, and the DIRECT route when no way
+    round was FOUND WITHIN THE SEARCH BUDGET -- which is not the same as none
+    existing. The caller tells the cases apart by checking whether the result
+    still contains an avoided edge.
     """
     blocked = {e for e in avoid if e}
     key = (from_edge, to_edge, tuple(sorted(blocked)))
@@ -153,14 +149,7 @@ def walking_route(conn: Any, from_edge: str, to_edge: str,
     pool = sorted(candidates) or sorted(_edge_ids(conn))
     known = _VIA_CHOICE.get(via_key)
     if known is not None and known in pool:
-        # A waypoint is already known for this destination and this closure, so
-        # the search is OVER: route the two legs through it and, if that fails
-        # from here, walk the direct route and let the record say so. Searching
-        # again from every new position is what made this unaffordable -- an
-        # agent that re-plans each second while it perceives a closure was
-        # paying a fresh network scan every second, and 24 of them together
-        # spent twenty minutes of wall clock inside one 50-second stretch.
-        pool = [known]
+        pool = [known] + [e for e in pool if e != known]
 
     tried = 0
     for via in pool:
@@ -178,7 +167,7 @@ def walking_route(conn: Any, from_edge: str, to_edge: str,
         joined = first + (second[1:] if first[-1] == second[0] else second)
         if not blocked & set(joined):
             _ROUTE_CACHE[key] = joined
-            _VIA_CHOICE[via_key] = via
+            _VIA_CHOICE.setdefault(via_key, via)
             return joined
     _ROUTE_CACHE[key] = direct
     return direct
@@ -191,12 +180,44 @@ def _edge_ids(conn: Any) -> list[str]:
         return []
 
 
-def _has_edge(net: Any, edge_id: str) -> bool:
-    try:
-        net.getEdge(edge_id)
-        return True
-    except Exception:
-        return False
+def plan_trip(conn: Any, from_edge: str, targets: Sequence[str],
+              avoid: Sequence[str] = ()) -> list[tuple[str, tuple[str, ...]]]:
+    """One routed leg per travel target, in order: ``[(target, route), ...]``.
+
+    A leg whose target has no route at all comes back with an empty route and
+    the next leg is planned from the last place the trip actually reaches, so
+    the caller can see exactly which legs exist and which do not.
+    """
+    legs: list[tuple[str, tuple[str, ...]]] = []
+    here = from_edge
+    for target in targets:
+        route = walking_route(conn, here, target, avoid=avoid)
+        legs.append((target, tuple(route)))
+        if route:
+            here = target
+    return legs
+
+
+def join_legs(legs: Sequence[tuple[str, tuple[str, ...]]]) -> tuple[str, ...]:
+    """The legs as ONE edge sequence, the shared edge at each seam kept once."""
+    out: list[str] = []
+    for _, route in legs:
+        for i, edge in enumerate(route):
+            if i == 0 and out and out[-1] == edge:
+                continue
+            out.append(edge)
+    return tuple(out)
+
+
+def _travel_targets(state: AgentState) -> tuple[str, ...]:
+    return tuple(bare(g.target) for g in state.goal_stack if g.kind == "travel_to")
+
+
+def _avoid_set(state: AgentState, blocked_edges: Sequence[str],
+               avoid_also: Sequence[str]) -> tuple[str, ...]:
+    return tuple(sorted(
+        {bare(e) for e in blocked_edges} | {bare(e) for e in avoid_also}
+        | {bare(g.target) for g in state.goal_stack if g.kind == "avoid"}))
 
 
 def build_observation(
@@ -206,6 +227,7 @@ def build_observation(
     person_id: str,
     *,
     blocked_edges: Sequence[str] = (),
+    avoid_also: Sequence[str] = (),
     t_sim: float = 0.0,
     neighbour_radius_m: float = 25.0,
     plan_cache: dict | None = None,
@@ -216,16 +238,22 @@ def build_observation(
     already arrived): there is no observation to make, and inventing one would
     be inventing a world.
 
-    `plan_cache`, when given, holds the route each agent is CURRENTLY walking,
-    keyed by agent, goal and avoid set. Without it this function asked SUMO for
-    a fresh route on every tick of every agent -- the route from wherever the
-    body had got to, which changes every tick, so the memo in `walking_route`
-    missed every time. Measured: 24 agents over 900 simulated seconds spent
-    about ten MINUTES of wall clock in the router, which is what made a larger
-    population look impossible. A planner that re-derives its whole plan every
-    second is also a poor model of a person: the plan is made once, and the
-    agent re-plans when its goal changes, when what it avoids changes, or when
-    it finds itself off the plan. All three force a real routing call.
+    `blocked_edges` is what the WORLD says is closed and is passed to the agent
+    as a fact. `avoid_also` is the agent's own policy -- edges it chooses to
+    stay off although nothing closed them -- and shapes the route without being
+    reported as a blocked edge.
+
+    The route offered covers the WHOLE remaining trip, every travel goal in
+    order, not just the first. Offering only the first goal's route meant that
+    the moment the agent completed a goal, its next goal was absent from what
+    it could reach: every agent in both arms was declared blocked at its first
+    arrival and had its walk torn out and re-laid, including the control arm.
+
+    `plan_cache`, when given, holds the plan each agent is CURRENTLY walking
+    and how far along it the body has got. A planner that re-derives its plan
+    every second is a poor model of a person and cost ten minutes of routing in
+    a 900 s run; a plan is made once, and re-made when the goals change, when
+    what is avoided changes, or when the body is found off the plan.
     """
     try:
         current = str(conn.person.getRoadID(person_id))
@@ -235,32 +263,36 @@ def build_observation(
         # on an internal junction edge: the agent has no decision to make here
         return None
 
-    goal = state.goal_stack[0] if state.goal_stack else None
-    target = bare(goal.target) if goal is not None else current
-    avoid = tuple(sorted({bare(e) for e in blocked_edges} | {
-        bare(g.target) for g in state.goal_stack if g.kind == "avoid"}))
+    targets = _travel_targets(state) or (current,)
+    avoid = _avoid_set(state, blocked_edges, avoid_also)
     route: tuple[str, ...] = ()
-    key = (state.agent_id, target, avoid)
+    key = (state.agent_id, targets, avoid)
     if plan_cache is not None:
         cached = plan_cache.get(key)
-        if cached and current in cached:
-            # still on the plan: the remainder of the route SUMO computed is
-            # exactly what reachability needs, and no new route is invented
-            route = tuple(cached[cached.index(current):])
+        if cached:
+            plan, at = cached
+            # search FORWARD from where the body last was: a route may visit an
+            # edge twice, and the first occurrence is not where it is now
+            for i in range(at, len(plan)):
+                if plan[i] == current:
+                    plan_cache[key] = (plan, i)
+                    route = plan[i:]
+                    break
     if not route:
-        route = walking_route(conn, current, target, avoid=avoid)
+        route = join_legs(plan_trip(conn, current, targets, avoid))
         if plan_cache is not None and route:
-            plan_cache[key] = tuple(route)
-    reachable = tuple(tok(e) for e in route) if route else ()
+            plan_cache[key] = (tuple(route), 0)
+    reachable = tuple(dict.fromkeys(tok(e) for e in route)) if route else ()
 
     # The agent checks reachability by walking a SUCCESSORS graph, so it must be
     # given the topology ALONG the route, not just the current edge's outgoing
-    # set. Supplying one entry made every goal look unreachable after a single
-    # hop, and every agent blocked on its first tick.
-    successors: list[tuple[str, tuple[str, ...]]] = []
+    # set. An edge visited twice contributes both of its onward steps.
+    onward: dict[str, list[str]] = {}
     for i, edge in enumerate(route):
-        nxt = (tok(route[i + 1]),) if i + 1 < len(route) else ()
-        successors.append((tok(edge), nxt))
+        nxt = onward.setdefault(tok(edge), [])
+        if i + 1 < len(route) and tok(route[i + 1]) not in nxt:
+            nxt.append(tok(route[i + 1]))
+    successors = [(edge, tuple(nxt)) for edge, nxt in onward.items()]
 
     return Observation(
         agent_id=state.agent_id,
@@ -287,16 +319,22 @@ class PedestrianBridge:
         self.episode_id = episode_id
         self.person_of: dict[str, str] = {}
         self.events: list[dict[str, Any]] = []
+        #: the whole route each body is currently laid on, every leg joined
         self.applied_routes: dict[str, tuple[str, ...]] = {}
-        #: the route each agent is currently walking, per goal and avoid set
-        self.plan_cache: dict[tuple[str, str, tuple[str, ...]], tuple[str, ...]] = {}
-        self.router_calls = 0
         #: the route each body was FIRST given; never overwritten by a replan
         self.initial_routes: dict[str, tuple[str, ...]] = {}
+        #: per (agent, goals, avoid): (plan, index the body has reached)
+        self.plan_cache: dict[tuple, tuple[tuple[str, ...], int]] = {}
+        self._queries_at_start = ROUTER_QUERIES[0]
         self._present: set[str] = set()
         self._left: set[str] = set()
         self._last_edge: dict[str, str] = {}
         self.seq = 0
+
+    @property
+    def router_calls(self) -> int:
+        """Routing queries put to SUMO since this bridge was created. All of them."""
+        return ROUTER_QUERIES[0] - self._queries_at_start
 
     # -- spawning ----------------------------------------------------------
     def spawn(self, state: AgentState, person_id: str, origin: str, *,
@@ -306,54 +344,50 @@ class PedestrianBridge:
         `origin` is where the body starts; the goal stack is where it is going.
         They are separate on purpose: an earlier version used the first GOAL as
         the origin, which put every person down on the middle edge of its own
-        trip, completed that stage instantly, and turned a three-stage walk into
-        a one-leg one. Every goal becomes a walking stage, so the person SUMO
-        carries is the agent's whole trip.
+        trip. Every goal becomes a walking stage, so the person SUMO carries is
+        the agent's whole trip.
         """
-        stages = [g for g in state.goal_stack if g.kind == "travel_to"]
-        if not stages:
+        targets = _travel_targets(state)
+        if not targets or person_id in self.initial_routes:
+            return False
+        legs = [(t, r) for t, r in plan_trip(self.conn, bare(origin), targets) if r]
+        if not legs:
             return False
         try:
             self.conn.person.add(person_id, bare(origin), 0.0, depart, vtype)
-        except Exception:
-            return False
-
-        here = bare(origin)
-        ok = False
-        for goal in stages:
-            route = walking_route(self.conn, here, bare(goal.target))
-            if not route:
-                continue
-            try:
+            for _, route in legs:
                 self.conn.person.appendWalkingStage(person_id, list(route),
                                                     STAGE_ARRIVAL_POS)
-                self.applied_routes.setdefault(person_id, ())
-                self.applied_routes[person_id] += tuple(route)
-                here = bare(goal.target)
-                ok = True
-            except Exception:
-                continue
-        if ok:
-            self.initial_routes[person_id] = self.applied_routes[person_id]
-            self.person_of[state.agent_id] = person_id
-            self._event("agent_spawned", state.agent_id, depart,
-                        {"person_id": person_id, "origin": bare(origin),
-                         "stages": [bare(g.target) for g in stages]})
-        return ok
+        except Exception:
+            return False
+        joined = join_legs(legs)
+        self.applied_routes[person_id] = joined
+        self.initial_routes[person_id] = joined
+        self.person_of[state.agent_id] = person_id
+        self._event("agent_spawned", state.agent_id, depart,
+                    {"person_id": person_id, "origin": bare(origin),
+                     "stages": [t for t, _ in legs],
+                     "stages_without_route": [t for t in targets
+                                              if t not in {x for x, _ in legs}]})
+        return True
 
     # -- the tick ----------------------------------------------------------
     def step(self, state: AgentState, tick: int, *, t_sim: float,
-             blocked_edges: Sequence[str] = ()) -> AgentState:
-        """One tick for one agent: observe, decide, and execute the intent."""
+             blocked_edges: Sequence[str] = (),
+             avoid_also: Sequence[str] = ()) -> AgentState:
+        """One tick for one agent: observe, decide, and execute the intent.
+
+        `avoid_also` is agent POLICY, not a world fact: edges the agents stay
+        off because of what they perceive, although the rule did not close
+        them. It is never reported to the agent as blocked, and every reroute
+        event names it separately from what was actually closed.
+        """
         person_id = self.person_of.get(state.agent_id)
         if person_id is None:
             return state
-        before = len(self.plan_cache)
         obs = build_observation(self.conn, self.net, state, person_id,
-                                blocked_edges=blocked_edges, t_sim=t_sim,
-                                plan_cache=self.plan_cache)
-        if len(self.plan_cache) > before:
-            self.router_calls += 1
+                                blocked_edges=blocked_edges, avoid_also=avoid_also,
+                                t_sim=t_sim, plan_cache=self.plan_cache)
         if obs is None:
             self._note_absence(state, person_id, t_sim)
             return state
@@ -363,10 +397,11 @@ class PedestrianBridge:
         step = step_agent(state, obs, tick, self.episode_id)
         for record in step.records:
             self._event(str(record.kind), state.agent_id, t_sim,
-                        {"value": record.value})
+                        {"value": record.value, "subject": record.subject_id})
 
         if step.replanned:
-            self._execute_replan(step.state, person_id, obs, t_sim)
+            self._execute_replan(step.state, person_id, obs, t_sim,
+                                 blocked_edges=blocked_edges, avoid_also=avoid_also)
         return step.state
 
     def _note_absence(self, state: AgentState, person_id: str,
@@ -375,14 +410,19 @@ class PedestrianBridge:
 
         The agent layer cannot be stepped without an observation, so an agent
         whose body is gone simply stops. Without this event the log could not
-        tell "still walking" from "SUMO removed the person", and a final
-        `goals_left` read as an unfinished trip when the body had finished.
+        tell "still walking" from "SUMO removed the person".
+
+        If SUMO cannot be asked, NOTHING is recorded: an exception is not
+        evidence that the body has gone, and recording it as such once marked a
+        present body as departed and then swallowed its real departure.
         """
+        if person_id in self._left or person_id not in self._present:
+            return
         try:
             still_there = person_id in self.conn.person.getIDList()
         except Exception:
-            still_there = False
-        if still_there or person_id not in self._present or person_id in self._left:
+            return
+        if still_there:
             return
         self._left.add(person_id)
         self._event("agent_body_left", state.agent_id, t_sim,
@@ -391,78 +431,90 @@ class PedestrianBridge:
                      "goals_left": len(state.goal_stack)})
 
     def _execute_replan(self, state: AgentState, person_id: str,
-                        obs: Observation, t_sim: float) -> None:
+                        obs: Observation, t_sim: float, *,
+                        blocked_edges: Sequence[str] = (),
+                        avoid_also: Sequence[str] = ()) -> None:
         """Rewrite the person's remaining walk to the route the agent chose.
 
         This is the one place intent becomes a TraCI call. It replaces the
         remaining stages rather than nudging a position: SUMO still walks the
         body, along a route the agent picked.
+
+        Every leg is ROUTED before anything is changed, and the event describes
+        the whole walk the body was actually given -- not just its first leg.
         """
-        goal = state.goal_stack[0] if state.goal_stack else None
-        if goal is None or goal.kind != "travel_to":
+        targets = _travel_targets(state)
+        if not targets:
             return
-        avoid = tuple(sorted({bare(e) for e in obs.blocked_edges} | {
-            bare(g.target) for g in state.goal_stack if g.kind == "avoid"}))
-        route = walking_route(self.conn, bare(obs.current_edge),
-                              bare(goal.target), avoid=avoid)
-        if not route:
+        current = bare(obs.current_edge)
+        avoid = _avoid_set(state, blocked_edges or [bare(e) for e in obs.blocked_edges],
+                           avoid_also)
+        planned = plan_trip(self.conn, current, targets, avoid)
+        legs = [(t, r) for t, r in planned if r]
+        without_route = [t for t, r in planned if not r]
+        if not legs:
+            self._event("agent_reroute_failed", state.agent_id, t_sim,
+                        {"person_id": person_id, "error": "no leg has a route",
+                         "walk_changed": False, "legs_without_route": without_route})
             return
+
+        previous = self.applied_routes.get(person_id, ())
+        # what was LEFT of the old walk from here, so the comparison is between
+        # two walks from the same place rather than a suffix against a whole
+        at = max((i for i, e in enumerate(previous) if e == current), default=None)
+        previous_remaining = tuple(previous[at:]) if at is not None else tuple(previous)
+
+        applied: list[tuple[str, tuple[str, ...]]] = []
+        removed = False
+        error = None
         try:
             # removeStages drops EVERY stage; SUMO removes a person with no
-            # stages on the next step, so the replacement walk is appended
-            # immediately and any failure is recorded rather than swallowed.
+            # stages on the next step, so the replacement is appended at once
             self.conn.person.removeStages(person_id)
-            self.conn.person.appendWalkingStage(person_id, list(route),
-                                                STAGE_ARRIVAL_POS)
-            # removeStages dropped the WHOLE trip, not just the leg being
-            # replanned. Appending only the new leg left a rerouted person with
-            # nowhere to go after it: SUMO removed the body at the end of that
-            # leg and the agent's later goals could never be reached. Every
-            # remaining travel goal gets its stage back, routed round the same
-            # avoid set.
-            here = bare(goal.target)
-            for later in state.goal_stack[1:]:
-                if later.kind != "travel_to":
-                    continue
-                leg = walking_route(self.conn, here, bare(later.target),
-                                    avoid=avoid)
-                if not leg:
-                    continue
-                self.conn.person.appendWalkingStage(person_id, list(leg),
+            removed = True
+            for target, route in legs:
+                self.conn.person.appendWalkingStage(person_id, list(route),
                                                     STAGE_ARRIVAL_POS)
-                here = bare(later.target)
+                applied.append((target, route))
         except Exception as exc:
+            error = repr(exc)[:160]
+
+        if not removed:
             self._event("agent_reroute_failed", state.agent_id, t_sim,
-                        {"person_id": person_id, "error": repr(exc)[:160]})
+                        {"person_id": person_id, "error": error,
+                         "walk_changed": False})
             return
-        previous = self.applied_routes.get(person_id)
-        self.applied_routes[person_id] = tuple(route)
-        # The agent is now walking THIS route, so the plan it was observing
-        # against is void. Dropping only this agent's entries keeps the cache a
-        # record of current plans rather than a record of old ones.
+
+        joined = join_legs(applied)
+        self.applied_routes[person_id] = joined
+        # the plan the agent was observing against is void; only this agent's
         for k in [k for k in self.plan_cache if k[0] == state.agent_id]:
             del self.plan_cache[k]
-        self.plan_cache[(state.agent_id, bare(goal.target), avoid)] = tuple(route)
-        # Record the ROUTE and whether the avoidance actually succeeded.
-        # walking_route returns the direct route when no way round exists, so
-        # "avoided: [B1B2]" alone proves only what was ASKED for, not what was
-        # achieved -- and a reroute that still crosses the avoided edge is a
-        # fact worth having in the log rather than a claim worth hiding.
-        #
-        # `avoidance_succeeded` is necessary and still not sufficient, which a
-        # real run showed: a person already clear of the avoided edge reroutes,
-        # the avoid set is honoured trivially, and the flag reads true while the
-        # walk is byte-for-byte the one it already had. `route_changed` is the
-        # claim that costs something, so it is recorded next to the other.
-        still_crossing = sorted(set(avoid) & set(route))
-        self._event("agent_rerouted", state.agent_id, t_sim,
-                    {"person_id": person_id, "route": list(route),
-                     "route_len": len(route), "avoided": list(avoid),
-                     "avoidance_succeeded": not still_crossing,
-                     "still_crossing": still_crossing,
-                     "previous_route": list(previous) if previous else [],
-                     "route_changed": previous is not None
-                                      and tuple(route) != tuple(previous)})
+        if joined and error is None and not without_route:
+            self.plan_cache[(state.agent_id, targets, avoid)] = (joined, 0)
+
+        # `avoided` alone proves only what was ASKED for. still_crossing is
+        # read off the WHOLE walk the body now has, every leg; route_changed
+        # compares it with what was left of the old walk from this same edge.
+        still_crossing = sorted(set(avoid) & set(joined))
+        self._event("agent_rerouted", state.agent_id, t_sim, {
+            "person_id": person_id,
+            "route": list(joined),
+            "legs": [{"target": t, "route": list(r)} for t, r in applied],
+            "route_len": len(joined),
+            "avoided": list(avoid),
+            "perceived_blocked": sorted(bare(e) for e in (
+                blocked_edges or obs.blocked_edges)),
+            "avoided_by_policy": sorted(bare(e) for e in avoid_also),
+            "avoidance_succeeded": not still_crossing,
+            "still_crossing": still_crossing,
+            "previous_route": list(previous_remaining),
+            "route_changed": joined != previous_remaining,
+            "legs_without_route": without_route,
+            "legs_not_applied": [t for t, _ in legs[len(applied):]],
+            "complete": error is None and not without_route,
+            "error": error,
+        })
 
     # -- events ------------------------------------------------------------
     def _event(self, kind: str, agent_id: str, t_sim: float,
