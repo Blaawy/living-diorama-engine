@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://living-diorama.local/schemas/rule_manifest.schema.json",
+  "$id": "https://living-diorama.local/schemas/rule_manifest_v2.schema.json",
   "title": "Rule Manifest V1 (ONE RULE)",
   "description": "Exactly one rule changes per episode. This document is the experiment's independent variable, declared BEFORE the simulation runs so the result cannot be chosen after seeing it. It is SEALED (manifest_hash) and the ledger binds to that seal; a manifest that does not satisfy this contract cannot be sealed.",
   "type": "object",
@@ -19,7 +19,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "const": "rule_manifest_v1"
+      "const": "rule_manifest_v2"
     },
     "rule_id": {
       "type": "string",
@@ -186,6 +186,50 @@
             "factor": {
               "type": "number",
               "exclusiveMinimum": 0
+            }
+          }
+        },
+        "demand_flow": {
+          "type": "object",
+          "description": "Vehicles INJECTED on a route at a fixed rate. Distinct from demand_scale, which multiplies existing demand: this adds traffic that was not there. Added in Phase 3 as the fourth rule class.",
+          "required": [
+            "flow_id",
+            "from_edge",
+            "to_edge",
+            "vehicles_per_hour",
+            "depart_begin",
+            "depart_end",
+            "vtype"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "flow_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from_edge": {
+              "type": "string",
+              "minLength": 1
+            },
+            "to_edge": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vehicles_per_hour": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "depart_begin": {
+              "type": "number",
+              "minimum": 0
+            },
+            "depart_end": {
+              "type": "number",
+              "minimum": 0
+            },
+            "vtype": {
+              "type": "string",
+              "minLength": 1
             }
           }
         }

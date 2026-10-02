@@ -1,0 +1,215 @@
+{
+  "entries": [
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_61f95cff06ae5038",
+      "change_type": "edge_closure",
+      "entry_hash": "545ffbfc67746e9811f5ec67d3a8d08702eb1a0fc044bd3252d6f637db874f9d",
+      "origin_episode": 1,
+      "payload": {
+        "disallow": [
+          "passenger",
+          "truck",
+          "bus",
+          "motorcycle",
+          "trailer",
+          "coach",
+          "delivery"
+        ],
+        "edge_ids": [
+          "B1C1",
+          "C1B1"
+        ],
+        "kind": "edge_closure",
+        "reason": "Close the central links to motor traffic."
+      },
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "provenance": {
+        "rule_id": "close_the_central_links",
+        "rule_manifest_sha256": "f199da9649195c82dc916c4602ec97bc5e3f5c463fa6c4ca063ebd5836e33ee2",
+        "source": "director_rule"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_885d9856e4ddee8c",
+      "change_type": "measured_effect",
+      "entry_hash": "1ea8d6bfc7dd2298893c0b5e74fc51732220d43bb083e7f7e9c2b2672a17909f",
+      "origin_episode": 1,
+      "payload": {
+        "baseline_value": 123.35,
+        "delta": 11.52,
+        "kind": "measured_effect",
+        "metric": "avg_duration_s",
+        "ruled_value": 134.87,
+        "source_field": "tripinfo.avg_duration_s",
+        "unit": "s"
+      },
+      "prev_hash": "545ffbfc67746e9811f5ec67d3a8d08702eb1a0fc044bd3252d6f637db874f9d",
+      "provenance": {
+        "extractor": "closure_effect_v1",
+        "record_sha256": "98f7bcfa8af5e2001059edc5f089b2f822591b4222cbce6ceb19e9a7272b1584",
+        "run_id": "ruled",
+        "simulation_result_sha256": "8e737b8a000c0ad6cf2391cfdb2e1858a222771c998afb6da5f8db8d223dbebd",
+        "source": "simulation"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_cb18ed887d8b6c72",
+      "change_type": "measured_effect",
+      "entry_hash": "43d92425c687dc7cf2d582d2906cfbfa3dacb461eb5f716bfb3d7b982ad412af",
+      "origin_episode": 1,
+      "payload": {
+        "baseline_value": 903.93,
+        "delta": 32.67,
+        "kind": "measured_effect",
+        "metric": "avg_route_length_m",
+        "ruled_value": 936.6,
+        "source_field": "tripinfo.avg_route_length_m",
+        "unit": "m"
+      },
+      "prev_hash": "1ea8d6bfc7dd2298893c0b5e74fc51732220d43bb083e7f7e9c2b2672a17909f",
+      "provenance": {
+        "extractor": "closure_effect_v1",
+        "record_sha256": "98f7bcfa8af5e2001059edc5f089b2f822591b4222cbce6ceb19e9a7272b1584",
+        "run_id": "ruled",
+        "simulation_result_sha256": "8e737b8a000c0ad6cf2391cfdb2e1858a222771c998afb6da5f8db8d223dbebd",
+        "source": "simulation"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_ece6a05a954cbaee",
+      "change_type": "measured_effect",
+      "entry_hash": "ef9e4d8673cee9449e8a3228f372d4416c05561d4f90efad491fcb7aab94c946",
+      "origin_episode": 1,
+      "payload": {
+        "baseline_value": 55.22,
+        "delta": 8.97,
+        "kind": "measured_effect",
+        "metric": "avg_time_loss_s",
+        "ruled_value": 64.19,
+        "source_field": "tripinfo.avg_time_loss_s",
+        "unit": "s"
+      },
+      "prev_hash": "43d92425c687dc7cf2d582d2906cfbfa3dacb461eb5f716bfb3d7b982ad412af",
+      "provenance": {
+        "extractor": "closure_effect_v1",
+        "record_sha256": "98f7bcfa8af5e2001059edc5f089b2f822591b4222cbce6ceb19e9a7272b1584",
+        "run_id": "ruled",
+        "simulation_result_sha256": "8e737b8a000c0ad6cf2391cfdb2e1858a222771c998afb6da5f8db8d223dbebd",
+        "source": "simulation"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_ad06e12c78aa7078",
+      "change_type": "measured_effect",
+      "entry_hash": "4258eaa2eaa754f9939f90a6fb998bb1a4cc47362ae074ee4218f84f497f84c9",
+      "origin_episode": 1,
+      "payload": {
+        "baseline_value": 34.64,
+        "delta": 6.66,
+        "kind": "measured_effect",
+        "metric": "avg_waiting_time_s",
+        "ruled_value": 41.3,
+        "source_field": "tripinfo.avg_waiting_time_s",
+        "unit": "s"
+      },
+      "prev_hash": "ef9e4d8673cee9449e8a3228f372d4416c05561d4f90efad491fcb7aab94c946",
+      "provenance": {
+        "extractor": "closure_effect_v1",
+        "record_sha256": "98f7bcfa8af5e2001059edc5f089b2f822591b4222cbce6ceb19e9a7272b1584",
+        "run_id": "ruled",
+        "simulation_result_sha256": "8e737b8a000c0ad6cf2391cfdb2e1858a222771c998afb6da5f8db8d223dbebd",
+        "source": "simulation"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_46731b4e00c853c8",
+      "change_type": "measured_effect",
+      "entry_hash": "03aec6ee07cf3605b444e46dd944fd7657d82a28df6fc5e43508a94aa154ca6e",
+      "origin_episode": 1,
+      "payload": {
+        "baseline_value": 198.15,
+        "delta": -0.12,
+        "kind": "measured_effect",
+        "metric": "avg_walk_duration_s",
+        "ruled_value": 198.03,
+        "source_field": "tripinfo.avg_walk_duration_s",
+        "unit": "s"
+      },
+      "prev_hash": "4258eaa2eaa754f9939f90a6fb998bb1a4cc47362ae074ee4218f84f497f84c9",
+      "provenance": {
+        "extractor": "closure_effect_v1",
+        "record_sha256": "98f7bcfa8af5e2001059edc5f089b2f822591b4222cbce6ceb19e9a7272b1584",
+        "run_id": "ruled",
+        "simulation_result_sha256": "8e737b8a000c0ad6cf2391cfdb2e1858a222771c998afb6da5f8db8d223dbebd",
+        "source": "simulation"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 150.0,
+      "change_id": "chg_bcd01bb0dc1fe40e",
+      "change_type": "measured_effect",
+      "entry_hash": "5a999facf72c8ab86442e4bc90f343881552aff489226348bd332bafa7675b7f",
+      "origin_episode": 1,
+      "payload": {
+        "baseline_value": 381.0,
+        "delta": -34.0,
+        "kind": "measured_effect",
+        "metric": "trips_completed",
+        "ruled_value": 347.0,
+        "source_field": "tripinfo.trips_completed",
+        "unit": "trips"
+      },
+      "prev_hash": "03aec6ee07cf3605b444e46dd944fd7657d82a28df6fc5e43508a94aa154ca6e",
+      "provenance": {
+        "extractor": "closure_effect_v1",
+        "record_sha256": "98f7bcfa8af5e2001059edc5f089b2f822591b4222cbce6ceb19e9a7272b1584",
+        "run_id": "ruled",
+        "simulation_result_sha256": "8e737b8a000c0ad6cf2391cfdb2e1858a222771c998afb6da5f8db8d223dbebd",
+        "source": "simulation"
+      },
+      "reverses": null,
+      "rule_id": "close_the_central_links"
+    },
+    {
+      "applied_at_sim_second": 0.0,
+      "change_id": "chg_c18d598b243e3417",
+      "change_type": "reversal",
+      "entry_hash": "8a3af5bd8307c90b9df79038f052f0cc6b67f09f0ec7f296146ec63114137e02",
+      "origin_episode": 5,
+      "payload": {
+        "kind": "reversal",
+        "reason": "Reopen the central links.",
+        "reverses_change_id": "chg_61f95cff06ae5038"
+      },
+      "prev_hash": "5a999facf72c8ab86442e4bc90f343881552aff489226348bd332bafa7675b7f",
+      "provenance": {
+        "rule_id": "reopen_the_central_links",
+        "rule_manifest_sha256": "15935004b2df1b2a8369db24028e6c0e61a55956c81641a2f4f72d51eff2138b",
+        "source": "director_rule"
+      },
+      "reverses": "chg_61f95cff06ae5038",
+      "rule_id": "reopen_the_central_links"
+    }
+  ],
+  "ledger_hash": "db695676fd4bef73b9aa41e5357b705401224197c3f2c1a22f3c9bb6f406038c",
+  "schema_version": "persistent_changes_v2",
+  "world_id": "riverside"
+}

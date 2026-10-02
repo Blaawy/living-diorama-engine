@@ -558,7 +558,10 @@ def test_save_load_round_trip_and_tamper_refusal(tmp_path):
 def test_a_real_ledger_validates_against_the_json_schema(tmp_path):
     from jsonschema import Draft202012Validator
 
-    schema = json.loads((Path(__file__).parent.parent / "schemas" / "persistent_changes.schema.json").read_text())
+    from ldyf import persistent_changes as _pc
+    # the schema for the version a NEW ledger declares, never a fixed file
+    schema = json.loads((Path(__file__).parent.parent / "schemas"
+                         / _pc.LEDGER_SCHEMAS[_pc.SCHEMA_VERSION]).read_text())
     lg, c1, _ = build_ledger()                       # rules in episodes 1 and 2
     # a consequence measured in episode 2 (episodes never run backwards)
     lg, _ = append_simulation_consequence(lg, simulation_result=make_evidence(tmp_path, episode=2),
@@ -603,7 +606,7 @@ def test_a_sealed_rule_edited_to_break_the_contract_is_refused_by_the_ledger():
 def test_schema_and_ledger_agree_on_the_rule_vocabulary():
     """The schema is the single authority; the ledger must map every durable kind
     it declares, and refuse (clearly) the one that is not a world change."""
-    schema = json.loads((Path(__file__).parent.parent / "schemas" / "rule_manifest.schema.json").read_text())
+    schema = json.loads((Path(__file__).parent.parent / "schemas" / "rule_manifest_v2.schema.json").read_text())
     kinds = set(schema["properties"]["change"]["properties"])
     from ldyf.persistent_changes import _CHANGE_BLOCK_TO_TYPE
 

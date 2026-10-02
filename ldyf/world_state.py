@@ -38,7 +38,10 @@ def canonical_bytes(doc: dict[str, Any]) -> bytes:
     """The exact bytes a world state hashes over."""
     d = copy.deepcopy(doc)
     d["state_hash"] = _EMPTY
-    return json.dumps(d, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    # allow_nan=False, as in the ledger and evidence serialisers: NaN is not
+    # JSON, and a state holding one must fail to seal rather than seal unreadably
+    return json.dumps(d, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                      allow_nan=False).encode("utf-8")
 
 
 def compute_state_hash(doc: dict[str, Any]) -> str:

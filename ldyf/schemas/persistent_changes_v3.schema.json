@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://living-diorama.local/schemas/persistent_changes.schema.json",
+  "$id": "https://living-diorama.local/schemas/persistent_changes_v3.schema.json",
   "title": "Persistent Changes V2",
-  "description": "The append-only ledger of durable changes to the world. THE WORLD REMEMBERS, generalised. V2 makes SIMULATION CREATES TRUTH structural: an entry binds to the IDENTITY of a sealed evidence document (a rule_manifest hash for Director truth, a simulation_result hash plus a named deterministic extractor for simulation truth). A caller-supplied provenance string is no longer sufficient and no public API accepts one. Entries are NEVER deleted or edited; undoing a change appends a reversal naming the original, which stays visible forever (DNA-03).",
+  "description": "The append-only ledger of durable changes to the world. THE WORLD REMEMBERS, generalised. V2 makes SIMULATION CREATES TRUTH structural: an entry binds to the IDENTITY of a sealed evidence document (a rule_manifest hash for Director truth, a simulation_result hash plus a named deterministic extractor for simulation truth). A caller-supplied provenance string is no longer sufficient and no public API accepts one. Entries are NEVER deleted or edited; undoing a change appends a reversal naming the original, which stays visible forever (DNA-03). V3 (Phase 3) adds the demand_flow change type. It is a NEW version rather than a widening of v2: a v2 ledger is validated by the v2 schema, unchanged since it was sealed, and can never carry a demand_flow entry. A v2 ledger is admitted as it stands or migrated to v3 by ldyf.persistent_changes.migrate_ledger, which changes the declared version and nothing else.",
   "type": "object",
   "required": [
     "schema_version",
@@ -13,7 +13,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "const": "persistent_changes_v2"
+      "const": "persistent_changes_v3"
     },
     "world_id": {
       "type": "string",
@@ -58,6 +58,7 @@
             "access_permission",
             "speed_limit",
             "traffic_light_program",
+            "demand_flow",
             "infrastructure_added",
             "infrastructure_removed",
             "measured_effect",
@@ -197,6 +198,9 @@
             },
             {
               "$ref": "#/$defs/payload_tls_program"
+            },
+            {
+              "$ref": "#/$defs/payload_demand_flow"
             },
             {
               "$ref": "#/$defs/payload_infrastructure"
@@ -513,6 +517,57 @@
         "sustained_over_s": {
           "type": "number",
           "minimum": 0
+        }
+      }
+    },
+    "payload_demand_flow": {
+      "type": "object",
+      "description": "A change in DEMAND rather than in the network: vehicles injected on a route at a fixed rate. Added in Phase 3 as the fourth rule class; the three network rule classes were already expressible.",
+      "required": [
+        "kind",
+        "flow_id",
+        "from_edge",
+        "to_edge",
+        "vehicles_per_hour",
+        "depart_begin",
+        "depart_end",
+        "vtype"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "demand_flow"
+        },
+        "flow_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_edge": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_edge": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vehicles_per_hour": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "depart_begin": {
+          "type": "number",
+          "minimum": 0
+        },
+        "depart_end": {
+          "type": "number",
+          "minimum": 0
+        },
+        "vtype": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string"
         }
       }
     }

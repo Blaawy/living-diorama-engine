@@ -1,0 +1,30 @@
+{
+  "applies_at_sim_second": 0.0,
+  "baseline_required": true,
+  "change": {
+    "access_permission": {
+      "allow": [
+        "passenger"
+      ],
+      "disallow": [],
+      "target_ids": [
+        "B1C1",
+        "C1B1"
+      ],
+      "target_kind": "edge"
+    }
+  },
+  "declared_utc": "2026-09-03T12:29:19Z",
+  "episode_number": 5,
+  "manifest_hash": "15935004b2df1b2a8369db24028e6c0e61a55956c81641a2f4f72d51eff2138b",
+  "permanent": true,
+  "prediction": {
+    "declared_before_run": true,
+    "direction": "decrease",
+    "metric": "avg_time_loss_s",
+    "text": "Journeys shorten back toward baseline; the closure remains in the ledger as history."
+  },
+  "rule_id": "reopen_the_central_links",
+  "schema_version": "rule_manifest_v1",
+  "statement": "Reopen the central links."
+}

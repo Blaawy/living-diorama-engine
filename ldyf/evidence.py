@@ -28,7 +28,18 @@ import re
 from pathlib import Path
 from typing import Any
 
-RULE_MANIFEST_VERSION = "rule_manifest_v1"
+#: The version a NEW rule manifest declares. v2 is the Phase 3 contract: v1 plus
+#: the demand_flow change. v1 is not widened and not retired -- a sealed v1
+#: manifest is validated by the v1 schema exactly as it was when it was sealed.
+RULE_MANIFEST_VERSION = "rule_manifest_v2"
+LEGACY_RULE_MANIFEST_VERSION = "rule_manifest_v1"
+#: Every version this code admits, and the schema that defines it. Admission is
+#: by the version the document DECLARES; nothing here guesses a version from a
+#: document's shape, and a version not in this table is refused.
+RULE_MANIFEST_SCHEMAS: dict[str, str] = {
+    LEGACY_RULE_MANIFEST_VERSION: "rule_manifest.schema.json",
+    RULE_MANIFEST_VERSION: "rule_manifest_v2.schema.json",
+}
 SIMULATION_RESULT_VERSION = "simulation_result_v1"
 
 
@@ -92,46 +103,69 @@ def _verify(doc: dict[str, Any], hash_field: str, expected_version: str, what: s
 
 
 _SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
-_RULE_SCHEMA_CACHE: dict[str, Any] | None = None
+_RULE_SCHEMA_CACHE: dict[str, Any] = {}
 
 
-def _rule_schema_validator():
-    """The ONE RULE contract, loaded once from the package's own schema."""
-    global _RULE_SCHEMA_CACHE
+def admit_rule_manifest_version(doc: Any) -> str:
+    """The version a rule manifest declares, if this code admits it. Else raise.
+
+    Fails closed on everything that is not exactly one of the known version
+    strings: a non-document, a missing or non-string version, a version from the
+    future, a typo. The version is read and never inferred.
+    """
+    if not isinstance(doc, dict):
+        raise EvidenceError("rule_manifest must be a document")
+    version = doc.get("schema_version")
+    if not isinstance(version, str) or version not in RULE_MANIFEST_SCHEMAS:
+        raise EvidenceError(
+            f"rule_manifest declares schema_version {version!r}; admitted versions "
+            f"are {sorted(RULE_MANIFEST_SCHEMAS)}"
+        )
+    return version
+
+
+def _rule_schema_validator(version: str):
+    """The ONE RULE contract for `version`, loaded once from the package."""
     from jsonschema import Draft202012Validator
 
-    if _RULE_SCHEMA_CACHE is None:
-        _RULE_SCHEMA_CACHE = json.loads(
-            (_SCHEMA_DIR / "rule_manifest.schema.json").read_text(encoding="utf-8")
+    if version not in _RULE_SCHEMA_CACHE:
+        _RULE_SCHEMA_CACHE[version] = json.loads(
+            (_SCHEMA_DIR / RULE_MANIFEST_SCHEMAS[version]).read_text(encoding="utf-8")
         )
-    return Draft202012Validator(_RULE_SCHEMA_CACHE)
+    return Draft202012Validator(_RULE_SCHEMA_CACHE[version])
 
 
-def _check_rule_contract(doc: dict[str, Any]) -> None:
+def _check_rule_contract(doc: dict[str, Any]) -> str:
     """A rule that does not satisfy the ONE RULE contract cannot be sealed.
 
     This is what makes `declared_utc`, `baseline_required` and a
     before-the-run `prediction` load-bearing rather than decorative: the ledger
     binds only to sealed manifests, and only contract-complete manifests seal.
+
+    The contract checked is the one for the version the document declares. A v1
+    manifest is held to the v1 schema, which has no demand_flow, so a document
+    that declares v1 and carries a v2 change is refused by the schema itself.
     """
-    if not isinstance(doc, dict):
-        raise EvidenceError("rule_manifest must be a document")
-    errors = sorted(_rule_schema_validator().iter_errors(doc), key=lambda e: list(e.path))
+    version = admit_rule_manifest_version(doc)
+    errors = sorted(_rule_schema_validator(version).iter_errors(doc),
+                    key=lambda e: list(e.path))
     if errors:
         e = errors[0]
         where = "/".join(str(x) for x in e.path) or "<root>"
         raise EvidenceError(
-            f"rule_manifest violates the ONE RULE contract at {where}: {e.message}"
+            f"{version} violates the ONE RULE contract at {where}: {e.message}"
         )
+    return version
 
 
 def seal_rule_manifest(doc: dict[str, Any]) -> dict[str, Any]:
-    _check_rule_contract(doc)
-    return _seal(doc, "manifest_hash", RULE_MANIFEST_VERSION)
+    version = _check_rule_contract(doc)
+    return _seal(doc, "manifest_hash", version)
 
 
 def verify_rule_manifest(doc: dict[str, Any]) -> None:
-    _verify(doc, "manifest_hash", RULE_MANIFEST_VERSION, "rule_manifest")
+    version = admit_rule_manifest_version(doc)
+    _verify(doc, "manifest_hash", version, "rule_manifest")
     _check_rule_contract(doc)
 
 

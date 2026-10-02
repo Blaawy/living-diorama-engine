@@ -83,6 +83,10 @@ __all__ = [
     "active_changes",
     "changes_from_episode",
     "history_of",
+    "LEGACY_SCHEMA_VERSION",
+    "LEDGER_SCHEMAS",
+    "admit_ledger_version",
+    "migrate_ledger",
     "save",
     "load",
     "compute_entry_hash",
@@ -91,7 +95,19 @@ __all__ = [
     "extract_closure_effect_v1",
 ]
 
-SCHEMA_VERSION = "persistent_changes_v2"
+#: The version a NEW ledger declares. v3 is the Phase 3 contract: v2 plus the
+#: demand_flow change type and the Phase 3 consequence extractors.
+SCHEMA_VERSION = "persistent_changes_v3"
+#: The version every ledger sealed before Phase 3 declares. It is not widened
+#: and not retired: a v2 ledger is admitted as it stands, by the v2 rules.
+LEGACY_SCHEMA_VERSION = "persistent_changes_v2"
+#: Every version this code admits and the schema file that defines it. A ledger
+#: is admitted by the version it DECLARES -- never by guessing from its shape --
+#: and a version missing from this table is refused.
+LEDGER_SCHEMAS: dict[str, str] = {
+    LEGACY_SCHEMA_VERSION: "persistent_changes.schema.json",
+    SCHEMA_VERSION: "persistent_changes_v3.schema.json",
+}
 GENESIS_HASH = "0" * 64
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -148,6 +164,17 @@ _EFFECT_UNITS = {
     "avg_walk_length_m": "m",
     "avg_walk_duration_s": "s",
 }
+
+#: What each version adds over the one before it. A v2 ledger may contain
+#: none of these: phase 3 first widened v2 in place, which let a document that
+#: called itself v2 carry things no v2 reader had ever agreed to.
+V3_ONLY_CHANGE_TYPES: frozenset[str] = frozenset({"demand_flow"})
+V3_ONLY_EXTRACTORS: frozenset[str] = frozenset({
+    "speed_limit_effect_v1",
+    "traffic_light_effect_v1",
+    "demand_flow_effect_v1",
+    "pedestrian_effect_v1",
+})
 
 # Extractors that MUST NOT be trusted to run only from append time: verify_ledger
 # re-validates their payload invariants without re-running them.
@@ -368,9 +395,75 @@ def _validate_provenance(prov: dict[str, Any]) -> None:
 # --- construction (internal) ----------------------------------------------
 
 
-def new_ledger(world_id: str) -> dict[str, Any]:
+def admit_ledger_version(ledger: Any) -> str:
+    """The version a ledger declares, if this code admits it. Otherwise raise.
+
+    Fails closed on a non-document, a missing or non-string version, and any
+    version string that is not exactly one of LEDGER_SCHEMAS -- including one
+    from a later phase this code has never seen.
+    """
+    if not isinstance(ledger, dict):
+        raise LedgerError(f"a ledger must be a document, got {type(ledger).__name__}")
+    version = ledger.get("schema_version")
+    if not isinstance(version, str) or version not in LEDGER_SCHEMAS:
+        raise LedgerError(
+            f"unexpected schema_version {version!r}; admitted versions are "
+            f"{sorted(LEDGER_SCHEMAS)}"
+        )
+    return version
+
+
+def _check_entry_admitted_by_version(version: str, entry: dict[str, Any],
+                                     where: str) -> None:
+    """A legacy ledger may not carry a later version's features. No mixing."""
+    if version != LEGACY_SCHEMA_VERSION:
+        return
+    ctype = entry.get("change_type")
+    if ctype in V3_ONLY_CHANGE_TYPES:
+        raise LedgerError(
+            f"{where}: change_type {ctype!r} is not part of {LEGACY_SCHEMA_VERSION}; "
+            f"it was introduced by {SCHEMA_VERSION}. Migrate the ledger with "
+            "migrate_ledger before appending it."
+        )
+    prov = entry.get("provenance")
+    extractor = prov.get("extractor") if isinstance(prov, dict) else None
+    if extractor in V3_ONLY_EXTRACTORS:
+        raise LedgerError(
+            f"{where}: extractor {extractor!r} is not part of {LEGACY_SCHEMA_VERSION}; "
+            f"it was introduced by {SCHEMA_VERSION}. Migrate the ledger with "
+            "migrate_ledger before appending it."
+        )
+
+
+def migrate_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
+    """A ledger at the CURRENT version, from one at any admitted version.
+
+    The migration is deterministic and it is deliberately almost nothing:
+    v3 is a superset of v2, and neither an entry hash nor the ledger hash
+    covers the declared version, so the only change is the version string.
+    Every entry, every entry hash and the ledger hash come out byte-identical,
+    which is what lets a migrated ledger still be traced to the evidence it was
+    sealed against. The input is verified before and the output after; the
+    input is never modified, and the sealed file it came from is never touched.
+    A ledger already at the current version is returned as an equal copy.
+    """
+    verify_ledger(ledger)
+    out = copy.deepcopy(ledger)
+    out["schema_version"] = SCHEMA_VERSION
+    verify_ledger(out)
+    if out["entries"] != ledger["entries"] or out["ledger_hash"] != ledger["ledger_hash"]:
+        raise LedgerError("migration altered sealed content; refusing")  # pragma: no cover
+    return out
+
+
+def new_ledger(world_id: str, *, schema_version: str = SCHEMA_VERSION) -> dict[str, Any]:
+    if schema_version not in LEDGER_SCHEMAS:
+        raise LedgerError(
+            f"cannot create a ledger at schema_version {schema_version!r}; "
+            f"admitted versions are {sorted(LEDGER_SCHEMAS)}"
+        )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": schema_version,
         "world_id": world_id,
         "entries": [],
         "ledger_hash": GENESIS_HASH,
@@ -445,6 +538,9 @@ def _append_entry(
     """
     if change_type not in CHANGE_TYPES:
         raise LedgerError(f"unknown change_type {change_type!r}")
+    _check_entry_admitted_by_version(
+        admit_ledger_version(ledger),
+        {"change_type": change_type, "provenance": provenance}, "append")
     _validate_payload(change_type, payload)
     _validate_provenance(provenance)
 
@@ -796,8 +892,7 @@ def verify_ledger(ledger: dict[str, Any], *, evidence_dir: str | Path | None = N
     extractor is re-run, and the recorded payload must be one the extractor
     derives. A fabricated-but-well-formed entry fails here.
     """
-    if ledger.get("schema_version") != SCHEMA_VERSION:
-        raise LedgerError(f"unexpected schema_version {ledger.get('schema_version')!r}")
+    version = admit_ledger_version(ledger)
 
     entries = ledger.get("entries", [])
     prev = GENESIS_HASH
@@ -809,6 +904,7 @@ def verify_ledger(ledger: dict[str, Any], *, evidence_dir: str | Path | None = N
         if cid in seen:
             raise LedgerError(f"duplicate change_id {cid!r} at index {i}")
         seen.add(cid)
+        _check_entry_admitted_by_version(version, e, f"entry {i}")
         if e.get("change_type") not in CHANGE_TYPES:
             raise LedgerError(f"entry {cid!r}: unknown change_type {e.get('change_type')!r}")
         if e.get("prev_hash") != prev:
