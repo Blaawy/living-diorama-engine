@@ -398,7 +398,15 @@ class PedestrianBridge:
 
 def three_stage_walk(agent_id: str, stages: Iterable[str],
                      *, deadline_s: float | None = None) -> AgentState:
-    """A multi-stage pedestrian agent: one travel_to goal per stage, in order."""
+    """A multi-stage pedestrian agent: one travel_to goal per stage, in order.
+
+    The FIRST element of `stages` is the ORIGIN and does not become a goal, so
+    three listed edges are an origin and TWO destinations -- a two-leg trip.
+    The caller passes that same first edge to `spawn` as the origin. Spelled out
+    because the arithmetic is easy to misread in the other direction, and an
+    episode report that counted three goals here would read a trip as a third
+    finished when it had not yet started.
+    """
     targets = list(stages)
     if len(targets) < 2:
         raise ValueError("a multi-stage walk needs at least two stages")
