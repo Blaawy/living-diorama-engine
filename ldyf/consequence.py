@@ -530,16 +530,27 @@ def _check_controlled_arms(
             "demand is not the same demand; refusing"
         )
 
-    for arm in ARMS:
-        injected = demands[arm]["injected"]
-        shown = record_counts[arm]
-        if injected["vehicle"] != shown.get("vehicle", 0) or injected["person"] != shown.get("person", 0):
-            raise EvidenceError(
-                f"{extractor_name}: the {arm} demand manifest declares {injected['vehicle']} "
-                f"injected vehicle(s) and {injected['person']} person(s), but the sealed trajectory "
-                f"record shows {shown.get('vehicle', 0)} vehicle(s) and {shown.get('person', 0)} "
-                "person(s); the injected count must equal the count derivable from the record."
-            )
+    # The BASELINE arm must realise exactly the demand it was offered: nothing
+    # there suppresses an insertion, so a mismatch means the manifest does not
+    # describe the run and no comparison is trustworthy.
+    #
+    # The RULED arm is deliberately NOT held to that equality. A rule whose
+    # effect is to suppress or add insertions makes offered and realised differ
+    # BY DESIGN -- a closure that stops two vehicles entering is exactly the
+    # consequence being measured -- and the original form of this check refused
+    # to measure any such rule, because it read that difference as a broken
+    # experiment. What keeps the comparison controlled is that the demand
+    # DEFINITION (route files, seed, scale, offered counts) is identical across
+    # the arms, and that is checked separately above and below.
+    injected = demands["baseline"]["injected"]
+    shown = record_counts["baseline"]
+    if injected["vehicle"] != shown.get("vehicle", 0) or injected["person"] != shown.get("person", 0):
+        raise EvidenceError(
+            f"{extractor_name}: the baseline demand manifest declares {injected['vehicle']} "
+            f"injected vehicle(s) and {injected['person']} person(s), but the sealed trajectory "
+            f"record shows {shown.get('vehicle', 0)} vehicle(s) and {shown.get('person', 0)} "
+            "person(s); the injected count must equal the count derivable from the record."
+        )
 
     if not demand_is_the_rule:
         if demands["baseline"]["injected"] != demands["ruled"]["injected"]:

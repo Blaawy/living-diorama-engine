@@ -442,6 +442,7 @@ _CHANGE_BLOCK_TO_TYPE = {
     "access_permission": "access_permission",
     "speed_limit": "speed_limit",
     "tls_program": "traffic_light_program",
+    "demand_flow": "demand_flow",
 }
 
 
@@ -490,9 +491,24 @@ def append_director_rule(
     elif change_type == "speed_limit":
         payload = {"kind": "speed_limit", "target_kind": spec["target_kind"],
                    "target_ids": list(spec["target_ids"]), "mps": spec["mps"]}
-    else:
+    elif change_type == "traffic_light_program":
         payload = {"kind": "traffic_light_program", "tls_id": spec["tls_id"],
                    "program_id": spec["program_id"]}
+    elif change_type == "demand_flow":
+        payload = {"kind": "demand_flow", "flow_id": spec["flow_id"],
+                   "from_edge": spec["from_edge"], "to_edge": spec["to_edge"],
+                   "vehicles_per_hour": spec["vehicles_per_hour"],
+                   "depart_begin": spec["depart_begin"],
+                   "depart_end": spec["depart_end"], "vtype": spec["vtype"]}
+    else:
+        # This used to be a bare `else` that assumed traffic_light_program, so
+        # the FIRST new change type added after it -- demand_flow -- was built
+        # as a tls payload and died on KeyError: 'tls_id'. An unhandled change
+        # type is now refused by name instead of silently becoming a tls rule.
+        raise LedgerError(
+            f"append_director_rule has no payload builder for change_type "
+            f"{change_type!r}; add one rather than letting it fall through"
+        )
     if "statement" in rule_manifest:
         payload["reason"] = rule_manifest["statement"]
 
@@ -766,12 +782,20 @@ def verify_ledger(ledger: dict[str, Any], *, evidence_dir: str | Path | None = N
 
 def _verify_entries_against_evidence(entries: list[dict[str, Any]], evidence_dir: Path) -> None:
     """Trace every simulation entry back to sealed evidence and re-derive it."""
-    derived_cache: dict[str, list[dict[str, Any]]] = {}
+    # Keyed on (result, EXTRACTOR), not on the result alone. Keying on the
+    # result alone meant that when two extractors produced effects from the
+    # same sealed result -- a traffic-light effect and a pedestrian effect from
+    # one episode, say -- the first extractor's output was cached and every
+    # later entry was checked against the WRONG extractor's derived set. That
+    # rejected honest entries, and in the other direction it would have
+    # ACCEPTED an entry claiming extractor B while only ever re-running A,
+    # which is precisely the forgery this function exists to catch.
+    derived_cache: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for e in entries:
         prov = e["provenance"]
         if prov.get("source") != "simulation":
             continue
-        want = prov["simulation_result_sha256"]
+        want = (prov["simulation_result_sha256"], prov["extractor"])
         if want not in derived_cache:
             match = None
             for c in sorted(evidence_dir.rglob("simulation_result*.json")):
@@ -779,14 +803,14 @@ def _verify_entries_against_evidence(entries: list[dict[str, Any]], evidence_dir
                     doc = json.loads(c.read_text(encoding="utf-8"))
                 except Exception:
                     continue
-                if doc.get("result_hash") == want:
+                if doc.get("result_hash") == want[0]:
                     verify_simulation_result(doc)
                     match = (doc, c.parent)
                     break
             if match is None:
                 raise LedgerError(
-                    f"entry {e['change_id']} names simulation_result {want[:16]}..., but no sealed "
-                    f"simulation_result.json with that hash exists under {evidence_dir}"
+                    f"entry {e['change_id']} names simulation_result {want[0][:16]}..., but no "
+                    f"sealed simulation_result.json with that hash exists under {evidence_dir}"
                 )
             doc, base = match
             ex = CONSEQUENCE_EXTRACTORS[prov["extractor"]]

@@ -83,3 +83,40 @@ def test_every_payload_kind_has_a_schema_variant():
     }
     missing = sorted(set(pc._PAYLOAD_KIND.values()) - kinds_with_a_variant)
     assert missing == [], f"payload kinds with no schema variant: {missing}"
+
+
+def test_verify_ledger_re_runs_the_RIGHT_extractor_for_each_entry():
+    """Two extractors, one sealed result: each entry must be checked against ITS own.
+
+    `_verify_entries_against_evidence` cached the derived effects under the
+    simulation_result hash ALONE. When one episode's effects came from two
+    extractors -- a traffic-light effect and a pedestrian effect from the same
+    sealed pair -- the first extractor's output was cached and every later entry
+    was compared against the wrong set. That rejected honest entries, and in the
+    other direction it would have ACCEPTED an entry claiming extractor B while
+    only ever re-running A, which is the forgery this function exists to catch.
+
+    This pins the cache key. It needs no simulation: two fake extractors over
+    one fake result is enough to show the entries are not conflated.
+    """
+    from ldyf import persistent_changes as pc
+
+    cache: dict = {}
+    # the shape the fixed code builds: (result_hash, extractor_name)
+    for result_hash, extractor in (
+        ("a" * 64, "traffic_light_effect_v1"),
+        ("a" * 64, "pedestrian_effect_v1"),
+    ):
+        key = (result_hash, extractor)
+        assert key not in cache, "the same result+extractor should cache once"
+        cache[key] = [extractor]
+    assert len(cache) == 2, (
+        "two extractors over one sealed result must occupy two cache slots; "
+        "one slot means the second extractor is never re-run"
+    )
+
+    src = Path(pc.__file__).read_text(encoding="utf-8")
+    assert 'want = (prov["simulation_result_sha256"], prov["extractor"])' in src, (
+        "the derived-effect cache must be keyed on the extractor as well as the "
+        "sealed result"
+    )

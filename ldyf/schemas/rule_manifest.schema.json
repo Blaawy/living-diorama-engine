@@ -188,6 +188,50 @@
               "exclusiveMinimum": 0
             }
           }
+        },
+        "demand_flow": {
+          "type": "object",
+          "description": "Vehicles INJECTED on a route at a fixed rate. Distinct from demand_scale, which multiplies existing demand: this adds traffic that was not there. Added in Phase 3 as the fourth rule class.",
+          "required": [
+            "flow_id",
+            "from_edge",
+            "to_edge",
+            "vehicles_per_hour",
+            "depart_begin",
+            "depart_end",
+            "vtype"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "flow_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from_edge": {
+              "type": "string",
+              "minLength": 1
+            },
+            "to_edge": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vehicles_per_hour": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "depart_begin": {
+              "type": "number",
+              "minimum": 0
+            },
+            "depart_end": {
+              "type": "number",
+              "minimum": 0
+            },
+            "vtype": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
       }
     },
