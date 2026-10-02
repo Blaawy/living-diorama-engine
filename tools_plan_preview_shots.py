@@ -72,7 +72,20 @@ def main() -> int:
     # checked. Every bearing is now validated against the block polygons and
     # rotated to the nearest one that can actually see its target.
     layout = json.loads((EV / "city_layout.json").read_text(encoding="utf-8"))
-    obstacles = [b["polygon"] for b in layout["blocks"]]
+    # SGD facades overhang the block edge (SFD: 95 cm) and stand up to 9000 cm
+    # tall, so a camera a few centimetres outside the block polygon is inside a
+    # wall. Each block is grown by CAMERA_CLEARANCE_CM before the test.
+    CAMERA_CLEARANCE_CM = 400.0
+
+    def grown(poly):
+        xs = [float(p["x"]) for p in poly]
+        ys = [float(p["y"]) for p in poly]
+        x0, x1 = min(xs) - CAMERA_CLEARANCE_CM, max(xs) + CAMERA_CLEARANCE_CM
+        y0, y1 = min(ys) - CAMERA_CLEARANCE_CM, max(ys) + CAMERA_CLEARANCE_CM
+        return [{"x": x0, "y": y0}, {"x": x1, "y": y0},
+                {"x": x1, "y": y1}, {"x": x0, "y": y1}]
+
+    obstacles = [grown(b["polygon"]) for b in layout["blocks"]]
     bearing_log = []
     for r in reqs:
         if r["kind"] == "overview":
@@ -113,7 +126,7 @@ def main() -> int:
                           view_radius_cm=9000.0)
     plan["bearing_selection"] = bearing_log
     plan["occlusion_test"] = {
-        "obstacles": "city_layout_v1 block polygons (%d)" % len(obstacles),
+        "obstacles": "city_layout_v1 block polygons (%d), each grown %.0f cm" % (len(obstacles), CAMERA_CLEARANCE_CM),
         "method": "camera point-in-polygon plus a 24-sample sight line to the target",
         "limitation": "sampled, so a sliver thinner than the sample spacing can be missed",
     }
