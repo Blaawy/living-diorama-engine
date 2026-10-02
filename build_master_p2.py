@@ -57,7 +57,10 @@ def stage() -> None:
             (STAGE / "preview" / sub).mkdir(exist_ok=True)
             for f in sorted(d.glob("*.png")):
                 shutil.copy2(f, STAGE / "preview" / sub / f.name)
-    mp4 = sorted(EV.glob("*.mp4"))
+    # Only the preview of the city that ships. phase2_preview_timelapse.mp4 is
+    # a September render of the LEGACY massing city; presenting it beside the
+    # current preview would show buildings that no longer exist.
+    mp4 = [m for m in sorted(EV.glob("*.mp4")) if m.name == "phase2_preview.mp4"]
     for m in mp4:
         shutil.copy2(m, STAGE / "preview" / m.name)
     (STAGE / "preview" / ("NOTE_PREVIEW.md")).write_text(
