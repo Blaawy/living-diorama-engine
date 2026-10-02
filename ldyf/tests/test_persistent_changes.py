@@ -432,7 +432,21 @@ def test_consequence_attributed_to_a_recorded_rule_is_accepted(tmp_path):
 
 
 def test_extractor_registry_is_a_closed_set():
-    assert set(CONSEQUENCE_EXTRACTORS) == {"closure_effect_v1"}
+    """The registry is CLOSED: an extractor arrives only by review, never by import.
+
+    The set grew in Phase 3 from one entry to five, because the world gained
+    three more rule classes and a pedestrian consequence. The guard is kept
+    exactly as strict -- it still pins the whole set -- so a module that
+    registers an extractor as a side effect of being imported fails here
+    instead of quietly becoming able to write measured_effect entries.
+    """
+    assert set(CONSEQUENCE_EXTRACTORS) == {
+        "closure_effect_v1",          # Phase 1
+        "speed_limit_effect_v1",      # Phase 3
+        "traffic_light_effect_v1",    # Phase 3
+        "demand_flow_effect_v1",      # Phase 3
+        "pedestrian_effect_v1",       # Phase 3
+    }
 
 
 # ==========================================================================
