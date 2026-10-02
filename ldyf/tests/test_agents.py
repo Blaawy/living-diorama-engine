@@ -540,6 +540,40 @@ def test_deadline_passed_blocks_a_trip_stage():
     assert any(r.value == "reason:deadline_passed" for r in step.records)
 
 
+def test_a_deadline_passed_stage_does_not_oscillate_forever():
+    """Red team p3atk/agents: blocked -> active -> blocked, every tick, endlessly.
+
+    step_agent re-arms ANY blocked agent whose goal is reachable, a
+    deadline_passed block keeps the goal on the stack, and _goal_finished never
+    completes a travel_to on a passed deadline. Together those three make a
+    settled agent oscillate for the rest of the run, emitting four memory
+    records a tick. That is precisely the "no loop artifact" the phase has to
+    rule out, and the existing deadline test stopped after one tick so it could
+    not see it.
+    """
+    st = state(Goal("goal:home", "travel_to", "edge:E2", 5.0))
+    o = obs(PED, "edge:E0", t=6.0)
+
+    step = step_agent(st, o, 0, EP)
+    assert step.state.status == "blocked"
+
+    statuses = []
+    record_counts = []
+    cur = step.state
+    for tick in range(1, 9):
+        nxt = step_agent(cur, o, tick, EP)
+        statuses.append(nxt.state.status)
+        record_counts.append(len(nxt.records))
+        cur = nxt.state
+
+    assert set(statuses) == {"blocked"}, (
+        f"a settled agent flipped status every tick: {statuses}"
+    )
+    assert sum(record_counts) == 0, (
+        f"a settled agent kept emitting memory records: {record_counts}"
+    )
+
+
 def test_deadline_passed_ends_a_bounded_wait_and_the_trip_continues():
     st = state(
         Goal("goal:cross", "wait_until", "signal:green", 5.0),

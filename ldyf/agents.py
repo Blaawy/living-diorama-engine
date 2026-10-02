@@ -869,6 +869,29 @@ def constraint_edges(state: AgentState) -> tuple[str, ...]:
     return tuple(sorted({g.target for g in state.goal_stack if g.kind == "avoid"}))
 
 
+#: Block reasons the WORLD can undo. An agent blocked because an edge was shut
+#: or its goal was unreachable may legitimately resume when the world reopens.
+#: A block from a passed DEADLINE is not in this set: time does not un-pass, so
+#: retrying it every tick achieves nothing and is what produced the oscillation.
+RECOVERABLE_BLOCK_REASONS = ("edge_blocked", "goal_unreachable")
+
+
+def _block_is_recoverable(state: AgentState) -> bool:
+    """Can the world reopening undo this agent's most recent block?
+
+    Read from the agent's own memory, which is the only record of why it
+    stopped. If nothing explains the block, treat it as recoverable: the
+    conservative choice is to let an agent try again, not to strand it.
+    """
+    for record in reversed(state.memory):
+        if record.kind != "agent_replanned":
+            continue
+        value = str(record.value)
+        if value.startswith("reason:"):
+            return value[len("reason:"):] in RECOVERABLE_BLOCK_REASONS
+    return True
+
+
 def _goal_finished(goal: Goal, perception: Perception) -> bool:
     if goal.kind == "avoid":
         return goal.deadline_s is not None and perception.t_sim >= goal.deadline_s
@@ -1521,7 +1544,21 @@ def step_agent(
 
     perception = perceive(state, observation)
 
-    if state.status == "blocked" and state.goal_stack and perception.goal_reachable:
+    # Re-arm a blocked agent only when the world could actually have undone the
+    # block. Re-arming on any block whose goal is merely reachable made a
+    # settled agent oscillate forever:
+    # a deadline_passed block keeps its goal on the stack, _goal_finished never
+    # completes a travel_to on a passed deadline, so the agent went
+    # blocked -> active -> blocked every tick, emitting four memory records a
+    # tick and churning its whole 32-record memory on a state that had already
+    # settled. Found by red team p3atk/agents; reproduced in
+    # test_a_deadline_passed_stage_does_not_oscillate_forever.
+    if (
+        state.status == "blocked"
+        and state.goal_stack
+        and perception.goal_reachable
+        and _block_is_recoverable(state)
+    ):
         result = replan(state, perception, tick, episode_id, reason="edge_cleared")
         attempts += 1
         replan_reason = result.reason
