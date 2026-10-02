@@ -355,3 +355,123 @@ def render_mrq(out_dir: str, *, fps: int, width: int = 1920, height: int = 1080,
     return {"started": ex is not None, "out_dir": out_dir, "fps": fps,
             "resolution": [width, height], "sequence": seq_path,
             "settings": [str(s.get_class().get_name()) for s in cfg.get_all_settings()]}
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 additions. Nothing above this line changed, so the Phase 2 preview
+# is built exactly as it was accepted. These are opt-in and are called only by
+# the Phase 3 playback driver.
+# ---------------------------------------------------------------------------
+
+def add_person_animation(bake_path: str, *, fps: int, label_prefix: str = CAST_PREFIX,
+                         seq_path: str = SEQ_PATH) -> dict:
+    """Key each person's ANIMATION from the bake, as a Sequencer animation track.
+
+    `build_sequence` consumes a person's transform keys and presence and never
+    reads the bake's `anim` segments, while `spawn_cast` leaves every person
+    playing the walk cycle on an engine tick. So a body the record says is
+    standing still was drawn walking on the spot, and what its limbs did came
+    from the wall clock, not from the frame. This writes one animation section
+    per baked segment -- the walk cycle at the baked play rate while the record
+    has the body moving, the idle while it does not -- so the skeletal pose is
+    evaluated by Sequencer at the frame being rendered, like the transform.
+
+    The per-uid phase offset is kept, as a keyed start offset, so a crowd still
+    does not march in step.
+    """
+    bake = json.loads(Path(bake_path).read_text(encoding="utf-8"))
+    first, last = bake["frames"]
+    seq = unreal.EditorAssetLibrary.load_asset(seq_path)
+    EAL = unreal.EditorAssetLibrary
+    assets = {"walk": EAL.load_asset(WALK_ANIM), "idle": EAL.load_asset(IDLE_ANIM)}
+    if assets["walk"] is None or assets["idle"] is None:
+        return {"ok": False, "error": "walk or idle animation asset is missing"}
+    MSE = unreal.MovieSceneSequenceExtensions
+    MBE = unreal.MovieSceneBindingExtensions
+    by_name = {str(MBE.get_display_name(b)): b for b in MSE.get_bindings(seq)}
+    sections = 0
+    persons = 0
+    states = {"walk": 0, "idle": 0}
+    errors = []
+    for uid, rec in sorted(bake["actors"].items()):
+        if rec.get("kind") != "person":
+            continue
+        b = by_name.get(f"{label_prefix}_{uid.replace(':', '_')}")
+        if b is None:
+            errors.append(f"no binding for {uid}")
+            continue
+        track = b.add_track(unreal.MovieSceneSkeletalAnimationTrack)
+        phase = _digest(uid + "|phase", 1000) / 1000.0
+        for seg in rec.get("anim") or []:
+            state = seg["state"] if seg["state"] in assets else "idle"
+            asset = assets[state]
+            sec = track.add_section()
+            params = sec.get_editor_property("params")
+            params.set_editor_property("animation", asset)
+            rate = float(seg.get("rate") or 1.0) if state == "walk" else 1.0
+            pr = params.get_editor_property("play_rate")
+            pr.set_fixed_play_rate(max(rate, 0.01))
+            params.set_editor_property("play_rate", pr)
+            n_frames = int(asset.get_editor_property("number_of_sampled_keys") or 1)
+            params.set_editor_property(
+                "first_loop_start_frame_offset", unreal.FrameNumber(int(phase * n_frames)))
+            sec.set_editor_property("params", params)
+            unreal.MovieSceneSectionExtensions.set_range(
+                sec, int(seg["f_on"] - first), int(seg["f_off"] - first) + 1)
+            sections += 1
+            states[state] += int(seg["f_off"] - seg["f_on"]) + 1
+        persons += 1
+    unreal.EditorAssetLibrary.save_loaded_asset(seq)
+    return {"ok": not errors, "persons": persons, "sections": sections,
+            "person_frames_by_state": states, "errors": errors[:8]}
+
+
+def readback_poses(frames: list, *, label_prefix: str = CAST_PREFIX,
+                   seq_path: str = SEQ_PATH) -> dict:
+    """What the ENGINE puts where, at given sequence frames. Read, not computed.
+
+    The bake says what the keys should be. This asks Sequencer to evaluate the
+    sequence at each frame and then reads every cast actor's transform and
+    visibility back out of the world -- the link between "the keys were
+    written" and "this is where the engine put the body" that a comparison of
+    the bake against the record cannot reach.
+    """
+    LSE = unreal.LevelSequenceEditorBlueprintLibrary
+    seq = unreal.EditorAssetLibrary.load_asset(seq_path)
+    if not LSE.open_level_sequence(seq):
+        return {"ok": False, "error": "could not open the sequence"}
+    cast = {}
+    for a in _EAS().get_all_level_actors():
+        if a is None:
+            continue
+        lab = str(a.get_actor_label())
+        if lab.startswith(label_prefix + "_"):
+            cast[lab] = a
+    out = {}
+    for f in frames:
+        try:
+            LSE.set_current_time(int(f))            # display-rate frame
+        except Exception:
+            params = unreal.MovieSceneSequencePlaybackParams()
+            params.set_editor_property("frame", unreal.FrameTime(unreal.FrameNumber(int(f))))
+            LSE.set_global_position(params)
+        LSE.force_update()
+        row = {}
+        for lab, a in cast.items():
+            loc = a.get_actor_location()
+            rot = a.get_actor_rotation()
+            row[lab] = [round(loc.x, 3), round(loc.y, 3), round(loc.z, 3),
+                        round(rot.yaw, 3), bool(a.is_hidden_ed())]
+        out[str(int(f))] = row
+    LSE.close_level_sequence()
+    return {"ok": True, "actors": len(cast), "frames": out}
+
+
+def sequence_file(seq_path: str = SEQ_PATH) -> dict:
+    """Where the saved sequence asset is on disk, so it can be hashed and kept."""
+    pkg = seq_path.split(".")[0]
+    try:
+        fn = unreal.SystemLibrary.get_system_path(unreal.EditorAssetLibrary.load_asset(seq_path))
+    except Exception:
+        fn = ""
+    return {"package": pkg, "file": str(fn)}
