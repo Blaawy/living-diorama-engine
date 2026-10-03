@@ -1,0 +1,47 @@
+{
+  "schema_version": "factory_world_v1",
+  "name": "riverside",
+  "locked_phase": 3,
+  "note": "The Phase 3 locked world: the Phase 1 grid network and demand, the Phase 3 agent population and its declared street-avoidance policy. The three SUMO inputs are byte copies of PHASE_01/proof/sumo and are pinned by sha256; a world whose files do not match is refused.",
+  "net": {"file": "grid.net.xml", "sha256": "5b6669675fd5e690f67c3fb683533c2ab701a7902fcf3cd4e1657f01727e0ddf"},
+  "routes": [
+    {"file": "veh.rou.xml", "sha256": "8a4bdaedf54651059e1217cc7720d88c6d93786ad273f9a48d3dd6e4cd016714"},
+    {"file": "ped.rou.xml", "sha256": "9affa5abbfc48c6b6cc6825a4dfe4e4d56242b3666315beb9f4b416bb67ac01f"}
+  ],
+  "sumo": {
+    "version": "1.27.1",
+    "step_length": 0.1,
+    "time_to_teleport": 300,
+    "pedestrian_model": "striping"
+  },
+  "agents": {
+    "count": 24,
+    "first_depart_s": 1.0,
+    "wave_stagger_s": 5.0,
+    "trips": [
+      ["A0A1", "B2C2", "C2C3"],
+      ["A1A0", "B2C2", "C2C3"],
+      ["A1B1", "B2C2", "C2C3"],
+      ["A0B0", "B2B3", "B3C3"]
+    ],
+    "policy": "avoid_whole_street",
+    "policy_note": "AGENT POLICY, not a world fact. A closure bars one edge; an agent that perceives it also stays off the opposite direction of the same street. The twin edge is logged as avoided_by_policy, never as blocked."
+  },
+  "drivers_reroute": true,
+  "drivers_reroute_note": "Vehicles whose remaining route crosses a closed edge are re-routed by current travel time, as in the Phase 3 closure episode. false reproduces the Phase 3 agent episode, where they are not.",
+  "street_names": {
+    "note": "PRESENTATION ONLY. The network names junctions A0..D3; a narrator cannot say 'B1B2'. A column letter is an avenue, a row number is a street. The names carry no measurement.",
+    "columns": {"A": "Alder Avenue", "B": "Baker Avenue", "C": "Cedar Avenue", "D": "Dover Avenue"},
+    "rows": {"0": "Harbor Street", "1": "Market Street", "2": "Park Street", "3": "Hill Street"}
+  },
+  "unreal": {
+    "level": "/Game/LD/L_LivingDiorama",
+    "level_file": "LivingDioramaYF/Content/LD/L_LivingDiorama.umap",
+    "surface_z_cm": 20.0,
+    "person_contact_offset_cm": 5.57,
+    "walk_ref_speed_mps": 1.4,
+    "vehicle_assembly": "EVIDENCE_vehicle_assembly.json",
+    "city_layout": "city_layout.json",
+    "foreign_actor_prefixes": ["LD_CAST_", "LD_ClosureProp", "LD_P3AGENT", "LD_P3CAST_", "LD_P3CAM_"]
+  }
+}

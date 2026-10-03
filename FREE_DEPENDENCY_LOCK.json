@@ -23,7 +23,7 @@
  "dependencies": [
   {
    "build": "++UE5+Release-5.8 CL 56702186 (promoted build)",
-   "cost_status": "FREE \u2014 see unreal_license_position",
+   "cost_status": "FREE — see unreal_license_position",
    "disk_gb": 29.9,
    "install_path": "C:\\Program Files\\Epic Games\\UE_5.8",
    "license": "Unreal Engine End User License Agreement",
@@ -82,7 +82,7 @@
    "license": "Epic Content License",
    "name": "City Sample (PCG)",
    "notes": "Epic's 5.8 documentation confirms the PCG version needs no external software; the original 5.0 City Sample's Houdini dependency is gone. This keeps the project clear of any paid-tool pathway.",
-   "source": "Fab \u2014 https://www.fab.com/listings/4898e707-7855-404b-af0e-a505ee690e68",
+   "source": "Fab — https://www.fab.com/listings/4898e707-7855-404b-af0e-a505ee690e68",
    "verified_cost_usd": 0,
    "version": "UE 5.8 PCG rebuild"
   },
@@ -91,7 +91,7 @@
    "license": "PSF License",
    "name": "Python",
    "notes": "Base install lacks stdlib venv/ensurepip; environments are created with virtualenv 21.7.4.",
-   "source": "pre-existing user install (NOT newly installed \u2014 machine kept lean)",
+   "source": "pre-existing user install (NOT newly installed — machine kept lean)",
    "verified_cost_usd": 0,
    "version": "3.13.15"
   },
@@ -135,7 +135,7 @@
    "cost_status": "FREE",
    "license": "GPL (full build)",
    "name": "FFmpeg",
-   "notes": "Not yet used by the YouTube Factory; retained for Phase 4 encoding.",
+   "notes": "Used by Phase 4 (ldyf.factory): encodes each rendered shot (libx264), generates the tone bed and chime from formulas (lavfi aevalsrc), mixes the sound track, burns the arm label and captions (drawtext, subtitles) and assembles episode.mp4. Local binary; nothing is uploaded.",
    "source": "pre-existing winget install Gyan.FFmpeg",
    "verified_cost_usd": 0,
    "version": "9.0.1-full_build (gyan.dev)"
@@ -281,12 +281,30 @@
      "why": "packages the broken materials reference but that were absent"
     }
    }
+  },
+  {
+   "name": "Windows speech synthesis (System.Speech, SAPI 5)",
+   "version": "ships with Windows 11 Pro 10.0.26200; voice 'Microsoft Zira Desktop' (en-US)",
+   "source": "part of the operating system already on the machine; nothing installed",
+   "license": "Microsoft Windows licence terms",
+   "cost_status": "FREE",
+   "verified_cost_usd": 0,
+   "notes": "Used by Phase 4 (ldyf.factory.voice) to speak the narration, offline, one wave file per sentence. No model is called and no service is contacted. OPEN POINT FOR THE DIRECTOR, not resolved here: Phase 4 publishes nothing, and before any public release the terms for publishing audio made with a built-in Windows voice should be confirmed, or the voice replaced. The voice is one field of the episode brief; no code depends on which voice it is."
+  },
+  {
+   "name": "Arial Bold (Windows system font)",
+   "version": "C:/Windows/Fonts/arialbd.ttf as installed",
+   "source": "part of the operating system already on the machine; not redistributed",
+   "license": "Microsoft Windows font licence",
+   "cost_status": "FREE",
+   "verified_cost_usd": 0,
+   "notes": "Rendered into the picture by ffmpeg for the arm label and the captions. The font file itself is not shipped in any archive."
   }
  ],
  "explicitly_rejected": [
   {
    "name": "Houdini",
-   "reason": "Paid subscription. Avoided entirely \u2014 the 5.8 City Sample is PCG-based and needs no external DCC."
+   "reason": "Paid subscription. Avoided entirely — the 5.8 City Sample is PCG-based and needs no external DCC."
   },
   {
    "name": "Paid Fab assets, paid Unreal plugins, paid simulation packages",
@@ -318,10 +336,10 @@
   "os": "Windows 11 Pro 10.0.26200",
   "ram_gb": 31.79
  },
- "phase_recorded": 2,
- "project": "The Living Diorama \u2014 YouTube Factory",
- "recorded_utc": "2026-09-05T11:56:10Z",
- "revision_note": "Phase 2 final polish: production material fidelity restored for the five shipping families -- 118 files / 944.9 MB of City Sample materials and textures, price 0, from the already-licensed local project. Phase 2 building-variety import recorded: 1271 files / 538.7 MB of City Sample building meshes, material instances and shared textures, copied from the already-licensed local City Sample project at the same /Game package paths. Price 0; nothing downloaded, nothing redistributed, nothing committed to git. v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
+ "phase_recorded": 4,
+ "project": "The Living Diorama — YouTube Factory",
+ "recorded_utc": "2026-10-03T00:00:00Z",
+ "revision_note": "Phase 4 (YouTube factory): no new download, purchase, account or service. FFmpeg, already installed, is now used; the Windows speech engine and a system font are recorded as dependencies. Previous note: Phase 2 final polish: production material fidelity restored for the five shipping families -- 118 files / 944.9 MB of City Sample materials and textures, price 0, from the already-licensed local project. Phase 2 building-variety import recorded: 1271 files / 538.7 MB of City Sample building meshes, material instances and shared textures, copied from the already-licensed local City Sample project at the same /Game package paths. Price 0; nothing downloaded, nothing redistributed, nothing committed to git. v5, Phase 2 visual closure. No new third-party dependency was added and no download was made. The visual work is entirely (a) assets AUTHORED by this project and (b) City Sample / Megascans content already imported and already recorded in v4. Cost remains 0 USD.",
  "schema_version": "free_dependency_lock_v5",
  "total_recurring_cost_usd": 0,
  "unreal_license_position": {
@@ -338,12 +356,18 @@
     "price_usd_per_seat_per_year": 1850,
     "product": "Unreal Engine for Creators (seat-based subscription)"
    },
-   "current_status": "BELOW THRESHOLD \u2014 the Director is an individual creator far under USD 1,000,000 annual gross revenue. Unreal Engine is therefore free for this project today.",
+   "current_status": "BELOW THRESHOLD — the Director is an individual creator far under USD 1,000,000 annual gross revenue. Unreal Engine is therefore free for this project today.",
    "threshold_usd_annual_gross_revenue": 1000000
   },
   "sources": [
    "https://www.unrealengine.com/eula/unreal",
    "https://www.unrealengine.com/en-US/blog/we-are-updating-unreal-engine-twinmotion-and-realitycapture-pricing-in-late-april"
   ]
+ },
+ "phase_4_audio_policy": {
+  "music_files": 0,
+  "sample_packs": 0,
+  "downloaded_sound_effects": 0,
+  "statement": "Every sound in a factory episode is speech synthesised locally or a tone generated from a formula written in ldyf/factory/audio.py. The policy is enforced by validate_audio_policy and by the truth audit, not merely stated."
  }
 }

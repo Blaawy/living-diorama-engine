@@ -1,0 +1,648 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-09-03 03:54:34.826596 by Eclipse SUMO randomTrips.py v1_27_1+0000-7717f2379d9
+<configuration>
+    <net-file value="grid.net.xml"/>
+    <output-trip-file value="ped.trips.xml"/>
+    <route-file value="ped.rou.xml"/>
+    <persons value="True"/>
+    <seed value="20260903"/>
+    <max-distance value="400.0"/>
+    <end value="600.0"/>
+    <period value="3.0"/>
+</configuration>
+-->
+
+<!-- generated on 2026-09-03T03:54:34.720461+04:00 by Eclipse SUMO duarouter 1.27.1
+<duarouterConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/duarouterConfiguration.xsd">
+
+    <input>
+        <net-file value="grid.net.xml"/>
+        <route-files value="ped.trips.xml"/>
+    </input>
+
+    <output>
+        <output-file value="ped.rou.xml"/>
+        <alternatives-output value="NUL"/>
+    </output>
+
+    <processing>
+        <routing-threads value="16"/>
+    </processing>
+
+    <time>
+        <begin value="0.0"/>
+        <end value="600.0"/>
+    </time>
+
+    <report>
+        <no-warnings value="true"/>
+        <ignore-errors value="true"/>
+        <no-step-log value="true"/>
+    </report>
+
+</duarouterConfiguration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <person id="0" depart="0.00">
+        <walk edges="B1C1 B0B1 C0B0"/>
+    </person>
+    <person id="1" depart="3.00">
+        <walk edges="C3D3"/>
+    </person>
+    <person id="2" depart="6.00">
+        <walk edges="B0B1 B1C1"/>
+    </person>
+    <person id="3" depart="9.00">
+        <walk edges="C2C3 C2C1 C1C0"/>
+    </person>
+    <person id="4" depart="12.00">
+        <walk edges="A0B0 B0B1 B1B2"/>
+    </person>
+    <person id="5" depart="15.00">
+        <walk edges="B3B2 A3B3 A3A2"/>
+    </person>
+    <person id="6" depart="18.00">
+        <walk edges="B0B1 B0A0"/>
+    </person>
+    <person id="7" depart="21.00">
+        <walk edges="C3C2 B2C2"/>
+    </person>
+    <person id="8" depart="24.00">
+        <walk edges="C3D3 D3C3"/>
+    </person>
+    <person id="9" depart="27.00">
+        <walk edges="B3B2 A3B3 A3A2"/>
+    </person>
+    <person id="10" depart="30.00">
+        <walk edges="C1C0 C1C2 C2D2"/>
+    </person>
+    <person id="11" depart="33.00">
+        <walk edges="C1C0 C1B1"/>
+    </person>
+    <person id="12" depart="36.00">
+        <walk edges="B1C1 B1B2"/>
+    </person>
+    <person id="13" depart="39.00">
+        <walk edges="C1C2 B1C1"/>
+    </person>
+    <person id="14" depart="42.00">
+        <walk edges="C1C2 D1C1 D2D1"/>
+    </person>
+    <person id="15" depart="45.00">
+        <walk edges="C0C1 B1C1"/>
+    </person>
+    <person id="16" depart="48.00">
+        <walk edges="A0A1 A1B1 B1C1"/>
+    </person>
+    <person id="17" depart="51.00">
+        <walk edges="D0C0 D0D1"/>
+    </person>
+    <person id="18" depart="54.00">
+        <walk edges="C2C3"/>
+    </person>
+    <person id="19" depart="57.00">
+        <walk edges="C3B3 B3B2 B2A2"/>
+    </person>
+    <person id="20" depart="60.00">
+        <walk edges="B2C2 B3B2"/>
+    </person>
+    <person id="21" depart="63.00">
+        <walk edges="B1C1 C1C2"/>
+    </person>
+    <person id="22" depart="66.00">
+        <walk edges="C1B1 B2B1"/>
+    </person>
+    <person id="23" depart="69.00">
+        <walk edges="C2D2 C1C2 D1C1"/>
+    </person>
+    <person id="24" depart="72.00">
+        <walk edges="A1A2 B2A2"/>
+    </person>
+    <person id="25" depart="75.00">
+        <walk edges="C1C2 C0C1 C0D0"/>
+    </person>
+    <person id="26" depart="78.00">
+        <walk edges="B0B1 B1C1"/>
+    </person>
+    <person id="27" depart="81.00">
+        <walk edges="C2B2 C3C2 C3B3"/>
+    </person>
+    <person id="28" depart="84.00">
+        <walk edges="B1A1 B1C1 C0C1"/>
+    </person>
+    <person id="29" depart="87.00">
+        <walk edges="B2A2 B2C2"/>
+    </person>
+    <person id="30" depart="90.00">
+        <walk edges="C1D1 C2C1 C2B2"/>
+    </person>
+    <person id="31" depart="93.00">
+        <walk edges="C1C0 C1B1 B2B1"/>
+    </person>
+    <person id="32" depart="96.00">
+        <walk edges="D2D3 D2C2 C2C3"/>
+    </person>
+    <person id="33" depart="99.00">
+        <walk edges="D2D1 D1D2"/>
+    </person>
+    <person id="34" depart="102.00">
+        <walk edges="D1C1 C1C2 C2B2"/>
+    </person>
+    <person id="35" depart="105.00">
+        <walk edges="B2C2 A2B2 A2A1"/>
+    </person>
+    <person id="36" depart="108.00">
+        <walk edges="C0B0 D0C0 D1D0"/>
+    </person>
+    <person id="37" depart="111.00">
+        <walk edges="C2D2"/>
+    </person>
+    <person id="38" depart="114.00">
+        <walk edges="D0D1 D1D2"/>
+    </person>
+    <person id="39" depart="117.00">
+        <walk edges="B2B1 A1B1"/>
+    </person>
+    <person id="40" depart="120.00">
+        <walk edges="C2B2 B2B3"/>
+    </person>
+    <person id="41" depart="123.00">
+        <walk edges="D1D0 D0C0 C0B0"/>
+    </person>
+    <person id="42" depart="126.00">
+        <walk edges="A0A1 B0A0 B1B0"/>
+    </person>
+    <person id="43" depart="129.00">
+        <walk edges="B1B0 B1A1"/>
+    </person>
+    <person id="44" depart="132.00">
+        <walk edges="A0B0"/>
+    </person>
+    <person id="45" depart="135.00">
+        <walk edges="A0A1 B0A0 B1B0"/>
+    </person>
+    <person id="46" depart="138.00">
+        <walk edges="D1D2"/>
+    </person>
+    <person id="47" depart="141.00">
+        <walk edges="C1C0 D1C1"/>
+    </person>
+    <person id="48" depart="144.00">
+        <walk edges="B1C1 B1A1 A1A2"/>
+    </person>
+    <person id="49" depart="147.00">
+        <walk edges="B2A2 B2B1 A1B1"/>
+    </person>
+    <person id="50" depart="150.00">
+        <walk edges="C1C2 D2C2"/>
+    </person>
+    <person id="51" depart="153.00">
+        <walk edges="C2C3 C2C1"/>
+    </person>
+    <person id="52" depart="156.00">
+        <walk edges="B3A3 B3B2 B2B1"/>
+    </person>
+    <person id="53" depart="159.00">
+        <walk edges="B1B0 B2B1"/>
+    </person>
+    <person id="54" depart="162.00">
+        <walk edges="D2D1 D2C2 C3C2"/>
+    </person>
+    <person id="55" depart="165.00">
+        <walk edges="C1C2 B2C2"/>
+    </person>
+    <person id="56" depart="168.00">
+        <walk edges="C3D3 D3D2 D2D1"/>
+    </person>
+    <person id="57" depart="171.00">
+        <walk edges="B2B3 B1B2 C1B1"/>
+    </person>
+    <person id="58" depart="174.00">
+        <walk edges="C1B1 B1B2"/>
+    </person>
+    <person id="59" depart="177.00">
+        <walk edges="C0C1 C1B1 B1A1"/>
+    </person>
+    <person id="60" depart="180.00">
+        <walk edges="C0B0"/>
+    </person>
+    <person id="61" depart="183.00">
+        <walk edges="B3A3 A3B3"/>
+    </person>
+    <person id="62" depart="186.00">
+        <walk edges="C1B1 C2C1 B2C2"/>
+    </person>
+    <person id="63" depart="189.00">
+        <walk edges="A2A1 A2A3 A3B3"/>
+    </person>
+    <person id="64" depart="192.00">
+        <walk edges="B2B3 B2A2 A2A3"/>
+    </person>
+    <person id="65" depart="195.00">
+        <walk edges="D2D1 D1D0"/>
+    </person>
+    <person id="66" depart="198.00">
+        <walk edges="B0C0 B1B0 A1B1"/>
+    </person>
+    <person id="67" depart="201.00">
+        <walk edges="C1B1 B1B0 B0A0"/>
+    </person>
+    <person id="68" depart="204.00">
+        <walk edges="D1D2 D1C1 C2C1"/>
+    </person>
+    <person id="69" depart="207.00">
+        <walk edges="C3C2 B2C2 B2B1"/>
+    </person>
+    <person id="70" depart="210.00">
+        <walk edges="B1B2 C1B1"/>
+    </person>
+    <person id="71" depart="213.00">
+        <walk edges="C1C2 C0C1"/>
+    </person>
+    <person id="72" depart="216.00">
+        <walk edges="B1A1 C1B1"/>
+    </person>
+    <person id="73" depart="219.00">
+        <walk edges="C1D1 C1C2 C2C3"/>
+    </person>
+    <person id="74" depart="222.00">
+        <walk edges="C3D3 C3B3 B3A3"/>
+    </person>
+    <person id="75" depart="225.00">
+        <walk edges="B3C3 B3A3"/>
+    </person>
+    <person id="76" depart="228.00">
+        <walk edges="A3A2 B2A2"/>
+    </person>
+    <person id="77" depart="231.00">
+        <walk edges="C1C2 C2D2"/>
+    </person>
+    <person id="78" depart="234.00">
+        <walk edges="B2B3 B1B2 B1C1 C1C0"/>
+    </person>
+    <person id="79" depart="237.00">
+        <walk edges="B3A3 A3A2 A2A1"/>
+    </person>
+    <person id="80" depart="240.00">
+        <walk edges="D2D3 D2C2 C2B2"/>
+    </person>
+    <person id="81" depart="243.00">
+        <walk edges="C2B2 C3C2"/>
+    </person>
+    <person id="82" depart="246.00">
+        <walk edges="B2B3 C2B2 C2C3"/>
+    </person>
+    <person id="83" depart="249.00">
+        <walk edges="D2D1 C1D1 C1C0"/>
+    </person>
+    <person id="84" depart="252.00">
+        <walk edges="B0B1 A0B0 A1A0"/>
+    </person>
+    <person id="85" depart="255.00">
+        <walk edges="D1D0 D2D1 D2C2 C2C3"/>
+    </person>
+    <person id="86" depart="258.00">
+        <walk edges="D3C3 C2C3"/>
+    </person>
+    <person id="87" depart="261.00">
+        <walk edges="B3A3 B3B2 B2A2"/>
+    </person>
+    <person id="88" depart="264.00">
+        <walk edges="B1A1 B2B1 B2A2"/>
+    </person>
+    <person id="89" depart="267.00">
+        <walk edges="B2B3 B1B2"/>
+    </person>
+    <person id="90" depart="270.00">
+        <walk edges="C0B0 C0D0"/>
+    </person>
+    <person id="91" depart="273.00">
+        <walk edges="A2B2 B2B1 B1B0"/>
+    </person>
+    <person id="92" depart="276.00">
+        <walk edges="C0C1 D0C0 D0D1"/>
+    </person>
+    <person id="93" depart="279.00">
+        <walk edges="A1B1 B2B1 B2B3"/>
+    </person>
+    <person id="94" depart="282.00">
+        <walk edges="B1C1 A1B1"/>
+    </person>
+    <person id="95" depart="285.00">
+        <walk edges="B1B0 B1B2 B2C2"/>
+    </person>
+    <person id="96" depart="288.00">
+        <walk edges="B0B1 B0A0 A0A1"/>
+    </person>
+    <person id="97" depart="291.00">
+        <walk edges="C0B0 C0D0 D0D1"/>
+    </person>
+    <person id="98" depart="294.00">
+        <walk edges="D1D2 C1D1"/>
+    </person>
+    <person id="99" depart="297.00">
+        <walk edges="D3D2 C3D3 C3C2"/>
+    </person>
+    <person id="100" depart="300.00">
+        <walk edges="C1C0 D1C1"/>
+    </person>
+    <person id="101" depart="303.00">
+        <walk edges="A3A2 A3B3 B3B2"/>
+    </person>
+    <person id="102" depart="306.00">
+        <walk edges="C1B1 C2C1 B2C2"/>
+    </person>
+    <person id="103" depart="309.00">
+        <walk edges="A3B3 A2A3"/>
+    </person>
+    <person id="104" depart="312.00">
+        <walk edges="B1B0 B1C1 C1C0"/>
+    </person>
+    <person id="105" depart="315.00">
+        <walk edges="B1C1 B1B2"/>
+    </person>
+    <person id="106" depart="318.00">
+        <walk edges="C1B1 B1B2 B2A2"/>
+    </person>
+    <person id="107" depart="321.00">
+        <walk edges="C3B3 C3C2 B2C2"/>
+    </person>
+    <person id="108" depart="324.00">
+        <walk edges="B1C1 A1B1"/>
+    </person>
+    <person id="109" depart="327.00">
+        <walk edges="C0D0 C1C0"/>
+    </person>
+    <person id="110" depart="330.00">
+        <walk edges="D0C0 D0D1"/>
+    </person>
+    <person id="111" depart="333.00">
+        <walk edges="C1C2 C1B1 B2B1"/>
+    </person>
+    <person id="112" depart="336.00">
+        <walk edges="C3B3 D3C3"/>
+    </person>
+    <person id="113" depart="339.00">
+        <walk edges="D1C1 D2D1 C2D2"/>
+    </person>
+    <person id="114" depart="342.00">
+        <walk edges="A1A2 A2B2"/>
+    </person>
+    <person id="115" depart="345.00">
+        <walk edges="C2D2 C1C2 C1C0"/>
+    </person>
+    <person id="116" depart="348.00">
+        <walk edges="B1A1 B1C1 C0C1"/>
+    </person>
+    <person id="117" depart="351.00">
+        <walk edges="C1C2 D2C2"/>
+    </person>
+    <person id="118" depart="354.00">
+        <walk edges="C2C3 C1C2 D1C1"/>
+    </person>
+    <person id="119" depart="357.00">
+        <walk edges="B2C2 C2D2"/>
+    </person>
+    <person id="120" depart="360.00">
+        <walk edges="A1B1 A1A0"/>
+    </person>
+    <person id="121" depart="363.00">
+        <walk edges="B0B1 B0A0 A0A1"/>
+    </person>
+    <person id="122" depart="366.00">
+        <walk edges="D3C3 C3C2"/>
+    </person>
+    <person id="123" depart="369.00">
+        <walk edges="A3B3 A3A2"/>
+    </person>
+    <person id="124" depart="372.00">
+        <walk edges="A1A2 A2A1"/>
+    </person>
+    <person id="125" depart="375.00">
+        <walk edges="C1B1 C2C1 D2C2"/>
+    </person>
+    <person id="126" depart="378.00">
+        <walk edges="B1B2 A1B1"/>
+    </person>
+    <person id="127" depart="381.00">
+        <walk edges="C2C3 C2D2 D2D1"/>
+    </person>
+    <person id="128" depart="384.00">
+        <walk edges="A1A2 A1A0 A0B0"/>
+    </person>
+    <person id="129" depart="387.00">
+        <walk edges="D1D2 C2D2"/>
+    </person>
+    <person id="130" depart="390.00">
+        <walk edges="B2A2 A3A2"/>
+    </person>
+    <person id="131" depart="393.00">
+        <walk edges="B0C0 B0B1 C1B1"/>
+    </person>
+    <person id="132" depart="396.00">
+        <walk edges="A2A3 A1A2"/>
+    </person>
+    <person id="133" depart="399.00">
+        <walk edges="B1B2 B0B1"/>
+    </person>
+    <person id="134" depart="402.00">
+        <walk edges="A1A2 A0A1 B0A0"/>
+    </person>
+    <person id="135" depart="405.00">
+        <walk edges="B3A3 A3A2"/>
+    </person>
+    <person id="136" depart="408.00">
+        <walk edges="A0B0 B1B0"/>
+    </person>
+    <person id="137" depart="411.00">
+        <walk edges="B2B1 A2B2 A2A1"/>
+    </person>
+    <person id="138" depart="414.00">
+        <walk edges="B2B3 B2A2 A2A1"/>
+    </person>
+    <person id="139" depart="417.00">
+        <walk edges="B0C0 C0C1"/>
+    </person>
+    <person id="140" depart="420.00">
+        <walk edges="B1B0 B1C1 C1D1"/>
+    </person>
+    <person id="141" depart="423.00">
+        <walk edges="B1B2 B2A2"/>
+    </person>
+    <person id="142" depart="426.00">
+        <walk edges="B3C3 B2B3 C2B2"/>
+    </person>
+    <person id="143" depart="429.00">
+        <walk edges="C2D2 D3D2"/>
+    </person>
+    <person id="144" depart="432.00">
+        <walk edges="B0C0 C0B0"/>
+    </person>
+    <person id="145" depart="435.00">
+        <walk edges="D1D0 C1D1"/>
+    </person>
+    <person id="146" depart="438.00">
+        <walk edges="C1D1 C1C2 D2C2"/>
+    </person>
+    <person id="147" depart="441.00">
+        <walk edges="A1B1 B2B1"/>
+    </person>
+    <person id="148" depart="444.00">
+        <walk edges="B1B2 B2C2"/>
+    </person>
+    <person id="149" depart="447.00">
+        <walk edges="A1A2 B1A1 B2B1"/>
+    </person>
+    <person id="150" depart="450.00">
+        <walk edges="B1B0 A1B1"/>
+    </person>
+    <person id="151" depart="453.00">
+        <walk edges="C1C2 C1B1 B1A1"/>
+    </person>
+    <person id="152" depart="456.00">
+        <walk edges="A1A2 B2A2"/>
+    </person>
+    <person id="153" depart="459.00">
+        <walk edges="A0B0 B0B1 B1C1"/>
+    </person>
+    <person id="154" depart="462.00">
+        <walk edges="D1D0 D1C1 C2C1"/>
+    </person>
+    <person id="155" depart="465.00">
+        <walk edges="C0B0 C0C1"/>
+    </person>
+    <person id="156" depart="468.00">
+        <walk edges="C2D2 D1D2"/>
+    </person>
+    <person id="157" depart="471.00">
+        <walk edges="C0D0 D0D1 D1D2"/>
+    </person>
+    <person id="158" depart="474.00">
+        <walk edges="A1A2 A0A1"/>
+    </person>
+    <person id="159" depart="477.00">
+        <walk edges="B1B0 A1B1 A1A0"/>
+    </person>
+    <person id="160" depart="480.00">
+        <walk edges="D0D1 D1C1 C1B1"/>
+    </person>
+    <person id="161" depart="483.00">
+        <walk edges="C2D2 C1C2 C1C0"/>
+    </person>
+    <person id="162" depart="486.00">
+        <walk edges="A1A0 B1A1 B1B2 B2C2"/>
+    </person>
+    <person id="163" depart="489.00">
+        <walk edges="D0D1 D1C1"/>
+    </person>
+    <person id="164" depart="492.00">
+        <walk edges="B2B3 B1B2 C1B1"/>
+    </person>
+    <person id="165" depart="495.00">
+        <walk edges="A3B3 B3C3"/>
+    </person>
+    <person id="166" depart="498.00">
+        <walk edges="A3B3 A3A2"/>
+    </person>
+    <person id="167" depart="501.00">
+        <walk edges="C2D2 B2C2"/>
+    </person>
+    <person id="168" depart="504.00">
+        <walk edges="A2A1 B2A2 B2B3 B3C3"/>
+    </person>
+    <person id="169" depart="507.00">
+        <walk edges="D0C0"/>
+    </person>
+    <person id="170" depart="510.00">
+        <walk edges="C0D0 C0B0"/>
+    </person>
+    <person id="171" depart="513.00">
+        <walk edges="B1B0 A1B1 A0A1"/>
+    </person>
+    <person id="172" depart="516.00">
+        <walk edges="A2A1 A1B1 B1C1"/>
+    </person>
+    <person id="173" depart="519.00">
+        <walk edges="B1C1 B1A1 A1A2"/>
+    </person>
+    <person id="174" depart="522.00">
+        <walk edges="C1D1 B1C1 B0B1"/>
+    </person>
+    <person id="175" depart="525.00">
+        <walk edges="C0C1 D0C0"/>
+    </person>
+    <person id="176" depart="528.00">
+        <walk edges="A1B1 B2B1"/>
+    </person>
+    <person id="177" depart="531.00">
+        <walk edges="C1D1 B1C1"/>
+    </person>
+    <person id="178" depart="534.00">
+        <walk edges="B2C2 B2B1"/>
+    </person>
+    <person id="179" depart="537.00">
+        <walk edges="B1B2 B2C2 C2D2"/>
+    </person>
+    <person id="180" depart="540.00">
+        <walk edges="B3C3 C2C3 C2D2"/>
+    </person>
+    <person id="181" depart="543.00">
+        <walk edges="C3D3 B3C3 B2B3"/>
+    </person>
+    <person id="182" depart="546.00">
+        <walk edges="B2A2"/>
+    </person>
+    <person id="183" depart="549.00">
+        <walk edges="C1C0 C1B1 B2B1"/>
+    </person>
+    <person id="184" depart="552.00">
+        <walk edges="C1D1 D0D1"/>
+    </person>
+    <person id="185" depart="555.00">
+        <walk edges="B0C0 C0C1 C1D1"/>
+    </person>
+    <person id="186" depart="558.00">
+        <walk edges="D2D1 C1D1"/>
+    </person>
+    <person id="187" depart="561.00">
+        <walk edges="B2A2 B3B2 B3A3"/>
+    </person>
+    <person id="188" depart="564.00">
+        <walk edges="B1C1 B1B0 B0A0"/>
+    </person>
+    <person id="189" depart="567.00">
+        <walk edges="C0D0 B0C0"/>
+    </person>
+    <person id="190" depart="570.00">
+        <walk edges="C0B0 C1C0 D1C1"/>
+    </person>
+    <person id="191" depart="573.00">
+        <walk edges="B1B2 B0B1"/>
+    </person>
+    <person id="192" depart="576.00">
+        <walk edges="C0D0 B0C0"/>
+    </person>
+    <person id="193" depart="579.00">
+        <walk edges="A2A3 A2B2 B2B1"/>
+    </person>
+    <person id="194" depart="582.00">
+        <walk edges="B2B1 B3B2 C3B3"/>
+    </person>
+    <person id="195" depart="585.00">
+        <walk edges="A1B1 A0A1 B0A0"/>
+    </person>
+    <person id="196" depart="588.00">
+        <walk edges="C3C2 D2C2"/>
+    </person>
+    <person id="197" depart="591.00">
+        <walk edges="B1B2 B2C2"/>
+    </person>
+    <person id="198" depart="594.00">
+        <walk edges="D2C2 C2C1 C1B1"/>
+    </person>
+    <person id="199" depart="597.00">
+        <walk edges="C2B2 C3C2"/>
+    </person>
+</routes>

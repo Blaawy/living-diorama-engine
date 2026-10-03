@@ -21,6 +21,11 @@ LivingDioramaYF/Content/*
 # commits by a careless `git add -A`. LS_Preview is NOT scratch -- it is
 # built by ldyf/unreal/ldyf_preview.py and shipped -- and stays tracked.
 LivingDioramaYF/Content/LD/LS_Look.uasset
+# Phase 4: the factory builds one Level Sequence per shot (LS_P4_<beat>) and
+# deletes it after the shot is rendered (ldyf/factory/render.py remove_shot).
+# One exists on disk only while a shot renders; its sha256 is sealed in that
+# shot's shot_render.json. Never content to commit.
+LivingDioramaYF/Content/LD/LS_P4_*.uasset
 LivingDioramaYF/Plugins/*/Content/
 LivingDioramaYF/DerivedDataCache/
 LivingDioramaYF/Intermediate/
