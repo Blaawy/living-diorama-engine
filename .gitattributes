@@ -1,0 +1,6 @@
+# Phase 4: the factory's world files are pinned by sha256 (world.json refuses a
+# world whose bytes differ), and the drawing code is hashed into every rendered
+# shot's identity. Git must store and check them out exactly as they are, never
+# converting line endings.
+ldyf/factory/** -text
+ldyf/unreal/ldyf_factory.py -text
