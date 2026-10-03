@@ -127,6 +127,12 @@ def stage() -> None:
                  "EVIDENCE_vehicle_assembly.json"):
         if (WS / name).is_file():
             shutil.copy2(WS / name, art / name)
+    # The locked level the shots were drawn in. Every shot's identity holds its
+    # sha256 (render.scene_hashes), so the audit cannot re-seal the render from
+    # an extraction without it. Our own authored asset, tracked in git.
+    level = Path("LivingDioramaYF") / "Content" / "LD" / "L_LivingDiorama.umap"
+    (art / level).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(WS / level, art / level)
     if (CACHE / "verify_master_p4.py").is_file():
         shutil.copy2(CACHE / "verify_master_p4.py", art / "verify_master_p4.py")
 
