@@ -28,6 +28,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -37,10 +38,11 @@ from ldyf import persistent_changes as pc
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schemas"
 SEALED = Path(__file__).resolve().parent / "data" / "sealed_phase1"
-PHASE_01 = (
+_PROOF_ROOT = os.environ.get("LDYF_PROOF_DIR")
+PHASE_01 = ((Path(_PROOF_ROOT) / "closure_v2") if _PROOF_ROOT else (
     Path(r"C:\Users\BLaAw\Desktop\LIVING_DIORAMA_WORK_ARCHIVE\YOUTUBE_FACTORY")
     / "PHASE_01" / "proof" / "sumo" / "closure_v2"
-)
+))
 SEALED_FILES = ("persistent_changes.json", "rule_manifest.json",
                 "rule_manifest_reopen.json")
 
