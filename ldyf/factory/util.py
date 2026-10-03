@@ -134,11 +134,21 @@ def _replace_atomically(path: Path, data: bytes) -> None:
             raise SealError("write_failed", f"{path.name} could not be replaced: {e}")
 
 
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """A JSON object with a repeated key reads differently in different parsers; no factory document has one."""
+    out: dict[str, Any] = {}
+    for k, v in pairs:
+        if k in out:
+            raise ValueError(f"duplicate key {k!r}")
+        out[k] = v
+    return out
+
+
 def read_json(path: str | Path, what: str, *, error=SealError) -> Any:
     path = Path(path)
     if not path.is_file():
         raise error("missing", f"{what} is missing: {path}")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys)
     except Exception as e:  # noqa: BLE001 - reported as a typed refusal
         raise error("corrupt", f"{what} is not parseable JSON ({path.name}): {e}")

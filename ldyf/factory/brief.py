@@ -86,6 +86,11 @@ def normalise_brief(raw: Any) -> dict[str, Any]:
     for k in ("title", "world", "statement"):
         if not isinstance(b[k], str) or not b[k].strip():
             raise BriefError("bad_field", f"brief.{k} must be a non-empty string")
+    if not (3 <= len(b["title"]) <= 200):
+        raise BriefError("bad_field", "brief.title must be 3..200 characters")
+    for k in ("title", "statement", "world"):
+        if any(ord(c) < 32 or ord(c) == 127 for c in b[k]):
+            raise BriefError("bad_field", f"brief.{k} must not contain control characters")
     if not (3 <= len(b["statement"]) <= 240):
         raise BriefError("bad_field", "brief.statement must be 3..240 characters")
     if not isinstance(b["episode_number"], int) or isinstance(b["episode_number"], bool) \
@@ -154,8 +159,39 @@ def normalise_brief(raw: Any) -> dict[str, Any]:
                          f"brief.prediction.direction must be one of {PREDICTION_DIRECTIONS}")
     if not isinstance(pred["metric"], str) or not pred["metric"]:
         raise BriefError("bad_prediction", "brief.prediction.metric must name a measured metric")
+    _check_prediction_text(pred["text"], pred["direction"])
     b["prediction"] = dict(pred)
     return b
+
+
+#: The prediction text is SPOKEN twice ("we wrote down a guess") and then judged right or wrong from
+#: `direction` alone, so it must be exactly the guess that direction states and nothing else. Any free
+#: text is a channel past the narration lint (a prediction line carries a check, which waives claim
+#: words) and can name a different quantity than the one that is measured (a COUNT of trips, a walker's
+#: time). So the text is chosen from a CLOSED set of sentences about the one measured quantity, the
+#: average car trip time; a variant adds " on average". Anything else is refused rather than guessed at.
+_PREDICTION_TEMPLATES: dict[str, tuple[str, ...]] = {
+    "increase": ("Car trips will take longer.", "Car trips will take more time.", "Car trips will be longer.",
+                 "Car trips will be slower."),
+    "decrease": ("Car trips will take less time.", "Car trips will be shorter.", "Car trips will be faster."),
+    "no_change": ("Car trips will stay the same.", "Car trips will take the same time.",
+                  "There will be no change in car trips.", "No change in car trips."),
+}
+
+
+def prediction_sentences(direction: str) -> tuple[str, ...]:
+    base = _PREDICTION_TEMPLATES.get(direction, ())
+    return base + tuple(t[:-1] + " on average." for t in base)
+
+
+def _check_prediction_text(text: str, direction: str) -> None:
+    allowed = prediction_sentences(direction)
+    if text not in allowed:
+        others = [d for d in _PREDICTION_TEMPLATES if text in prediction_sentences(d)]
+        why = (f"says {others[0]!r}, but brief.prediction.direction is {direction!r}" if others
+               else "is not one of the guesses the factory can judge")
+        raise BriefError("bad_prediction", f"brief.prediction.text {why}; for {direction!r} write exactly "
+                                           f"one of {list(allowed)[:4]}")
 
 
 def brief_hash(brief: dict[str, Any]) -> str:

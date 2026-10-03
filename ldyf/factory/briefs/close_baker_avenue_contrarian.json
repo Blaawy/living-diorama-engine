@@ -1,0 +1,24 @@
+{
+ "schema_version": "episode_brief_v1",
+ "episode_number": 2,
+ "title": "Will closing one block make car trips faster?",
+ "world": "riverside",
+ "statement": "Close one block of Baker Avenue to cars and test the opposite guess.",
+ "rule": {
+  "kind": "close_street",
+  "edge": "B1B2",
+  "at_second": 30
+ },
+ "prediction": {
+  "text": "Car trips will take less time.",
+  "metric": "avg_duration_s",
+  "direction": "decrease"
+ },
+ "seed": 20260903,
+ "end_seconds": 1500,
+ "replicate_seeds": [
+  20260904,
+  20260905
+ ],
+ "declared_utc": "2026-10-03T00:00:00Z"
+}

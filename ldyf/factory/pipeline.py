@@ -124,24 +124,56 @@ UNLISTED_SUFFIXES = (".sumo.log",)
 
 def package_files(pkg: Path) -> list[str]:
     """Every file of a package directory that its manifest must list. A leftover
-    `.tmp` (an interrupted write) is refused: such a package is not finished."""
+    `.tmp` (an interrupted write) is refused: such a package is not finished. A symlink, a directory
+    junction (which `is_symlink()` does not see and `rglob` follows out of the package) and an NTFS
+    alternate data stream are refused: a package holds only its own, visible files."""
+    import os as _os
+    from . import winproc
     out = []
-    for p in sorted(pkg.rglob("*")):
-        rel = p.relative_to(pkg).as_posix()
-        if p.is_dir():
-            continue
-        if p.is_symlink():
-            raise PipelineError("foreign_file", f"{rel} is a link; a package holds only its own files")
-        if rel.endswith(".tmp"):
-            raise PipelineError("unfinished_write", f"{rel} is left from an interrupted write")
-        if not p.is_file() or rel in UNLISTED_NAMES:
-            continue
-        if rel.endswith(UNLISTED_SUFFIXES) and (
-                (rel.startswith("sim/") and rel.count("/") == 1)
-                or (rel.startswith("replicates/") and rel.count("/") == 2)):
-            continue
-        out.append(rel)
-    return out
+    pkg = Path(pkg)
+    for root, dirs, files in _os.walk(pkg, followlinks=False):
+        rootp = Path(root)
+        for d in list(dirs):
+            dp = rootp / d
+            if dp.is_symlink() or dp.is_junction():
+                raise PipelineError("foreign_file", f"{dp.relative_to(pkg).as_posix()} is a link or "
+                                                    "junction; a package holds only its own files")
+        for name in files:
+            p = rootp / name
+            rel = p.relative_to(pkg).as_posix()
+            if p.is_symlink() or p.is_junction():
+                raise PipelineError("foreign_file", f"{rel} is a link; a package holds only its own files")
+            if rel.endswith(".tmp"):
+                raise PipelineError("unfinished_write", f"{rel} is left from an interrupted write")
+            if not p.is_file() or rel in UNLISTED_NAMES:
+                continue
+            ads = winproc.alternate_streams(str(p))
+            if ads:
+                raise PipelineError("foreign_file", f"{rel} carries a hidden data stream {ads[:2]}")
+            if rel.endswith(UNLISTED_SUFFIXES) and (
+                    (rel.startswith("sim/") and rel.count("/") == 1)
+                    or (rel.startswith("replicates/") and rel.count("/") == 2)):
+                _check_sumo_log(p, rel)
+                continue
+            out.append(rel)
+    return sorted(out)
+
+
+#: The only unlisted logs a package may hold, by exact name.
+_SUMO_LOG_NAMES = ("baseline.sumo.log", "ruled.sumo.log")
+
+
+def _check_sumo_log(p: Path, rel: str) -> None:
+    """The one kind of file a manifest does not list (its lines hold the wall clock). It must still
+    BE a SUMO console log, of sane size, not a payload channel."""
+    if p.name not in _SUMO_LOG_NAMES:
+        raise PipelineError("foreign_file", f"{rel} is not one of the two SUMO console logs a run writes")
+    if p.stat().st_size > 1536 * 1024:
+        raise PipelineError("foreign_file", f"{rel} is {p.stat().st_size} bytes; not a SUMO console log")
+    with p.open("rb") as f:
+        head = f.read(4096)
+    if p.stat().st_size > 0 and b"Starting server on port" not in head and b"Loading net-file" not in head:
+        raise PipelineError("foreign_file", f"{rel} does not look like a SUMO console log")
 
 
 def build_package_manifest(pkg: Path, brief: dict[str, Any], audit: dict[str, Any],
@@ -219,7 +251,7 @@ def run_factory(brief_path: str | Path, out_dir: str | Path, *, resume: bool = T
                     raise PipelineError(
                         "package_belongs_to_another_brief",
                         f"{pkg} was built from a different brief; an episode package is never "
-                        "continued under another brief (use a new directory, or --no-resume)")
+                        "continued under another brief (use a new output directory)")
                 for child in pkg.iterdir():
                     shutil.rmtree(child) if child.is_dir() else child.unlink()
         if not resume:
@@ -500,6 +532,13 @@ def resimulate(pkg: Path, brief: dict[str, Any], world: dict[str, Any], scratch:
                 diffs.append(f"{arm} record")
             if _trip_rows(fresh / f"{arm}.tripinfo.xml") != _trip_rows(sealed_dir / f"{arm}.tripinfo.xml"):
                 diffs.append(f"{arm} tripinfo")
+        # the rest of what the sealed simulation says (who replanned and when, what persisted, what the
+        # rule manifest and the demand were) is re-derived too, not only the trajectories
+        for fname in ("agents_baseline.json", "agents_ruled.json", "persistent_changes.json",
+                      "rule_manifest.json", "baseline_demand.json", "ruled_demand.json"):
+            a, b = fresh / fname, sealed_dir / fname
+            if a.is_file() != b.is_file() or (a.is_file() and sha256_file(a) != sha256_file(b)):
+                diffs.append(fname)
         if diffs:
             raise PipelineError("simulation_not_reproduced",
                                 f"{name}: running the locked world again does not give the sealed "
@@ -520,24 +559,58 @@ def decode_check(path: Path) -> None:
                             f"{path.name} does not decode cleanly: {run.stderr.strip()[:400]}")
 
 
+def _same_json(path: Path, doc: Any, what: str) -> None:
+    """`path` must hold exactly `doc` (compared as parsed JSON, so formatting is free)."""
+    have = read_json(path, what, error=PipelineError)
+    if json.dumps(have, sort_keys=True) != json.dumps(json.loads(json.dumps(doc)), sort_keys=True):
+        raise PipelineError("reviewer_document_changed",
+                            f"{what} is not what re-deriving it from the package gives; it is the file a "
+                            "reviewer reads, so it must be the audit's own output")
+
+
 def verify_package(pkg: str | Path, *, deep: bool = False, scratch: str | Path | None = None,
                    log: Callable[[str], None] = lambda s: None) -> dict[str, Any]:
+    """See `_verify_package`. Anything that is not a typed refusal (a malformed document that the
+    audit did not anticipate, a file that vanishes, undecodable text) is reported as a typed
+    `unreadable` refusal, never as a traceback: a package that cannot be read is not a verified one."""
+    try:
+        return _verify_package(pkg, deep=deep, scratch=scratch, log=log)
+    except FactoryError:
+        raise
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError, RecursionError, OSError) as e:
+        raise PipelineError("unreadable", f"the package cannot be verified: {type(e).__name__}: {e}"[:500])
+
+
+def _verify_package(pkg: str | Path, *, deep: bool = False, scratch: str | Path | None = None,
+                    log: Callable[[str], None] = lambda s: None) -> dict[str, Any]:
     """Check a finished package against its own manifest and audit it again.
 
-    `deep` also decodes the whole episode and runs the simulations again
-    (`resimulate`): minutes instead of seconds, and the only check that an
-    insider who re-seals doctored evidence cannot pass."""
+    Standard: every listed file present and unchanged, nothing unlisted, EVERY top-level manifest field
+    and the manifest's whole file table re-derived and equal, the truth audit re-run and the files a
+    reviewer reads (truth_audit.json, lineage.json, both caption files) equal to its output, the
+    episode's streams and the shots' stills checked. See `mediacheck.COVERAGE`: pictures and sound are
+    otherwise attested by hash.
+
+    `deep` also decodes the whole episode, checks its sound and a sample of its frames against the
+    sealed mix and segments, re-speaks the narration and rebuilds the mix, and runs the simulations
+    again (`resimulate`): minutes instead of seconds. It is NOT a proof against an insider who forges
+    the engine's pixels; those are attested by hash only."""
+    from . import mediacheck as MC
+    from . import timeline as T
+    from .util import verify_seal
     pkg = Path(pkg)
     manifest = read_json(pkg / "package.json", "package.json", error=PipelineError)
-    from .util import verify_seal
     verify_seal(manifest, "package_hash", "package.json")
     try:
-        rows = {str(r["file"]): str(r["sha256"]) for r in manifest["files"]}
+        table = list(manifest["files"])
+        rows = {str(r["file"]): str(r["sha256"]) for r in table}
         sealed_audit = str(manifest["truth_audit"]["audit_hash"])
     except (KeyError, TypeError, AttributeError) as e:
         raise PipelineError("corrupt", f"package.json is not a package manifest: {e!r}")
     if manifest.get("schema_version") != PACKAGE_SCHEMA:
         raise PipelineError("bad_version", f"package.json declares {manifest.get('schema_version')!r}")
+    if len(rows) != len(table):
+        raise PipelineError("package_changed", "the manifest lists a file more than once")
     bad = []
     on_disk = set(package_files(pkg))
     for rel in sorted(on_disk - set(rows)):
@@ -550,6 +623,16 @@ def verify_package(pkg: str | Path, *, deep: bool = False, scratch: str | Path |
     for rel in REQUIRED_FILES:
         if rel not in rows:
             bad.append(f"the manifest does not list {rel}")
+    wanted_dirs = {""}
+    for rel in rows:
+        parts = rel.split("/")[:-1]
+        for i in range(len(parts)):
+            wanted_dirs.add("/".join(parts[:i + 1]))
+    for dp in pkg.rglob("*"):
+        if dp.is_dir():
+            reld = dp.relative_to(pkg).as_posix()
+            if reld not in wanted_dirs:
+                bad.append(f"directory {reld} holds no listed file")
     if bad:
         raise PipelineError("package_changed", "; ".join(bad[:6]))
     brief = normalise_brief(read_json(pkg / "brief.json", "brief.json", error=PipelineError))
@@ -560,8 +643,28 @@ def verify_package(pkg: str | Path, *, deep: bool = False, scratch: str | Path |
         raise PipelineError("audit_failed", f"[{f0['code']}] {f0['where']}: {f0['message']}")
     if audit["audit_hash"] != sealed_audit:
         raise PipelineError("audit_changed", "the audit, run again, does not give the sealed report")
-    out: dict[str, Any] = {"files": len(rows), "audit_pass": True,
-                           "package_hash": manifest["package_hash"]}
+    timeline = T.load_timeline(pkg / "timeline.json")
+    # every top-level manifest field is what the package itself says, not what the manifest claims
+    expected = build_package_manifest(pkg, brief, audit, timeline)
+    if json.loads(json.dumps(expected)) != manifest:
+        keys = sorted(k for k in set(expected) | set(manifest) if json.loads(json.dumps(expected.get(k))) != manifest.get(k))
+        raise PipelineError("package_changed", f"package.json differs from the manifest the package gives "
+                                               f"when re-derived: {keys}")
+    # the documents a reviewer is told to open are the audit's own output
+    _same_json(pkg / "truth_audit.json", audit, "truth_audit.json")
+    _same_json(pkg / "lineage.json", AD.lineage_document(pkg, audit), "lineage.json")
+    caps = T.build_captions(timeline)
+    if (pkg / "captions.vtt").read_text(encoding="utf-8", errors="strict") != caps["vtt"]:
+        raise PipelineError("reviewer_document_changed", "captions.vtt is not the one the timeline gives")
+    shots_doc = read_json(pkg / "shots.json", "shots.json", error=PipelineError)
+    render_doc = read_json(pkg / "render" / "render.json", "render.json", error=PipelineError)
+    media = {"streams": MC.check_streams(pkg / "episode.mp4", float(timeline["seconds_total"])),
+             "stills_checked": MC.check_stills(pkg, timeline),
+             "contact_sheet": MC.check_contact_sheet(pkg, timeline),
+             "engine_measurements_plausible": MC.check_engine_plausibility(shots_doc, render_doc)}
+    out: dict[str, Any] = {"files": len(rows), "audit_pass": True, "package_hash": manifest["package_hash"],
+                           "verification": {"level": "standard", "media": media,
+                                            "coverage": MC.COVERAGE}}
     if deep:
         t0 = time.perf_counter()
         decode_check(pkg / "episode.mp4")
@@ -570,5 +673,16 @@ def verify_package(pkg: str | Path, *, deep: bool = False, scratch: str | Path |
         import tempfile
         root = Path(scratch) if scratch else Path(tempfile.mkdtemp(prefix="ldyf_resim_"))
         root.mkdir(parents=True, exist_ok=True)
+        media["reassembly"] = MC.check_reassembly(pkg, timeline, root)
+        media["sound"] = MC.check_sound(pkg / "episode.mp4", pkg / "audio" / "episode.wav")
+        media["picture"] = MC.check_picture(pkg, timeline, log=log)
+        from . import narration as N
+        from . import voice as V
+        from . import audio as AU
+        media["speech_and_mix"] = MC.check_speech_and_mix(
+            pkg, brief, read_json(pkg / "narration.json", "narration.json", error=PipelineError),
+            V.load_voice(pkg / "voice" / "voice.json"), timeline,
+            AU.load_audio(pkg / "audio" / "audio.json"), root / "speech")
         out["resimulated"] = resimulate(pkg, brief, world, root, log=log)
+        out["verification"]["level"] = "deep"
     return out

@@ -194,48 +194,54 @@ def audit_episode(pkg: str | Path, brief: dict[str, Any], world: dict[str, Any],
         engine = render is not None
         shots_p = {**shots, "_picture": render} if engine else shots
         for l in narration["lines"]:
-            row: dict[str, Any] = {"id": l["id"], "beat": l["beat"], "kind": l["kind"],
-                                   "text": l["text"], "verdict": "supported", "reasons": []}
-            refs = [c["ref"] for c in l["cites"]]
-            for c in l["checks"]:
-                refs += [x for x in (c["left"], c["right"]) if isinstance(x, str)]
-            pairs = [p for p in (_cite_pair(r, l["beat"], engine) for r in refs) if p is not None]
-            if l["kind"] == "say":
-                if pairs:
-                    row["reasons"].append("a 'say' sentence may bind no evidence")
-            elif not pairs:
-                row["reasons"].append("the sentence cites no evidence")
-            else:
-                rep = TA.audit_claims([{"text": l["text"], "cites": [list(p) for p in pairs]}], pkg)
-                row["reasons"] += rep["claims"][0]["reasons"]
-                row["cited"] = [{"artefact": c["artefact"], "field": c["field"], "value": c["value"]}
-                                for c in rep["claims"][0]["citations"]]
-            numeric = any("decimals" in c for c in l["cites"])
-            row["reasons"] += N.lint(l["text"], l["kind"], numeric, bool(l["checks"]))
-            checks = []
-            for c in l["checks"]:
-                try:
-                    ev = N.evaluate_check([c["left"], c["op"], c["right"]], facts, shots_p, l["beat"])
-                except FactoryError as e:
-                    row["reasons"].append(f"check cannot be evaluated: {e.message}")
-                    continue
-                checks.append(ev)
-                if not ev["holds"]:
-                    row["reasons"].append(f"check does not hold: {ev['left']} {ev['op']} {ev['right']} "
-                                          f"({ev['left_value']!r} vs {ev['right_value']!r})")
-            row["checks"] = checks
-            sources = sorted({a for c in l["cites"] if c["ref"].startswith("fact:")
-                              for a in facts["facts"].get(c["ref"][5:], {}).get("from", [])})
-            row["sealed_artefacts"] = {a: artefact_sha.get(a) for a in sources}
-            if l["kind"] == "shot" or any(r.startswith("shot") for r in refs):
-                s = shots["shots"].get(l["beat"]) or {}
-                row["shot"] = {"beat": l["beat"], "arm": s.get("arm"),
-                               "sim_window": [s.get("sim_start"), s.get("sim_end")],
-                               "record_frames_sha256": s.get("record_frames_sha256")}
-            if row["reasons"]:
-                row["verdict"] = "refused"
-                fail("overclaim", l["id"], f"{l['text']!r}: " + " | ".join(row["reasons"]))
-            claims.append(row)
+            try:
+                row: dict[str, Any] = {"id": l["id"], "beat": l["beat"], "kind": l["kind"],
+                                       "text": l["text"], "verdict": "supported", "reasons": []}
+                refs = [c["ref"] for c in l["cites"]]
+                for c in l["checks"]:
+                    refs += [x for x in (c["left"], c["right"]) if isinstance(x, str)]
+                pairs = [p for p in (_cite_pair(r, l["beat"], engine) for r in refs) if p is not None]
+                if l["kind"] == "say":
+                    if pairs:
+                        row["reasons"].append("a 'say' sentence may bind no evidence")
+                elif not pairs:
+                    row["reasons"].append("the sentence cites no evidence")
+                else:
+                    rep = TA.audit_claims([{"text": l["text"], "cites": [list(p) for p in pairs]}], pkg)
+                    row["reasons"] += rep["claims"][0]["reasons"]
+                    row["cited"] = [{"artefact": c["artefact"], "field": c["field"], "value": c["value"]}
+                                    for c in rep["claims"][0]["citations"]]
+                numeric = any("decimals" in c for c in l["cites"])
+                row["reasons"] += N.lint(l["text"], l["kind"], numeric, bool(l["checks"]))
+                checks = []
+                for c in l["checks"]:
+                    try:
+                        ev = N.evaluate_check([c["left"], c["op"], c["right"]], facts, shots_p, l["beat"])
+                    except FactoryError as e:
+                        row["reasons"].append(f"check cannot be evaluated: {e.message}")
+                        continue
+                    checks.append(ev)
+                    if not ev["holds"]:
+                        row["reasons"].append(f"check does not hold: {ev['left']} {ev['op']} {ev['right']} "
+                                              f"({ev['left_value']!r} vs {ev['right_value']!r})")
+                row["checks"] = checks
+                sources = sorted({a for c in l["cites"] if c["ref"].startswith("fact:")
+                                  for a in facts["facts"].get(c["ref"][5:], {}).get("from", [])})
+                row["sealed_artefacts"] = {a: artefact_sha.get(a) for a in sources}
+                if l["kind"] == "shot" or any(r.startswith("shot") for r in refs):
+                    s = shots["shots"].get(l["beat"]) or {}
+                    row["shot"] = {"beat": l["beat"], "arm": s.get("arm"),
+                                   "sim_window": [s.get("sim_start"), s.get("sim_end")],
+                                   "record_frames_sha256": s.get("record_frames_sha256")}
+                if row["reasons"]:
+                    row["verdict"] = "refused"
+                    fail("overclaim", l["id"], f"{l['text']!r}: " + " | ".join(row["reasons"]))
+                claims.append(row)
+            except FactoryError:
+                raise
+            except Exception as e:  # noqa: BLE001 - a malformed sentence record is a finding, not a crash
+                fail("unreadable", str(l.get("id", "?")) if isinstance(l, dict) else "narration line",
+                     f"the narration line cannot be audited: {e!r}")
 
     # --- voice, timeline, captions, sound --------------------------------------------
     voice = stage("voice.json", lambda: V.load_voice(pkg / "voice" / "voice.json"))
