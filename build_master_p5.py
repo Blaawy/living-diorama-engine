@@ -52,6 +52,14 @@ EPISODES = ("close_baker_avenue", "close_baker_avenue_contrarian")
 #: where each shipped package was built (the finished, verified one)
 EPISODE_SRC = {"close_baker_avenue": "cold_baker", "close_baker_avenue_contrarian": "contrarian"}
 
+PHASE1_PROOF_FILES = (
+    "grid.net.xml", "risk1_repro.tripinfo.xml", "closure_v2/baseline.tripinfo.xml",
+    "closure_v2/persistent_changes.json", "closure_v2/record_baseline/frames.bin",
+    "closure_v2/record_baseline/record_manifest.json", "closure_v2/record_ruled/frames.bin",
+    "closure_v2/record_ruled/record_manifest.json", "closure_v2/rule_manifest.json",
+    "closure_v2/rule_manifest_reopen.json", "closure_v2/ruled.tripinfo.xml",
+    "closure_v2/simulation_result.json")
+
 EV_NEVER_SHIP = {"CLAUDE_PHASE5_LOCK_REVIEW_REQUEST.txt"}
 #: Wall-clock scratch the package manifest itself excludes. Listed, not shipped.
 PACKAGE_SKIP_SUFFIXES = (".tmp",)
@@ -117,6 +125,15 @@ def stage() -> None:
     if not omitted:
         lines.append("(none)")
     (ev / "OMITTED_FROM_MASTER.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # --- the Phase 1 proof files the suite reads (earlier-phase tests look for them FIRST at
+    # <extraction>/evidence/simulation and fall back to the live workspace; shipping them makes the
+    # extraction self-contained, which the verifier enforces with an audit hook) ------------------
+    proof = YF / "PHASE_01" / "proof" / "sumo"
+    for rel in PHASE1_PROOF_FILES:
+        target = ev / "simulation" / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(proof / rel, target)
 
     # --- artifacts ---------------------------------------------------------
     art = STAGE / "artifacts"
