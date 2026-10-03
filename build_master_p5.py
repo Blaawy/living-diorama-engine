@@ -53,7 +53,7 @@ EPISODES = ("close_baker_avenue", "close_baker_avenue_contrarian")
 EPISODE_SRC = {"close_baker_avenue": "cold_baker", "close_baker_avenue_contrarian": "contrarian"}
 
 PHASE1_PROOF_FILES = (
-    "grid.net.xml", "risk1_repro.tripinfo.xml", "closure_v2/baseline.tripinfo.xml",
+    "grid.net.xml", "veh.rou.xml", "ped.rou.xml", "risk1_repro.tripinfo.xml", "closure_v2/baseline.tripinfo.xml",
     "closure_v2/persistent_changes.json", "closure_v2/record_baseline/frames.bin",
     "closure_v2/record_baseline/record_manifest.json", "closure_v2/record_ruled/frames.bin",
     "closure_v2/record_ruled/record_manifest.json", "closure_v2/rule_manifest.json",
